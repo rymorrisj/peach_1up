@@ -31,6 +31,7 @@ class UserItemBase(SQLModel):
         # An unrecognised ceiling silently uncaps the user (see
         # get_filtered_collections), so reject it wherever a UserItem is validated.
         from backend.core.dependencies import validate_max_content_rating
+
         return validate_max_content_rating(v)
 
 

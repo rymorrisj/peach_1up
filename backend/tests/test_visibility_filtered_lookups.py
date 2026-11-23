@@ -23,7 +23,9 @@ def mem_db_session():
     import backend.models  # noqa: F401, registers all table models
 
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
@@ -37,8 +39,13 @@ def viewer(mem_db_session):
     from backend.models.user import UserItem
 
     user = UserItem(
-        id=2, name="Teen", is_owner=False, max_content_rating="T",
-        can_manage_game=True, can_manage_media=True, can_manage_app=True,
+        id=2,
+        name="Teen",
+        is_owner=False,
+        max_content_rating="T",
+        can_manage_game=True,
+        can_manage_media=True,
+        can_manage_app=True,
     )
     mem_db_session.add(user)
     mem_db_session.commit()
@@ -56,7 +63,9 @@ def client(mem_db_session, tmp_path, monkeypatch, viewer):
     from backend.core.dependencies import get_active_user
 
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
     )
     app = FastAPI()
     for module in (media, entity_links, game_item_bundles, tags):
@@ -100,8 +109,9 @@ def _bundle(db, slug, rating=None):
 def _item(db, slug, bundle):
     from backend.models.media import MediaItem
 
-    item = MediaItem(title=f"Item {slug}", media_kind="image", file_path=f"/m/{slug}.png", slug=slug,
-                     media_item_bundle_id=bundle.id)
+    item = MediaItem(
+        title=f"Item {slug}", media_kind="image", file_path=f"/m/{slug}.png", slug=slug, media_item_bundle_id=bundle.id
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -153,8 +163,7 @@ class TestHiddenIdsReturnTheMissingIdResponse:
         db = mem_db_session
         hidden = _item(db, "x", _bundle(db, "m-art", rating="M"))
 
-        _same_404(client.delete(f"/api/v1/media-item/{hidden.id}"),
-                  client.delete(f"/api/v1/media-item/{_MISSING_ID}"))
+        _same_404(client.delete(f"/api/v1/media-item/{hidden.id}"), client.delete(f"/api/v1/media-item/{_MISSING_ID}"))
         assert db.get(MediaItem, hidden.id) is not None
 
     def test_delete_media_item_bundle(self, client, mem_db_session):
@@ -163,15 +172,19 @@ class TestHiddenIdsReturnTheMissingIdResponse:
         db = mem_db_session
         hidden = _bundle(db, "m-art", rating="M")
 
-        _same_404(client.delete(f"/api/v1/media-item-bundle/{hidden.id}"),
-                  client.delete(f"/api/v1/media-item-bundle/{_MISSING_ID}"))
+        _same_404(
+            client.delete(f"/api/v1/media-item-bundle/{hidden.id}"),
+            client.delete(f"/api/v1/media-item-bundle/{_MISSING_ID}"),
+        )
         assert db.get(MediaItemBundle, hidden.id) is not None
 
     def test_game_confirm_delete(self, client, mem_db_session):
         hidden = _game(mem_db_session, "m", "M")
 
-        _same_404(client.post(f"/api/v1/game-item-bundle/{hidden.id}/confirm-delete"),
-                  client.post(f"/api/v1/game-item-bundle/{_MISSING_ID}/confirm-delete"))
+        _same_404(
+            client.post(f"/api/v1/game-item-bundle/{hidden.id}/confirm-delete"),
+            client.post(f"/api/v1/game-item-bundle/{_MISSING_ID}/confirm-delete"),
+        )
 
     def test_game_delete_even_with_a_valid_token(self, client, mem_db_session):
         from backend.models.game import GameItemBundle
@@ -196,10 +209,14 @@ class TestHiddenIdsReturnTheMissingIdResponse:
         hidden_media = _bundle(db, "m-art", rating="M")
 
         for entity_type, hidden_id in (("game_item_bundle", hidden_game.id), ("media_item_bundle", hidden_media.id)):
-            hidden = client.request(method, f"/api/v1/tags/{tag.id}/assignments",
-                                    json={"entity_type": entity_type, "entity_id": hidden_id})
-            missing = client.request(method, f"/api/v1/tags/{tag.id}/assignments",
-                                     json={"entity_type": entity_type, "entity_id": _MISSING_ID})
+            hidden = client.request(
+                method, f"/api/v1/tags/{tag.id}/assignments", json={"entity_type": entity_type, "entity_id": hidden_id}
+            )
+            missing = client.request(
+                method,
+                f"/api/v1/tags/{tag.id}/assignments",
+                json={"entity_type": entity_type, "entity_id": _MISSING_ID},
+            )
             _same_404(hidden, missing)
 
     def test_tag_assignment_on_a_leaf_of_a_hidden_game(self, client, mem_db_session):
@@ -211,8 +228,9 @@ class TestHiddenIdsReturnTheMissingIdResponse:
 
         _same_404(
             client.post(f"/api/v1/tags/{tag.id}/assignments", json={"entity_type": "game_item", "entity_id": leaf.id}),
-            client.post(f"/api/v1/tags/{tag.id}/assignments",
-                        json={"entity_type": "game_item", "entity_id": _MISSING_ID}),
+            client.post(
+                f"/api/v1/tags/{tag.id}/assignments", json={"entity_type": "game_item", "entity_id": _MISSING_ID}
+            ),
         )
         assert db.query(EntityTag).count() == 0
 
@@ -221,8 +239,9 @@ class TestHiddenIdsReturnTheMissingIdResponse:
         tag = _tag(db)
         visible = _game(db, "t", "T")
 
-        resp = client.post(f"/api/v1/tags/{tag.id}/assignments",
-                           json={"entity_type": "game_item_bundle", "entity_id": visible.id})
+        resp = client.post(
+            f"/api/v1/tags/{tag.id}/assignments", json={"entity_type": "game_item_bundle", "entity_id": visible.id}
+        )
         assert resp.status_code == 204, resp.text
 
     def test_entity_link_hidden_target_on_create_and_delete(self, client, mem_db_session):
@@ -235,12 +254,16 @@ class TestHiddenIdsReturnTheMissingIdResponse:
         hidden_game = _game(db, "m", "M")
 
         def _create(target_id):
-            return client.post(f"/api/v1/entity-links/media_item/{visible.id}",
-                               json={"target_entity_type": "game_item_bundle", "target_entity_id": target_id})
+            return client.post(
+                f"/api/v1/entity-links/media_item/{visible.id}",
+                json={"target_entity_type": "game_item_bundle", "target_entity_id": target_id},
+            )
 
         def _delete(target_id):
-            return client.delete(f"/api/v1/entity-links/media_item/{visible.id}",
-                                 params={"target_entity_type": "game_item_bundle", "target_entity_id": target_id})
+            return client.delete(
+                f"/api/v1/entity-links/media_item/{visible.id}",
+                params={"target_entity_type": "game_item_bundle", "target_entity_id": target_id},
+            )
 
         _same_404(_create(hidden_game.id), _create(_MISSING_ID))
         assert db.query(MediaLink).count() == 0
@@ -257,8 +280,10 @@ class TestHiddenIdsReturnTheMissingIdResponse:
         visible_game = _game(db, "t", "T")
 
         body = {"target_entity_type": "game_item_bundle", "target_entity_id": visible_game.id}
-        _same_404(client.post(f"/api/v1/entity-links/media_item_bundle/{hidden.id}", json=body),
-                  client.post(f"/api/v1/entity-links/media_item_bundle/{_MISSING_ID}", json=body))
+        _same_404(
+            client.post(f"/api/v1/entity-links/media_item_bundle/{hidden.id}", json=body),
+            client.post(f"/api/v1/entity-links/media_item_bundle/{_MISSING_ID}", json=body),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +300,9 @@ def lib_settings(tmp_path, monkeypatch):
     import backend.service.utils.settings as settings_mod
 
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
     )
 
 

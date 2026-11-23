@@ -63,12 +63,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     # spaces, collection.launch_disk_id must be resolved against whichever
     # table entity.source_type actually points into.
     collection = entity._db_collection
-    if (
-        drive is None
-        and entity.platform in DOSBOX_PLATFORMS
-        and collection is not None
-        and collection.launch_disk_id
-    ):
+    if drive is None and entity.platform in DOSBOX_PLATFORMS and collection is not None and collection.launch_disk_id:
         if entity.source_type == "app":
             from backend.models.app import AppItem
 
@@ -94,10 +89,13 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
         img_path = Path(drive.image_path)
         if img_path.exists():
             img_path.unlink()
-        fresh_size = max(FAT16_SIZE_MIN_MB, min(
-            compute_drive_size_mb(src_dir, entity.media_type or ""),
-            FAT16_SIZE_MAX_MB,
-        ))
+        fresh_size = max(
+            FAT16_SIZE_MIN_MB,
+            min(
+                compute_drive_size_mb(src_dir, entity.media_type or ""),
+                FAT16_SIZE_MAX_MB,
+            ),
+        )
         if fresh_size != drive.size_mb:
             drive.size_mb = fresh_size
             db.add(drive)

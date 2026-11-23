@@ -18,6 +18,7 @@ import pytest
 
 def _user(id, **overrides):
     from backend.models.user import UserItem
+
     kwargs = dict(id=id, name=f"UserItem{id}")
     kwargs.update(overrides)
     return UserItem(**kwargs)
@@ -56,6 +57,7 @@ def client(mem_db_session):
 
 def _override_user(c, user):
     from backend.core.dependencies import get_active_user
+
     c.app.dependency_overrides[get_active_user] = lambda: user
 
 
@@ -128,6 +130,7 @@ class TestCreate:
         assert body["created_by"] == 7
 
         from backend.models.controller_mapping import ControllerMappingItem
+
         row = db.get(ControllerMappingItem, body["id"])
         assert row.created_by == 7
 

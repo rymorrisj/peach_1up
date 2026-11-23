@@ -66,7 +66,8 @@ class TestPredicate:
         from backend.service.utils.path_utils import is_untrusted_remote_path
 
         monkeypatch.setattr(
-            settings_mod, "get",
+            settings_mod,
+            "get",
             lambda key, default=None: "\\\\nas\\share\\library" if key == "LIBRARY_PATH" else default,
         )
         assert is_untrusted_remote_path("\\\\nas\\share\\library\\games\\cover.png") is False
@@ -118,13 +119,14 @@ class TestReadModelsDoNoDiskAccess:
         from backend.models.game import GameItemRead
 
         monkeypatch.setattr(
-            settings_mod, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+            settings_mod,
+            "get",
+            lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
         )
         cover = tmp_path / "games" / "cover.png"
         cover.parent.mkdir()
         cover.write_bytes(b"\x89PNG\r\n\x1a\n")
 
-        read = GameItemRead(id=1, game_item_bundle_id=1, disc_number=1, file_path="/x.bin",
-                            cover_art_path=str(cover))
+        read = GameItemRead(id=1, game_item_bundle_id=1, disc_number=1, file_path="/x.bin", cover_art_path=str(cover))
 
         assert read.cover_art_url == "/media/games/cover.png"

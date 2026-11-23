@@ -6,7 +6,12 @@ from sqlalchemy import select as _select
 from sqlalchemy.orm import Session
 
 from backend.models.app import (
-    AppItemBundle, AppItemBundleCreate, AppItemBundleUpdate, AppItem, AppItemUpdate, derive_is_pc,
+    AppItemBundle,
+    AppItemBundleCreate,
+    AppItemBundleUpdate,
+    AppItem,
+    AppItemUpdate,
+    derive_is_pc,
 )
 from backend.models.environment import EnvironmentItem
 from backend.service.utils.confirmation_tokens import consume as _consume
@@ -123,9 +128,7 @@ def update_app_item_bundle(collection_id: int, body: AppItemBundleUpdate, db: Se
     for disk_field in ("display_disk_id", "launch_disk_id"):
         if fields.get(disk_field) is not None:
             leaf_ids = set(
-                db.execute(
-                    _select(AppItem.id).where(AppItem.app_item_bundle_id == collection_id)
-                ).scalars().all()
+                db.execute(_select(AppItem.id).where(AppItem.app_item_bundle_id == collection_id)).scalars().all()
             )
             if fields[disk_field] not in leaf_ids:
                 raise HTTPException(status_code=422, detail="Item does not belong to this collection.")
@@ -133,14 +136,12 @@ def update_app_item_bundle(collection_id: int, body: AppItemBundleUpdate, db: Se
     if new_platform is not None and new_platform != collection.platform:
         from backend.service.utils.platform_defaults import rebind_for_platform_change
 
-        rebind_for_platform_change(
-            collection.profile_item_id, collection.environment_item_id, fields, new_platform, db
-        )
+        rebind_for_platform_change(collection.profile_item_id, collection.environment_item_id, fields, new_platform, db)
     for key, value in fields.items():
         setattr(collection, key, value)
     if "platform" in fields:
         # setattr bypasses AppItemBundle._validate_is_pc (no validate_assignment)
-        #, re-derive explicitly whenever platform changes, mirrors
+        # , re-derive explicitly whenever platform changes, mirrors
         # update_library_collection's identical re-derivation for GameItemBundle.
         collection.is_pc = derive_is_pc(collection.platform)
     _enforce_environment_binding(collection)
@@ -178,6 +179,7 @@ def _should_delete_media(collection: AppItemBundle) -> bool:
     if collection.delete_media_override is not None:
         return collection.delete_media_override
     from backend.core.settings import get_settings
+
     return bool(get_settings().get("delete_media_on_removal", False))
 
 
@@ -217,7 +219,9 @@ def _delete_leaf_media_folders(collection: AppItemBundle) -> None:
                 log.error(
                     "Refusing to delete media folder '%s' for app item %s: "
                     "it does not resolve under SOFTWARE_PATH ('%s').",
-                    folder, leaf.id, media_root,
+                    folder,
+                    leaf.id,
+                    media_root,
                 )
                 continue
             try:
@@ -235,7 +239,9 @@ def _delete_leaf_media_folders(collection: AppItemBundle) -> None:
                 log.error(
                     "Refusing to delete media file '%s' for app item %s: "
                     "it does not resolve under SOFTWARE_PATH ('%s').",
-                    file_path, leaf.id, media_root,
+                    file_path,
+                    leaf.id,
+                    media_root,
                 )
                 continue
             try:
@@ -247,7 +253,11 @@ def _delete_leaf_media_folders(collection: AppItemBundle) -> None:
 
 
 def delete_app_item_bundle(
-    collection_id: int, token: str, db: Session, *, delete_media: bool | None = None,
+    collection_id: int,
+    token: str,
+    db: Session,
+    *,
+    delete_media: bool | None = None,
 ) -> None:
     """Delete one app collection after consuming its confirmation token.
 
@@ -266,6 +276,7 @@ def delete_app_item_bundle(
     # library/items.py::delete_library_collection. No-op for collections
     # without a drive (the common case for non-DOS Apps).
     from backend.service.utils.drive_utils import delete_drive_for_collection
+
     delete_drive_for_collection(collection, db)
 
     if delete_media if delete_media is not None else _should_delete_media(collection):
@@ -276,6 +287,7 @@ def delete_app_item_bundle(
     # ON DELETE CASCADE for it, unlike the leaf rows below. Clean it up
     # explicitly, mirrors library/items.py::delete_library_collection.
     from backend.models.media import delete_links_for
+
     delete_links_for("app_item_bundle", collection_id, db)
 
     db.delete(collection)  # ON DELETE CASCADE removes the leaf rows

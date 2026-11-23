@@ -317,20 +317,18 @@ def _leaf_to_read(leaf: AppItem) -> Optional[AppItemRead]:
         leaf_id = getattr(leaf, "id", None)
         log.warning(
             "App item %s failed read validation (%s); serving with file_type nulled.",
-            leaf_id, exc,
+            leaf_id,
+            exc,
         )
         try:
-            payload = {
-                name: getattr(leaf, name, None)
-                for name in AppItemRead.model_fields
-                if name != "cover_art_url"
-            }
+            payload = {name: getattr(leaf, name, None) for name in AppItemRead.model_fields if name != "cover_art_url"}
             payload["file_type"] = None
             return AppItemRead.model_validate(payload)
         except ValidationError as exc2:
             log.warning(
                 "App item %s is unreadable even after degrading file_type; dropping it: %s",
-                leaf_id, exc2,
+                leaf_id,
+                exc2,
             )
             return None
 
@@ -354,10 +352,7 @@ def app_item_bundle_to_read(c: "AppItemBundle", db: "Session", *, viewer: "UserI
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("app_item_bundle", c.id, db)
     read.linked_items = _linked_items_for("app_item_bundle", c.id, db, viewer=viewer)
-    environment = (
-        resolve_environment_for_launch_gate(c.environment_item_id, db)
-        if c.is_pc else None
-    )
+    environment = resolve_environment_for_launch_gate(c.environment_item_id, db) if c.is_pc else None
     read.launch_blocked_reason = evaluate_launch_readiness(
         call_site="item",
         is_pc=c.is_pc,
@@ -374,17 +369,24 @@ def app_item_bundles_to_read_bulk(
     from sqlalchemy import select as _select
 
     from backend.models.media import _linked_items_for_many
-    from backend.service.utils.platform_defaults import evaluate_launch_readiness, resolve_environments_for_launch_gate_bulk
+    from backend.service.utils.platform_defaults import (
+        evaluate_launch_readiness,
+        resolve_environments_for_launch_gate_bulk,
+    )
 
     if not bundles:
         return []
 
     bundle_ids = [c.id for c in bundles]
-    leaves = db.execute(
-        _select(AppItem)
-        .where(AppItem.app_item_bundle_id.in_(bundle_ids))
-        .order_by(AppItem.app_item_bundle_id, AppItem.id)
-    ).scalars().all()
+    leaves = (
+        db.execute(
+            _select(AppItem)
+            .where(AppItem.app_item_bundle_id.in_(bundle_ids))
+            .order_by(AppItem.app_item_bundle_id, AppItem.id)
+        )
+        .scalars()
+        .all()
+    )
 
     leaves_by_bundle: dict[int, list[AppItemRead]] = {}
     for leaf in leaves:

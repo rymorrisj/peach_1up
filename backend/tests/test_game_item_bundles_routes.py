@@ -146,6 +146,7 @@ class TestImportFromPath:
         source_dir.mkdir()
 
         import backend.core.settings as settings_mod
+
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
@@ -163,6 +164,7 @@ class TestImportFromPath:
         # instead of this test's isolated in-memory one, same hazard fixed in
         # test_upload.py's client fixture.
         import backend.core.database as database_mod
+
         monkeypatch.setattr(database_mod, "get_engine", mem_db_session.get_bind)
 
         app = FastAPI()
@@ -230,6 +232,7 @@ class TestScanImport:
         # (folder_owned=False) rather than moving/renaming it, keeping this
         # fixture free of the folder-ingest machinery this test isn't about.
         import backend.core.settings as settings_mod
+
         monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings({}))
 
         app = FastAPI()
@@ -428,7 +431,8 @@ class TestBundlePatchRatingGuard:
         _set_active_user(app, _make_user(db, is_owner=True))
 
         resp = c.patch(
-            f"/api/v1/game-item-bundle/{collection.id}", json={"content_rating": "M - Mature 17+"},
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"content_rating": "M - Mature 17+"},
         )
 
         assert resp.status_code == 200, resp.text
@@ -493,8 +497,11 @@ class TestBundlePatchPlatform:
         from backend.models.profile import ProfileItem
 
         profile = ProfileItem(
-            name=slug or f"{platform} profile", slug=slug or f"{platform}-profile", emulator_slug=emulator_slug,
-            platform=platform, is_bundled=bundled,
+            name=slug or f"{platform} profile",
+            slug=slug or f"{platform}-profile",
+            emulator_slug=emulator_slug,
+            platform=platform,
+            is_bundled=bundled,
         )
         db.add(profile)
         db.commit()
@@ -505,7 +512,10 @@ class TestBundlePatchPlatform:
         from backend.models.environment import EnvironmentItem
 
         environment = EnvironmentItem(
-            name=f"{platform} env", slug=f"{platform}-env", platform=platform, emulator_slug=emulator_slug,
+            name=f"{platform} env",
+            slug=f"{platform}-env",
+            platform=platform,
+            emulator_slug=emulator_slug,
         )
         db.add(environment)
         db.commit()
@@ -520,8 +530,12 @@ class TestBundlePatchPlatform:
 
     def _two_disc_ps1_bundle(self, db, ps1_profile):
         collection = _make_collection(db, platform="ps1", slug="ico", title="Ico", profile_item_id=ps1_profile.id)
-        _make_item(db, collection.id, disc_number=1, file_path="/library/games/ps1/ico/d1.chd", detection_reason="CHD header")
-        _make_item(db, collection.id, disc_number=2, file_path="/library/games/ps1/ico/d2.chd", detection_reason="CHD header")
+        _make_item(
+            db, collection.id, disc_number=1, file_path="/library/games/ps1/ico/d1.chd", detection_reason="CHD header"
+        )
+        _make_item(
+            db, collection.id, disc_number=2, file_path="/library/games/ps1/ico/d2.chd", detection_reason="CHD header"
+        )
         return collection
 
     def test_platform_change_refills_profile_and_marks_every_leaf(self, http_client):
@@ -555,7 +569,10 @@ class TestBundlePatchPlatform:
         win98 = self._profile(db, "win98", "86box")
         environment = self._environment(db, "win95", "86box")
         collection = _make_collection(
-            db, platform="dos", slug="doom2", environment_item_id=environment.id,
+            db,
+            platform="dos",
+            slug="doom2",
+            environment_item_id=environment.id,
         )
         _make_item(db, collection.id)
         _set_active_user(app, self._editor(db))
@@ -589,7 +606,11 @@ class TestBundlePatchPlatform:
         ps1 = self._profile(db, "ps1", "duckstation")
         environment = self._environment(db, "dos", "dosbox-x")
         collection = _make_collection(
-            db, platform="dos", slug="doom2", profile_item_id=dos.id, environment_item_id=environment.id,
+            db,
+            platform="dos",
+            slug="doom2",
+            profile_item_id=dos.id,
+            environment_item_id=environment.id,
         )
         _make_item(db, collection.id)
         _set_active_user(app, self._editor(db))
@@ -624,7 +645,11 @@ class TestBundlePatchPlatform:
         dos = self._profile(db, "dos", "dosbox-x")
         dos_env = self._environment(db, "dos", "dosbox-x")
         collection = _make_collection(
-            db, platform="dos", slug="doom2", profile_item_id=dos.id, environment_item_id=dos_env.id,
+            db,
+            platform="dos",
+            slug="doom2",
+            profile_item_id=dos.id,
+            environment_item_id=dos_env.id,
         )
         _make_item(db, collection.id)
         _set_active_user(app, self._editor(db))
@@ -719,7 +744,8 @@ class TestBundlePatchPlatformConfirmed:
         _set_active_user(app, self._editor(db))
 
         resp = c.patch(
-            f"/api/v1/game-item-bundle/{collection.id}", json={"platform": "ps1", "title": "Ico (renamed)"},
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"platform": "ps1", "title": "Ico (renamed)"},
         )
 
         assert resp.status_code == 200, resp.text
@@ -808,7 +834,8 @@ class TestBundlePatchPlatformConfirmed:
         _set_active_user(app, self._editor(db))
 
         resp = c.patch(
-            f"/api/v1/game-item-bundle/{collection.id}", json={"platform": "unknown", "platform_confirmed": True},
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"platform": "unknown", "platform_confirmed": True},
         )
 
         assert resp.status_code == 422, resp.text
@@ -821,7 +848,8 @@ class TestBundlePatchPlatformConfirmed:
         _set_active_user(app, self._editor(db))
 
         resp = c.patch(
-            f"/api/v1/game-item-bundle/{collection.id}", json={"platform": "ps2", "platform_confirmed": True},
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"platform": "ps2", "platform_confirmed": True},
         )
 
         assert resp.status_code == 200, resp.text

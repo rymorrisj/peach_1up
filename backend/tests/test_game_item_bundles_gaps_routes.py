@@ -356,6 +356,7 @@ class TestTriggerScanJobTiming:
                 return str(software_path) if key == "SOFTWARE_PATH" else default
 
         import backend.core.settings as settings_mod
+
         monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
         monkeypatch.setattr(game_item_bundles, "_enforce_rate_limit", lambda *a, **kw: None)
 

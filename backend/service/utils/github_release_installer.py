@@ -42,13 +42,8 @@ _BASE_DIR = get_base_path() / "emulators"
 _SEVENZ_EXE = get_base_path() / "services" / "vendor" / "7z" / "7za.exe"
 _BUNDLES_OWNER = "rymorrisj"
 _BUNDLES_REPO = "peach_1up_emulator_bundles_win"
-_MANIFEST_URL = (
-    f"https://raw.githubusercontent.com/{_BUNDLES_OWNER}/{_BUNDLES_REPO}"
-    "/main/manifest.json"
-)
-_RELEASE_DOWNLOAD_ROOT = (
-    f"https://github.com/{_BUNDLES_OWNER}/{_BUNDLES_REPO}/releases/download"
-)
+_MANIFEST_URL = f"https://raw.githubusercontent.com/{_BUNDLES_OWNER}/{_BUNDLES_REPO}/main/manifest.json"
+_RELEASE_DOWNLOAD_ROOT = f"https://github.com/{_BUNDLES_OWNER}/{_BUNDLES_REPO}/releases/download"
 _MANIFEST_TIMEOUT = 30.0
 _DOWNLOAD_TIMEOUT = 300.0
 _DOWNLOAD_CHUNK = 1024 * 1024  # 1 MiB
@@ -90,10 +85,7 @@ def _fetch_manifest() -> dict:
     with httpx2.Client(timeout=_MANIFEST_TIMEOUT, follow_redirects=True) as client:
         resp = client.get(_MANIFEST_URL, headers=_HTTP_HEADERS)
     if resp.status_code != 200:
-        raise RuntimeError(
-            f"Manifest fetch returned {resp.status_code} for {_MANIFEST_URL}: "
-            f"{resp.text[:300]}"
-        )
+        raise RuntimeError(f"Manifest fetch returned {resp.status_code} for {_MANIFEST_URL}: {resp.text[:300]}")
     try:
         return resp.json()
     except ValueError as exc:
@@ -116,9 +108,7 @@ def _manifest_entry(manifest: dict, slug: str) -> dict:
         raise RuntimeError(f"No manifest entry for '{slug}' at {_MANIFEST_URL}.")
     missing = [f for f in _MANIFEST_REQUIRED_FIELDS if not entry.get(f)]
     if missing:
-        raise RuntimeError(
-            f"Manifest entry for '{slug}' is missing required field(s): {missing}."
-        )
+        raise RuntimeError(f"Manifest entry for '{slug}' is missing required field(s): {missing}.")
     return {**entry, "version": entry.get("version") or _DEFAULT_VERSION}
 
 
@@ -131,10 +121,7 @@ def _download_asset(download_url: str, dest: Path) -> None:
     with httpx2.Client(timeout=_DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
         with client.stream("GET", download_url, headers=_HTTP_HEADERS) as resp:
             if resp.status_code != 200:
-                raise RuntimeError(
-                    f"Asset download failed with HTTP {resp.status_code} for "
-                    f"{download_url}."
-                )
+                raise RuntimeError(f"Asset download failed with HTTP {resp.status_code} for {download_url}.")
             with open(dest, "wb") as fh:
                 for chunk in resp.iter_bytes(_DOWNLOAD_CHUNK):
                     fh.write(chunk)
@@ -156,8 +143,7 @@ def _verify_digest(expected_sha256: str, computed_sha256: str, asset_name: str) 
     """
     if expected_sha256.lower() != computed_sha256.lower():
         raise RuntimeError(
-            f"SHA256 mismatch for asset {asset_name!r}: "
-            f"expected {expected_sha256}, computed {computed_sha256}."
+            f"SHA256 mismatch for asset {asset_name!r}: expected {expected_sha256}, computed {computed_sha256}."
         )
 
 
@@ -179,17 +165,12 @@ def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
         for member in zf.infolist():
             name = member.filename
             if ".git" in Path(name).parts:
-                raise RuntimeError(
-                    f"Refusing to extract {name!r}: contains a '.git' path "
-                    "component."
-                )
+                raise RuntimeError(f"Refusing to extract {name!r}: contains a '.git' path component.")
             target = (dest_root / name).resolve()
             try:
                 target.relative_to(dest_root)
             except ValueError:
-                raise RuntimeError(
-                    f"Zip-slip detected: {name!r} escapes {dest_root}."
-                )
+                raise RuntimeError(f"Zip-slip detected: {name!r} escapes {dest_root}.")
             if member.is_dir():
                 target.mkdir(parents=True, exist_ok=True)
                 continue
@@ -273,10 +254,7 @@ def _safe_extract_7z(archive_path: Path, dest_dir: Path) -> None:
         # the archives it lists are always Windows-built.
         name = entry["Path"].replace("\\", "/")
         if ".git" in Path(name).parts:
-            raise RuntimeError(
-                f"Refusing to extract {name!r}: contains a '.git' path "
-                "component."
-            )
+            raise RuntimeError(f"Refusing to extract {name!r}: contains a '.git' path component.")
         target = (dest_root / name).resolve()
         try:
             target.relative_to(dest_root)
@@ -353,10 +331,7 @@ def install_from_github_release(slug: str) -> dict:
         elif suffix == ".7z":
             _safe_extract_7z(tmp_asset, target_dir)
         else:
-            raise RuntimeError(
-                f"Unsupported archive format {suffix!r} for asset "
-                f"{asset_name!r}."
-            )
+            raise RuntimeError(f"Unsupported archive format {suffix!r} for asset {asset_name!r}.")
     finally:
         # Clean up temp files on success or failure.
         shutil.rmtree(tmp_dir, ignore_errors=True)

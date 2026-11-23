@@ -20,16 +20,16 @@ if TYPE_CHECKING:
 # emulators) all point to the same module; dispatch uses spec.slug to
 # select the right ConsoleBackend inside that module.
 _BACKEND_MODULES: dict[str, str] = {
-    BackendSlug.DOSBOX_X.value:    "backend.service.backends.dosbox",
-    BackendSlug.BOX86.value:       "backend.service.backends.box86",
-    BackendSlug.XEMU.value:        "backend.service.backends.xemu",
-    BackendSlug.RPCS3.value:       "backend.service.backends.rpcs3",
-    BackendSlug.FLYCAST.value:     "backend.service.backends.flycast",
+    BackendSlug.DOSBOX_X.value: "backend.service.backends.dosbox",
+    BackendSlug.BOX86.value: "backend.service.backends.box86",
+    BackendSlug.XEMU.value: "backend.service.backends.xemu",
+    BackendSlug.RPCS3.value: "backend.service.backends.rpcs3",
+    BackendSlug.FLYCAST.value: "backend.service.backends.flycast",
     BackendSlug.DUCKSTATION.value: "backend.service.backends.console",
-    BackendSlug.PCSX2.value:       "backend.service.backends.console",
-    BackendSlug.MESEN.value:       "backend.service.backends.console",
-    BackendSlug.PROJECT64.value:   "backend.service.backends.console",
-    BackendSlug.XENIA.value:       "backend.service.backends.xenia",
+    BackendSlug.PCSX2.value: "backend.service.backends.console",
+    BackendSlug.MESEN.value: "backend.service.backends.console",
+    BackendSlug.PROJECT64.value: "backend.service.backends.console",
+    BackendSlug.XENIA.value: "backend.service.backends.xenia",
 }
 
 
@@ -48,6 +48,7 @@ def resolve_backend_name(platform: Platform) -> str:
         ValueError: If the platform has no resolvable backend.
     """
     from backend.service.utils.emulator_catalog import get_backend_for_platform as _get_backend_for_platform
+
     return _get_backend_for_platform(platform.value)
 
 
@@ -68,16 +69,11 @@ def dispatch(spec: "LaunchSpec") -> tuple:
     """
     module_path = _BACKEND_MODULES.get(spec.slug)
     if module_path is None:
-        raise ValueError(
-            f"Unknown backend slug: {spec.slug!r}. "
-            f"Valid slugs: {', '.join(sorted(_BACKEND_MODULES))}"
-        )
+        raise ValueError(f"Unknown backend slug: {spec.slug!r}. Valid slugs: {', '.join(sorted(_BACKEND_MODULES))}")
     try:
         module = importlib.import_module(module_path)
     except ImportError as exc:
-        raise ImportError(
-            f"Backend module '{module_path}' could not be imported: {exc}"
-        ) from exc
+        raise ImportError(f"Backend module '{module_path}' could not be imported: {exc}") from exc
     return module.launch(spec)
 
 
@@ -96,6 +92,7 @@ def get_executable_path(platform: Platform, backend_name: str | None = None) -> 
         RuntimeError: If the platform cannot be resolved or has no catalog entry.
     """
     from backend.service.utils.emulator_catalog import get_install_path
+
     if backend_name is None:
         backend_name = resolve_backend_name(platform)
     catalog_slug = backend_name

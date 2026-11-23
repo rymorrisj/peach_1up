@@ -29,7 +29,9 @@ _pending: dict[int, tuple[object, float, str | None]] = {}
 _lock = threading.Lock()
 
 
-def register_short_lived_check(collection_id: int, proc: object, launch_time: float, platform: str | None = None) -> None:
+def register_short_lived_check(
+    collection_id: int, proc: object, launch_time: float, platform: str | None = None
+) -> None:
     """Register a newly-launched software process for short-lived exit detection."""
     with _lock:
         _pending[collection_id] = (proc, launch_time, platform)

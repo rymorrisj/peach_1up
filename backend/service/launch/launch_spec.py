@@ -59,8 +59,8 @@ class LaunchSpec:
     # only when media_path is None, see dosbox.write_environment_conf()).
     # For a library-item DOS launch, dosbox instead mounts the
     # per-item drive_image_path as C:, and working_image_path is unset/inert.
-    vm_dir: Path | None = None          # resolved from environment.config_path parent
-    config_path: Path | None = None     # resolved from environment.config_path
+    vm_dir: Path | None = None  # resolved from environment.config_path parent
+    config_path: Path | None = None  # resolved from environment.config_path
     working_image_path: Path | None = None
     base_image_path: Path | None = None
     hardware_profile: str = "standard"

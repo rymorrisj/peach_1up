@@ -14,7 +14,11 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import BaseModel
 
 from backend.service.media.file_cleanup import (
-    clear_cover_references, matching_row_ids, path_keys, removable_media_files, remove_files,
+    clear_cover_references,
+    matching_row_ids,
+    path_keys,
+    removable_media_files,
+    remove_files,
 )
 
 if TYPE_CHECKING:
@@ -25,6 +29,7 @@ if TYPE_CHECKING:
 
 class MediaDeletePreview(BaseModel):
     """What a delete with files removed would do, for the confirm dialog."""
+
     file_count: int
     removable_file_count: int
     game_cover_count: int
@@ -36,6 +41,7 @@ def should_delete_media(delete_media: Optional[bool]) -> bool:
     if delete_media is not None:
         return delete_media
     from backend.core.settings import get_settings
+
     return bool(get_settings().get("delete_media_on_removal", False))
 
 
@@ -44,7 +50,10 @@ def _scope(item: Optional["MediaItem"], bundle: Optional["MediaItemBundle"]) -> 
 
 
 def delete_preview(
-    db: "Session", *, item: Optional["MediaItem"] = None, bundle: Optional["MediaItemBundle"] = None,
+    db: "Session",
+    *,
+    item: Optional["MediaItem"] = None,
+    bundle: Optional["MediaItemBundle"] = None,
 ) -> MediaDeletePreview:
     from backend.models.app import AppItem
     from backend.models.game import GameItem

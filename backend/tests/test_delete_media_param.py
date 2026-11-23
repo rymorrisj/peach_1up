@@ -15,7 +15,9 @@ def mem_db_session():
     import backend.models  # noqa: F401, registers all table models
 
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
@@ -49,7 +51,9 @@ def client(mem_db_session, tmp_path, monkeypatch, media_deletes):
     from backend.models.user import UserItem
 
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
     )
     app = FastAPI()
     app.include_router(game_item_bundles.router)
@@ -63,8 +67,9 @@ def client(mem_db_session, tmp_path, monkeypatch, media_deletes):
 def _game(db, rating=None, override=None):
     from backend.models.game import GameItemBundle
 
-    game = GameItemBundle(title="Doom", platform="dos", slug="doom", content_rating=rating,
-                          delete_media_override=override)
+    game = GameItemBundle(
+        title="Doom", platform="dos", slug="doom", content_rating=rating, delete_media_override=override
+    )
     db.add(game)
     db.commit()
     db.refresh(game)
@@ -136,11 +141,15 @@ class TestGameDelete:
 
 
 class TestAppDelete:
-    @pytest.mark.parametrize("param,override,expected", [
-        ("true", False, True), ("false", True, False), (None, True, True),
-    ])
-    def test_param_applies_to_this_delete_only(self, client, mem_db_session, media_deletes, param, override,
-                                               expected):
+    @pytest.mark.parametrize(
+        "param,override,expected",
+        [
+            ("true", False, True),
+            ("false", True, False),
+            (None, True, True),
+        ],
+    )
+    def test_param_applies_to_this_delete_only(self, client, mem_db_session, media_deletes, param, override, expected):
         app = _app(mem_db_session, override=override)
         base = f"/api/v1/app-item-bundle/{app.id}"
         params = {"confirmation_token": _token(client, base)}

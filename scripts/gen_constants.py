@@ -90,9 +90,7 @@ def load_platforms(data: dict) -> dict[str, dict]:
     missing = sorted(set(expected) - set(blocks))
     extra = sorted(set(blocks) - set(expected))
     if missing or extra:
-        raise RuntimeError(
-            f"platforms.yaml and constants.yaml platforms disagree: missing={missing} extra={extra}"
-        )
+        raise RuntimeError(f"platforms.yaml and constants.yaml platforms disagree: missing={missing} extra={extra}")
     for platform_id, block in blocks.items():
         if block.get("kind") not in kinds:
             raise RuntimeError(f"platforms.yaml: '{platform_id}' kind must be one of {sorted(kinds)}")
@@ -159,9 +157,7 @@ def generate_python(data: dict, catalog_slugs: list[str], platform_blocks: dict[
     # CONTENT_RATINGS
     lines.append("CONTENT_RATINGS: list[dict[str, str]] = [\n")
     for r in ratings:
-        lines.append(
-            f'    {{"value": "{r["value"]}", "label": "{r["label"]}", "scheme": "{r["scheme"]}"}},\n'
-        )
+        lines.append(f'    {{"value": "{r["value"]}", "label": "{r["label"]}", "scheme": "{r["scheme"]}"}},\n')
     lines.append("]\n\n")
 
     # DGVOODOO2_SUPPORTED_PLATFORMS
@@ -257,14 +253,14 @@ def generate_typescript(data: dict, catalog_slugs: list[str], platform_blocks: d
     for slug, label in backends.items():
         # '86box' is not a valid bare identifier, quote it
         key = f'"{slug}"' if not slug.isidentifier() else slug
-        lines.append(f"  {key}: \"{label}\",\n")
+        lines.append(f'  {key}: "{label}",\n')
     lines.append("}\n\n")
 
     # BACKEND_SYSTEM_LABELS
     lines.append("export const BACKEND_SYSTEM_LABELS: Record<string, string> = {\n")
     for slug, label in system_labels.items():
         key = f'"{slug}"' if not slug.isidentifier() else slug
-        lines.append(f"  {key}: \"{label}\",\n")
+        lines.append(f'  {key}: "{label}",\n')
     lines.append("}\n\n")
 
     # BACKEND_SLUGS
@@ -276,15 +272,11 @@ def generate_typescript(data: dict, catalog_slugs: list[str], platform_blocks: d
     lines.append("\n")
 
     # RATING_OPTIONS, includes a leading empty option for form use
-    lines.append(
-        "export const RATING_OPTIONS: { value: string; label: string; scheme?: string }[] = [\n"
-    )
-    lines.append('  { value: \'\', label: \'— No rating —\' },\n')
+    lines.append("export const RATING_OPTIONS: { value: string; label: string; scheme?: string }[] = [\n")
+    lines.append("  { value: '', label: '— No rating —' },\n")
     for r in ratings:
         label = r["label"].replace("'", "\\'")
-        lines.append(
-            f"  {{ value: '{r['value']}', label: '{label}', scheme: '{r['scheme']}' }},\n"
-        )
+        lines.append(f"  {{ value: '{r['value']}', label: '{label}', scheme: '{r['scheme']}' }},\n")
     lines.append("]\n\n")
 
     # DGVOODOO2_SUPPORTED_PLATFORMS

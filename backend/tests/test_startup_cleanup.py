@@ -59,9 +59,11 @@ class _BrokenDB:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestCleanupStaleSessions:
     def test_stale_session_gets_ended_at_set(self):
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         row = _FakeLaunchHistory(session_id=1, ended_at=None)
         db = _FakeDB(stale_rows=[row])
         _cleanup_stale_sessions(db)
@@ -69,6 +71,7 @@ class TestCleanupStaleSessions:
 
     def test_stale_session_exit_code_set_to_minus_one(self):
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         row = _FakeLaunchHistory(session_id=2, ended_at=None)
         db = _FakeDB(stale_rows=[row])
         _cleanup_stale_sessions(db)
@@ -76,6 +79,7 @@ class TestCleanupStaleSessions:
 
     def test_multiple_stale_sessions_all_closed(self):
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         rows = [_FakeLaunchHistory(session_id=i, ended_at=None) for i in range(5)]
         db = _FakeDB(stale_rows=rows)
         _cleanup_stale_sessions(db)
@@ -85,6 +89,7 @@ class TestCleanupStaleSessions:
 
     def test_already_closed_session_is_not_modified(self):
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         closed_at = datetime(2026, 1, 1, 12, 0, 0)
         row = _FakeLaunchHistory(session_id=10, ended_at=closed_at)
         row.exit_code = 0
@@ -95,6 +100,7 @@ class TestCleanupStaleSessions:
 
     def test_mix_of_open_and_closed_sessions(self):
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         open_row = _FakeLaunchHistory(session_id=1, ended_at=None)
         closed_row = _FakeLaunchHistory(session_id=2, ended_at=datetime(2026, 3, 1))
         closed_row.exit_code = 0
@@ -107,12 +113,14 @@ class TestCleanupStaleSessions:
 
     def test_flush_called_even_with_no_stale_sessions(self):
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         db = _FakeDB(stale_rows=[])
         _cleanup_stale_sessions(db)
         assert db.flushed is True
 
     def test_flush_called_after_updating_stale_sessions(self):
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         row = _FakeLaunchHistory(session_id=1, ended_at=None)
         db = _FakeDB(stale_rows=[row])
         _cleanup_stale_sessions(db)
@@ -121,6 +129,7 @@ class TestCleanupStaleSessions:
     def test_db_error_does_not_propagate(self):
         """DB failures are caught and logged, startup must not abort."""
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         _cleanup_stale_sessions(_BrokenDB())  # must not raise
 
     def test_db_error_triggers_rollback(self):
@@ -129,6 +138,7 @@ class TestCleanupStaleSessions:
         class RollbackTrackingDB:
             def query(self, _model):
                 raise RuntimeError("deliberate error")
+
             def rollback(self):
                 self.rolled_back = True
 
@@ -138,6 +148,7 @@ class TestCleanupStaleSessions:
 
     def test_ended_at_is_a_datetime(self):
         from backend.core.startup_tasks import _cleanup_stale_sessions
+
         row = _FakeLaunchHistory(session_id=1, ended_at=None)
         db = _FakeDB(stale_rows=[row])
         _cleanup_stale_sessions(db)

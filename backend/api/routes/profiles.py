@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_entity_query, reject_old_era_query_param, require_permission,
+    get_active_user,
+    get_filtered_entity_query,
+    reject_old_era_query_param,
+    require_permission,
 )
 from backend.models.launch_history import LaunchHistory
 from backend.models.game import GameItemBundle, GameItemBundleRead, game_item_bundles_to_read_bulk
@@ -24,10 +27,14 @@ def _visible_games(viewer: UserItem, db: Session):
 
 def _with_stats(profile: ProfileItem, db: Session, viewer: UserItem) -> ProfileItemRead:
     item_count = _visible_games(viewer, db).filter(GameItemBundle.profile_item_id == profile.id).count()
-    total_launches, last_launched_at = db.query(
-        func.count(LaunchHistory.id),
-        func.max(LaunchHistory.started_at),
-    ).filter(LaunchHistory.profile_item_id == profile.id).one()
+    total_launches, last_launched_at = (
+        db.query(
+            func.count(LaunchHistory.id),
+            func.max(LaunchHistory.started_at),
+        )
+        .filter(LaunchHistory.profile_item_id == profile.id)
+        .one()
+    )
     read = ProfileItemRead.model_validate(profile)
     read.item_count = item_count or 0
     read.total_launches = int(total_launches or 0)
@@ -87,7 +94,9 @@ def list_profiles(
 
 
 @router.post("", response_model=ProfileItemRead, status_code=201)
-def create_profile(body: ProfileItemCreate, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_game")):
+def create_profile(
+    body: ProfileItemCreate, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_game")
+):
     existing = db.query(ProfileItem).filter(ProfileItem.slug == body.slug).first()
     if existing:
         raise HTTPException(status_code=409, detail="Profile slug already exists.")
@@ -121,7 +130,9 @@ def get_profile_items(
     q = _visible_games(active_user, db).filter(GameItemBundle.profile_item_id == profile.id)
     total = q.count()
     rows = q.order_by(GameItemBundle.id).offset(offset).limit(limit).all()
-    return Page(items=game_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
+    return Page(
+        items=game_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset
+    )
 
 
 @router.patch("/{slug}", response_model=ProfileItemRead)
@@ -137,10 +148,12 @@ def update_profile(
     updates = body.model_dump(exclude_unset=True)
     for key, value in updates.items():
         setattr(profile, key, value)
-    if 'name' in updates:
+    if "name" in updates:
         profile.slug = unique_slug(
             profile.name,
-            lambda s: db.query(ProfileItem).filter(ProfileItem.slug == s, ProfileItem.id != profile.id).first() is not None,
+            lambda s: (
+                db.query(ProfileItem).filter(ProfileItem.slug == s, ProfileItem.id != profile.id).first() is not None
+            ),
             fallback="profile",
         )
     db.commit()

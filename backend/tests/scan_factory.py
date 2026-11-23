@@ -19,8 +19,14 @@ def make_scan(
     """Build a real ScanResult. ScanResult itself rejects contradictory
     combinations (for example authoritative=True with era=None)."""
     return ScanResult(
-        title=None, platform=None, era=platform, confidence=confidence, reason=reason,
-        requires_install=requires_install, method=method, authoritative=authoritative,
+        title=None,
+        platform=None,
+        era=platform,
+        confidence=confidence,
+        reason=reason,
+        requires_install=requires_install,
+        method=method,
+        authoritative=authoritative,
     )
 
 

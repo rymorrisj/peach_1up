@@ -25,6 +25,7 @@ def _apply_cors_headers(response: Response, request: Request) -> None:
         response.headers.setdefault("access-control-allow-credentials", "true")
         response.headers.setdefault("vary", "Origin")
 
+
 class SecurityMiddleware(BaseHTTPMiddleware):
     """Enforce localhost binding and inject request correlation IDs."""
 
@@ -35,6 +36,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         # Bind address enforcement, reject non-localhost clients unless network access is enabled
         try:
             from backend.core.settings import get_settings
+
             svc = get_settings()
             allow_network = svc.get("ALLOW_NETWORK_ACCESS", False)
         except RuntimeError:

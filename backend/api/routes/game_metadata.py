@@ -163,10 +163,7 @@ def get_metadata_details(
         "publisher": details.publisher,
         "video_urls": details.video_urls,
         "external_links": clean_provider_links([*details.external_links, *trailer_links(details.video_urls)]),
-        "assets": [
-            {"url": a.url, "type": a.type, "thumb_url": a.thumb_url}
-            for a in details.assets
-        ],
+        "assets": [{"url": a.url, "type": a.type, "thumb_url": a.thumb_url} for a in details.assets],
     }
 
 
@@ -183,7 +180,10 @@ def enrich_library_entity(
     bundle = get_filtered_game_item_bundle(body.entity_id, active_user, db)
     fields = body.model_dump(exclude_unset=True, exclude={"entity_type", "entity_id", "confirm_rating_change"})
     entity = enrich_svc.enrich_game_bundle(
-        bundle.id, fields, confirm_rating_change=body.confirm_rating_change, db=db,
+        bundle.id,
+        fields,
+        confirm_rating_change=body.confirm_rating_change,
+        db=db,
     )
     return game_item_bundle_to_read(entity, db, viewer=active_user)
 
@@ -217,8 +217,11 @@ def accept_metadata_assets(
     game = get_filtered_game_item_bundle(id, active_user, db)
     assets = [MetadataAsset(url=a.url, type=a.type, thumb_url=a.thumb_url) for a in body.assets]
     plan = media_link.prepare_apply(
-        game.id, assets, db,
-        previous_assets=body.previous_assets, cover_asset_url=body.cover_asset_url,
+        game.id,
+        assets,
+        db,
+        previous_assets=body.previous_assets,
+        cover_asset_url=body.cover_asset_url,
     )
     return {"job_id": accept_all_job.start(plan, background_tasks), "state": "queued"}
 

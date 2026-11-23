@@ -23,7 +23,9 @@ def mem_db_session():
     import backend.models  # noqa: F401, registers all table models
 
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
@@ -37,8 +39,14 @@ def viewer(mem_db_session):
     from backend.models.user import UserItem
 
     user = UserItem(
-        id=2, name="Teen", is_owner=False, max_content_rating="T",
-        can_launch_media=True, can_manage_game=True, can_manage_media=True, can_manage_app=True,
+        id=2,
+        name="Teen",
+        is_owner=False,
+        max_content_rating="T",
+        can_launch_media=True,
+        can_manage_game=True,
+        can_manage_media=True,
+        can_manage_app=True,
     )
     mem_db_session.add(user)
     mem_db_session.commit()
@@ -69,7 +77,9 @@ def client(mem_db_session, tmp_path, monkeypatch, active_user_box):
     from backend.core.dependencies import get_active_user
 
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
     )
     # GET /launches/{id} resolves container_enabled from the emulator
     # catalog; irrelevant to visibility, so pin it.
@@ -104,7 +114,8 @@ def _game_leaf(db, game, disc_number=1):
     from backend.models.game import GameItem
 
     leaf = GameItem(
-        game_item_bundle_id=game.id, disc_number=disc_number,
+        game_item_bundle_id=game.id,
+        disc_number=disc_number,
         file_path=f"/library/games/ps1/{game.slug}/disc{disc_number}.bin",
     )
     db.add(leaf)
@@ -220,8 +231,10 @@ class TestFlagLaunch:
 class TestVerifyBundle:
     def test_hidden_matches_missing(self, client, mem_db_session):
         hidden = _game(mem_db_session, "m", "M")
-        _same_404(client.post(f"/api/v1/game-item-bundle/{hidden.id}/verify"),
-                  client.post(f"/api/v1/game-item-bundle/{_MISSING_ID}/verify"))
+        _same_404(
+            client.post(f"/api/v1/game-item-bundle/{hidden.id}/verify"),
+            client.post(f"/api/v1/game-item-bundle/{_MISSING_ID}/verify"),
+        )
 
     @pytest.mark.parametrize("who", ["owner", "visible"])
     def test_allowed_callers_succeed(self, client, mem_db_session, owner, active_user_box, who):
@@ -241,8 +254,10 @@ class TestReorder:
         first, second = _game_leaf(db, hidden, 1), _game_leaf(db, hidden, 2)
         body = {"disc_order": [second.id, first.id]}
 
-        _same_404(client.patch(f"/api/v1/game-item-bundle/{hidden.id}/items/reorder", json=body),
-                  client.patch(f"/api/v1/game-item-bundle/{_MISSING_ID}/items/reorder", json=body))
+        _same_404(
+            client.patch(f"/api/v1/game-item-bundle/{hidden.id}/items/reorder", json=body),
+            client.patch(f"/api/v1/game-item-bundle/{_MISSING_ID}/items/reorder", json=body),
+        )
         db.expire_all()
         assert db.get(GameItem, first.id).disc_number == 1
 
@@ -254,8 +269,9 @@ class TestReorder:
         if who == "owner":
             _as(active_user_box, owner)
 
-        resp = client.patch(f"/api/v1/game-item-bundle/{game.id}/items/reorder",
-                            json={"disc_order": [second.id, first.id]})
+        resp = client.patch(
+            f"/api/v1/game-item-bundle/{game.id}/items/reorder", json={"disc_order": [second.id, first.id]}
+        )
         assert resp.status_code == 200, resp.text
 
 
@@ -265,8 +281,10 @@ class TestBundleScopedLeafPatch:
         hidden = _game(db, "m", "M")
         leaf = _game_leaf(db, hidden)
 
-        _same_404(client.patch(f"/api/v1/game-item-bundle/{hidden.id}/items/{leaf.id}", json={}),
-                  client.patch(f"/api/v1/game-item-bundle/{_MISSING_ID}/items/{leaf.id}", json={}))
+        _same_404(
+            client.patch(f"/api/v1/game-item-bundle/{hidden.id}/items/{leaf.id}", json={}),
+            client.patch(f"/api/v1/game-item-bundle/{_MISSING_ID}/items/{leaf.id}", json={}),
+        )
 
     @pytest.mark.parametrize("who", ["owner", "visible"])
     def test_allowed_callers_succeed(self, client, mem_db_session, owner, active_user_box, who):
@@ -337,8 +355,10 @@ class TestAppBundleRoutes:
         hidden = _app(db, "tool")
         _restrict_app(db, viewer, hidden)
 
-        _same_404(client.patch(f"/api/v1/app-item-bundle/{hidden.id}", json={"description": "x"}),
-                  client.patch(f"/api/v1/app-item-bundle/{_MISSING_ID}", json={"description": "x"}))
+        _same_404(
+            client.patch(f"/api/v1/app-item-bundle/{hidden.id}", json={"description": "x"}),
+            client.patch(f"/api/v1/app-item-bundle/{_MISSING_ID}", json={"description": "x"}),
+        )
         db.expire_all()
         assert db.get(AppItemBundle, hidden.id).description is None
 
@@ -347,8 +367,10 @@ class TestAppBundleRoutes:
         hidden = _app(db, "tool")
         _restrict_app(db, viewer, hidden)
 
-        _same_404(client.post(f"/api/v1/app-item-bundle/{hidden.id}/confirm-delete"),
-                  client.post(f"/api/v1/app-item-bundle/{_MISSING_ID}/confirm-delete"))
+        _same_404(
+            client.post(f"/api/v1/app-item-bundle/{hidden.id}/confirm-delete"),
+            client.post(f"/api/v1/app-item-bundle/{_MISSING_ID}/confirm-delete"),
+        )
 
     def test_delete_hidden_matches_missing_even_with_a_valid_token(self, client, mem_db_session, viewer):
         from backend.models.app import AppItemBundle
@@ -379,7 +401,8 @@ class TestAppBundleRoutes:
         assert client.patch(f"/api/v1/app-item-bundle/{app.id}", json={"description": "x"}).status_code == 200
         token = client.post(f"/api/v1/app-item-bundle/{app.id}/confirm-delete").json()["confirmation_token"]
         resp = client.delete(
-            f"/api/v1/app-item-bundle/{app.id}", params={"confirmation_token": token, "delete_media": "false"},
+            f"/api/v1/app-item-bundle/{app.id}",
+            params={"confirmation_token": token, "delete_media": "false"},
         )
         assert resp.status_code == 204, resp.text
         assert db.get(AppItemBundle, app.id) is None
@@ -504,8 +527,9 @@ class TestLaunchHistory:
         hidden_id = rows[key].id
 
         _same_404(client.get(f"/api/v1/launches/{hidden_id}"), client.get(f"/api/v1/launches/{_MISSING_ID}"))
-        _same_404(client.post(f"/api/v1/launches/{hidden_id}/stop"),
-                  client.post(f"/api/v1/launches/{_MISSING_ID}/stop"))
+        _same_404(
+            client.post(f"/api/v1/launches/{hidden_id}/stop"), client.post(f"/api/v1/launches/{_MISSING_ID}/stop")
+        )
 
     def test_owner_sees_and_can_stop_everything(self, client, mem_db_session, viewer, owner, active_user_box):
         _, _, rows = self._seed(mem_db_session, viewer)
@@ -567,8 +591,10 @@ class TestDrives:
         hidden_id = self._seed(db, viewer)[key].id
 
         _same_404(client.get(f"/api/v1/drives/{hidden_id}"), client.get(f"/api/v1/drives/{_MISSING_ID}"))
-        _same_404(client.get(f"/api/v1/drives/{hidden_id}/confirm-token"),
-                  client.get(f"/api/v1/drives/{_MISSING_ID}/confirm-token"))
+        _same_404(
+            client.get(f"/api/v1/drives/{hidden_id}/confirm-token"),
+            client.get(f"/api/v1/drives/{_MISSING_ID}/confirm-token"),
+        )
         hidden_token = confirmation_tokens.issue("drive", hidden_id)
         missing_token = confirmation_tokens.issue("drive", _MISSING_ID)
         _same_404(

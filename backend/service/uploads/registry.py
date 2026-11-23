@@ -12,6 +12,7 @@ import-time decorator side effect, so a missing registration is easy to spot
 during startup instead of depending on which module happened to be imported
 first.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

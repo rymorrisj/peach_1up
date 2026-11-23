@@ -63,6 +63,7 @@ def ensure_settings_table() -> None:
     if _SETTINGS_TABLE_ENSURED:
         return
     from backend.models.settings import Settings
+
     SQLModel.metadata.create_all(get_engine(), tables=[Settings.__table__])
     _SETTINGS_TABLE_ENSURED = True
 

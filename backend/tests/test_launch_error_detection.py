@@ -22,6 +22,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_proc(poll_return):
     proc = MagicMock()
     proc.poll.return_value = poll_return
@@ -31,6 +32,7 @@ def _make_proc(poll_return):
 # ---------------------------------------------------------------------------
 # poll_short_lived, core detection logic (replaces _monitor_short_lived_launch)
 # ---------------------------------------------------------------------------
+
 
 class TestMonitorShortLivedLaunch:
     def _register_and_poll(self, monkeypatch, item_id, proc, launch_time):
@@ -126,6 +128,7 @@ class TestMonitorShortLivedLaunch:
 # _flag_short_lived_item, DB write helper
 # ---------------------------------------------------------------------------
 
+
 class TestFlagShortLivedItem:
     def test_sets_flag_and_commits(self, monkeypatch):
         """Sets launch_review_flagged = True and calls commit."""
@@ -185,16 +188,19 @@ class TestFlagShortLivedItem:
 # LaunchResponse, flag already True before launch
 # ---------------------------------------------------------------------------
 
+
 class TestLaunchResponseFlag:
     def test_field_defaults_to_false(self):
         """LaunchResponse.launch_review_flagged defaults to False."""
         from backend.api.routes.launches import LaunchResponse
+
         r = LaunchResponse(launch_history_id=1)
         assert r.launch_review_flagged is False
 
     def test_field_carries_true_value(self):
         """LaunchResponse carries a pre-existing True flag without delay."""
         from backend.api.routes.launches import LaunchResponse
+
         r = LaunchResponse(launch_history_id=1, launch_review_flagged=True)
         assert r.launch_review_flagged is True
 
@@ -203,10 +209,12 @@ class TestLaunchResponseFlag:
 # Environment launch, monitor must not be triggered
 # ---------------------------------------------------------------------------
 
+
 class TestEnvironmentLaunchNoMonitor:
     def test_launch_environment_does_not_call_monitor(self):
         """launch_environment source contains no call to register_short_lived_check."""
         import backend.api.routes.launches as mod
+
         src = inspect.getsource(mod.launch_environment)
         assert "register_short_lived_check" not in src
 
@@ -215,12 +223,14 @@ class TestEnvironmentLaunchNoMonitor:
 # Backend-agnostic scope, monitor covers any item launch, not a slug list
 # ---------------------------------------------------------------------------
 
+
 class TestItemLaunchScopeNotSlugList:
     def test_coordinator_launch_gates_monitor_on_item_id_not_slug(self):
         """coordinator.launch() gates the short-lived check on is_environment
         (i.e. any library-item launch), not on a hardcoded backend slug —
         covers DuckStation/PCSX2/Mesen/Project64/Flycast/DOSBox uniformly."""
         import backend.service.launch.coordinator as coord
+
         src = inspect.getsource(coord.launch)
         assert "BackendSlug.DOSBOX" not in src
         assert "not is_environment" in src
@@ -229,6 +239,7 @@ class TestItemLaunchScopeNotSlugList:
     def test_coordinator_uses_resolve_backend_name(self):
         """Backend selection is dynamic via resolve_backend_name in the coordinator."""
         import backend.service.launch.coordinator as coord
+
         # _build_spec_for_entity goes through _backend_slug_for_platform, which wraps
         # resolve_backend_name so an unresolvable platform is a 422, not a 500.
         assert "_backend_slug_for_platform" in inspect.getsource(coord._build_spec_for_entity)
@@ -238,6 +249,7 @@ class TestItemLaunchScopeNotSlugList:
 # ---------------------------------------------------------------------------
 # _poll_for_immediate_exit, synchronous inline crash check
 # ---------------------------------------------------------------------------
+
 
 class TestPollForImmediateExit:
     def test_returns_exit_code_when_already_exited(self):

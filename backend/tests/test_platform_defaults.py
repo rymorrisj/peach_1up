@@ -11,19 +11,22 @@ from backend.service.utils.platform_defaults import (
 
 
 class TestDefaultsForPlatform:
-    @pytest.mark.parametrize("platform_slug,expected_emulator,expected_profile_platform", [
-        ("dos",       "dosbox-x",    "dos"),
-        ("win95",     "86box",       "win95"),
-        ("win98",     "86box",       "win98"),
-        ("winxp",     "86box",       "winxp"),
-        ("ps1",       "duckstation", "ps1"),
-        ("ps2",       "pcsx2",       "ps2"),
-        ("xbox",      "xemu",        "xbox"),
-        ("nes",       "mesen",       "nes"),
-        ("snes",      "mesen",       "snes"),
-        ("n64",       "project64",   "n64"),
-        ("dreamcast", "flycast",     "dreamcast"),
-    ])
+    @pytest.mark.parametrize(
+        "platform_slug,expected_emulator,expected_profile_platform",
+        [
+            ("dos", "dosbox-x", "dos"),
+            ("win95", "86box", "win95"),
+            ("win98", "86box", "win98"),
+            ("winxp", "86box", "winxp"),
+            ("ps1", "duckstation", "ps1"),
+            ("ps2", "pcsx2", "ps2"),
+            ("xbox", "xemu", "xbox"),
+            ("nes", "mesen", "nes"),
+            ("snes", "mesen", "snes"),
+            ("n64", "project64", "n64"),
+            ("dreamcast", "flycast", "dreamcast"),
+        ],
+    )
     def test_known_platforms(self, platform_slug, expected_emulator, expected_profile_platform):
         emulator, profile_platform = defaults_for_platform(platform_slug)
         assert emulator == expected_emulator
@@ -60,7 +63,11 @@ def _profile(db, platform, emulator_slug, *, bundled=True, slug=None):
 
     slug = slug or f"{platform}-{'bundled' if bundled else 'user'}"
     profile = ProfileItem(
-        name=slug, slug=slug, emulator_slug=emulator_slug, platform=platform, is_bundled=bundled,
+        name=slug,
+        slug=slug,
+        emulator_slug=emulator_slug,
+        platform=platform,
+        is_bundled=bundled,
     )
     db.add(profile)
     db.commit()

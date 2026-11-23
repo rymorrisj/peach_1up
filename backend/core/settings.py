@@ -30,6 +30,7 @@ def init_settings() -> None:
     global _initialised
     if not _initialised:
         from backend.service.utils import settings as _settings_module
+
         _settings_module.init()
         _initialised = True
 
@@ -38,4 +39,5 @@ def get_settings():
     if not _initialised:
         raise RuntimeError("Settings not initialised, call init_settings() first.")
     from backend.service.utils import settings as _settings_module
+
     return _settings_module

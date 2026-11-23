@@ -172,9 +172,7 @@ def _title_id_from_pkg_header(pkg_path: Path) -> str:
     content_id = raw.split(b"\x00", 1)[0].decode("ascii", errors="replace")
     match = _TITLE_ID_RE.search(content_id)
     if not match:
-        raise ValueError(
-            f"Could not determine the title ID from '{pkg_path}' (content_id={content_id!r})."
-        )
+        raise ValueError(f"Could not determine the title ID from '{pkg_path}' (content_id={content_id!r}).")
     return match.group(1)
 
 
@@ -210,7 +208,10 @@ def _write_installed_state(spec: "LaunchSpec", installed: bool, *, reraise: bool
     except Exception as exc:
         logger.error(
             "rpcs3: failed to write installed=%s for collection_id=%s: %s",
-            installed, spec.collection_id, exc, exc_info=True,
+            installed,
+            spec.collection_id,
+            exc,
+            exc_info=True,
         )
         if reraise:
             raise
@@ -252,7 +253,8 @@ def _wait_for_stable_and_terminate(proc: SandboxProcess, game_dir: Path, eboot: 
         logger.warning(
             "rpcs3: pkg install for %s did not stabilize within %.0fs; leaving the "
             "installer process running rather than terminating a possibly-still-active install.",
-            game_dir, _INSTALL_MAX_WAIT,
+            game_dir,
+            _INSTALL_MAX_WAIT,
         )
         return
 
@@ -335,9 +337,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     install_path = get_install_path("rpcs3")
     if install_path is None or not install_path.is_file():
-        raise FileNotFoundError(
-            f"{display_name} executable not found. Install it via the Emulators page."
-        )
+        raise FileNotFoundError(f"{display_name} executable not found. Install it via the Emulators page.")
     install_dir = install_path.parent
 
     _check_firmware_installed(install_dir)
@@ -364,8 +364,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             title_id = _title_id_from_rap(media_path) or _title_id_from_pkg_header(media_path)
             license_files = _find_license_files(media_path)
             pkg_target = MediaTarget(
-                kind="file", detect_path=media_path, launch_path=media_path,
-                platform="ps3", requires_install=False, license_files=license_files,
+                kind="file",
+                detect_path=media_path,
+                launch_path=media_path,
+                platform="ps3",
+                requires_install=False,
+                license_files=license_files,
             )
             # Placed before either branch below: RPCS3 scans exdata for
             # licenses at its own next launch, which for an uninstalled title

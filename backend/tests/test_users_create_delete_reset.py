@@ -157,7 +157,10 @@ class TestDeleteUserCleanup:
         owner = _make_user(db, name="Owner", is_owner=True)
         sub = _make_user(db, name="Sub")
         collection = GameItemBundle(
-            title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom",
+            title="Doom",
+            file_path="/library/games/dos/doom",
+            platform="dos",
+            slug="doom",
         )
         db.add(collection)
         db.commit()

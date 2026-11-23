@@ -71,6 +71,10 @@ def resolve_ps3_target(folder: Path) -> MediaTarget | None:
         return None
     kind = "disc_folder" if is_disc_format_folder(folder) else "installed_dir"
     return MediaTarget(
-        kind=kind, detect_path=eboot, launch_path=folder,
-        platform="ps3", requires_install=False, license_files=(),
+        kind=kind,
+        detect_path=eboot,
+        launch_path=folder,
+        platform="ps3",
+        requires_install=False,
+        license_files=(),
     )

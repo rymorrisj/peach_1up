@@ -164,6 +164,7 @@ class TestFinalizeBackground:
         monkeypatch.setattr(cu, "reassemble", lambda upload_id, root, job_id=None: reasm)
         monkeypatch.setattr(cu, "abort", lambda upload_id: None)
         import backend.core.database as database_mod
+
         monkeypatch.setattr(database_mod, "get_engine", lambda: db.get_bind())
 
         job_id = jobs.create("upload", message="Uploading")

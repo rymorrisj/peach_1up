@@ -8,17 +8,31 @@ from sqlmodel import SQLModel
 
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_media_item, get_filtered_media_item_bundle,
-    get_filtered_media_item_bundles, get_filtered_media_items, normalize_content_rating,
+    get_active_user,
+    get_filtered_media_item,
+    get_filtered_media_item_bundle,
+    get_filtered_media_item_bundles,
+    get_filtered_media_items,
+    normalize_content_rating,
     require_permission,
 )
 from backend.constants_generated import MediaKind
 from backend.core.logger import get_logger
 from backend.models.media import (
-    MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
-    MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
-    unique_media_slug, _linked_items_for,
-    media_item_bundle_to_read, media_item_bundle_to_read_bulk, item_to_read, items_to_read_bulk,
+    MediaItemBundle,
+    MediaItemBundleCreate,
+    MediaItemBundleRead,
+    MediaItemBundleUpdate,
+    MediaItem,
+    MediaItemCreate,
+    MediaItemRead,
+    MediaItemUpdate,
+    unique_media_slug,
+    _linked_items_for,
+    media_item_bundle_to_read,
+    media_item_bundle_to_read_bulk,
+    item_to_read,
+    items_to_read_bulk,
 )
 from backend.models.pagination import Page
 from backend.models.user import UserItem
@@ -38,7 +52,7 @@ def _media_root() -> Path:
     working directory)."""
     try:
         return media_root()
-    except (ValueError, RuntimeError):
+    except ValueError, RuntimeError:
         raise HTTPException(status_code=503, detail="MEDIA_PATH is not configured.")
 
 
@@ -173,9 +187,7 @@ def create_media_item(
 
 
 @router.get("/media-item/{item_id}", response_model=MediaItemRead)
-def get_media_item(
-    item_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)
-):
+def get_media_item(item_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)):
     return item_to_read(get_filtered_media_item(item_id, active_user, db), db, viewer=active_user)
 
 
@@ -232,7 +244,10 @@ def _check_delete_token(token: Optional[str], resource: str, resource_id: int) -
 def _log_media_delete(user: UserItem, resource: str, resource_id: int, removed: list[str]) -> None:
     logger.info(
         "Destructive operation: user %s deleted %s %s, %d file(s) removed from disk",
-        user.id, resource, resource_id, len(removed),
+        user.id,
+        resource,
+        resource_id,
+        len(removed),
     )
 
 
@@ -318,6 +333,7 @@ def list_media_item_bundles(
     q = get_filtered_media_item_bundles(active_user, db)
     if tag:
         from backend.models.tag import EntityTag, Tag
+
         subq = (
             db.query(EntityTag.entity_id)
             .join(Tag, EntityTag.tag_id == Tag.id)
@@ -327,7 +343,9 @@ def list_media_item_bundles(
         q = q.filter(MediaItemBundle.id.in_(subq))
     total = q.count()
     rows = apply_bundle_sort(q, MediaItemBundle, sort).offset(offset).limit(limit).all()
-    return Page(items=media_item_bundle_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
+    return Page(
+        items=media_item_bundle_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset
+    )
 
 
 @router.get("/media-item-bundle/{collection_id}", response_model=MediaItemBundleRead)
@@ -335,7 +353,9 @@ def get_media_item_bundle(
     collection_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)
 ):
     return media_item_bundle_to_read(
-        get_filtered_media_item_bundle(collection_id, active_user, db), db, viewer=active_user,
+        get_filtered_media_item_bundle(collection_id, active_user, db),
+        db,
+        viewer=active_user,
     )
 
 
@@ -355,7 +375,10 @@ def update_media_item_bundle(
         fields["cover_art_path"] = _validated_cover_art_path(fields["cover_art_path"])
     if "content_rating" in fields:
         fields["content_rating"] = checked_media_rating_change(
-            collection, fields["content_rating"], confirm_rating_change=confirm_rating_change, db=db,
+            collection,
+            fields["content_rating"],
+            confirm_rating_change=confirm_rating_change,
+            db=db,
         )
     for key, value in fields.items():
         setattr(collection, key, value)

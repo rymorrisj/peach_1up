@@ -4,7 +4,13 @@ from typing import Literal
 from backend.service.utils import confirmation_tokens
 
 InstallStatus = Literal[
-    "idle", "complete", "error", "installer_launched", "cloning", "downloading", "converting",
+    "idle",
+    "complete",
+    "error",
+    "installer_launched",
+    "cloning",
+    "downloading",
+    "converting",
 ]
 
 _registry: dict[str, dict] = {}

@@ -51,13 +51,15 @@ _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 
 # Declared Content-Type allowlist (META-20). image/svg+xml is deliberately
 # absent: SVG is active content and must never land in the library.
-_ALLOWED_MIME_TYPES = frozenset({
-    "image/jpeg",
-    "image/jpg",  # non-standard alias some CDNs send
-    "image/png",
-    "image/gif",
-    "image/webp",
-})
+_ALLOWED_MIME_TYPES = frozenset(
+    {
+        "image/jpeg",
+        "image/jpg",  # non-standard alias some CDNs send
+        "image/png",
+        "image/gif",
+        "image/webp",
+    }
+)
 
 
 def _sniff_image_ext(data: bytes) -> str | None:
@@ -184,6 +186,7 @@ _SNIFF_BYTES = 12
 
 def _library_root() -> Path:
     from backend.service.utils import settings as _s
+
     return Path(_s.get("LIBRARY_PATH")).resolve()
 
 
@@ -197,7 +200,9 @@ def _require_under_library(path: Path, lib_root: Path, what: str) -> Path:
 def _check_deadline(deadline: float | None) -> None:
     if deadline is not None and time.monotonic() > deadline:
         raise AssetFetchFailure(
-            422, "Asset download exceeded the time budget for this request.", kind="time_budget",
+            422,
+            "Asset download exceeded the time budget for this request.",
+            kind="time_budget",
         )
 
 
@@ -217,7 +222,7 @@ def _stream_body_to(fh, resp, max_bytes: int, deadline: float | None) -> bytes:
         _check_deadline(deadline)
         total += len(chunk)
         if total > max_bytes:
-            raise _reject(f"Asset image exceeds the {max_bytes // 1024 ** 2} MB size limit")
+            raise _reject(f"Asset image exceeds the {max_bytes // 1024**2} MB size limit")
         if len(head) < _SNIFF_BYTES:
             head += chunk[: _SNIFF_BYTES - len(head)]
         fh.write(chunk)
@@ -279,8 +284,10 @@ def fetch_image_to_temp(
                             resp.raise_for_status()
                         except httpx2.HTTPStatusError as e:
                             raise AssetFetchFailure(
-                                502, f"Asset fetch failed with status {e.response.status_code}.",
-                                kind="upstream", upstream_status=e.response.status_code,
+                                502,
+                                f"Asset fetch failed with status {e.response.status_code}.",
+                                kind="upstream",
+                                upstream_status=e.response.status_code,
                             )
 
                         _check_response_url(resp.url)

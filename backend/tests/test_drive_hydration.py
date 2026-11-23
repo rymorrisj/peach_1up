@@ -9,6 +9,7 @@ and once for entity._db_collection.installed = True. A crash between the two
 leaves the image freshly formatted with installed=False, forcing a full
 re-format on the next launch.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -226,6 +227,7 @@ class TestHydrateDriveForEntity:
         )
         with pytest.raises(RuntimeError, match="no image_path"):
             from backend.service.launch.drive_hydration import hydrate_drive_for_entity
+
             hydrate_drive_for_entity(entity, db=MagicMock())
 
     def test_fat_copy_path_triggered_for_uninstalled_dos_entity(self, tmp_path, monkeypatch):
@@ -256,6 +258,7 @@ class TestHydrateDriveForEntity:
 
         # Mock compute_drive_size_mb at the source so the deferred import resolves it
         import backend.service.utils.drive_utils as du_mod
+
         monkeypatch.setattr(du_mod, "compute_drive_size_mb", MagicMock(return_value=50))
 
         drive = _make_drive(str(img), size_mb=50)

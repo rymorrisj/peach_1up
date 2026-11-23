@@ -17,6 +17,7 @@ import pytest
 
 def _owner():
     from backend.models.user import UserItem
+
     return UserItem(id=1, name="Owner", is_owner=True)
 
 
@@ -37,7 +38,9 @@ def mem_db_session():
     import backend.models  # noqa: F401, registers all table models
 
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
@@ -63,7 +66,9 @@ def client(mem_db_session, tmp_path, monkeypatch, active_user_box):
     # Same LIBRARY_PATH patch as test_media.py's client fixture, for
     # _compute_media_url on every read model.
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
     )
 
     app = FastAPI()
@@ -77,8 +82,9 @@ def client(mem_db_session, tmp_path, monkeypatch, active_user_box):
 def _game(db, slug, rating):
     from backend.models.game import GameItemBundle
 
-    game = GameItemBundle(title=f"Game {slug}", file_path=f"/library/games/dos/{slug}", platform="dos", slug=slug,
-                          content_rating=rating)
+    game = GameItemBundle(
+        title=f"Game {slug}", file_path=f"/library/games/dos/{slug}", platform="dos", slug=slug, content_rating=rating
+    )
     db.add(game)
     db.commit()
     db.refresh(game)
@@ -206,10 +212,12 @@ class TestEffectiveRatingFilter:
         hidden = _bundle(db, "m-art")
         _link(db, hidden, _game(db, "m", "M"))
         shown = _bundle(db, "e-art", rating="E")
-        db.add_all([
-            MediaItem(title="a", media_kind="image", file_path="/a.png", media_item_bundle_id=hidden.id),
-            MediaItem(title="b", media_kind="image", file_path="/b.png", media_item_bundle_id=shown.id),
-        ])
+        db.add_all(
+            [
+                MediaItem(title="a", media_kind="image", file_path="/a.png", media_item_bundle_id=hidden.id),
+                MediaItem(title="b", media_kind="image", file_path="/b.png", media_item_bundle_id=shown.id),
+            ]
+        )
         db.commit()
 
         titles = {i.title for i in get_filtered_media_items(_capped(), db).all()}
@@ -373,7 +381,8 @@ class TestRatingWrites:
         bundle = _bundle(db, "art", rating="M")
 
         resp = client.patch(
-            f"/api/v1/media-item-bundle/{bundle.id}?confirm_rating_change=true", json={"content_rating": "E"},
+            f"/api/v1/media-item-bundle/{bundle.id}?confirm_rating_change=true",
+            json={"content_rating": "E"},
         )
         assert resp.status_code == 200
         db.refresh(bundle)
@@ -398,7 +407,8 @@ class TestRatingWrites:
         active_user_box["user"] = _capped()
 
         resp = client.patch(
-            f"/api/v1/media-item-bundle/{bundle.id}?confirm_rating_change=true", json={"content_rating": None},
+            f"/api/v1/media-item-bundle/{bundle.id}?confirm_rating_change=true",
+            json={"content_rating": None},
         )
         assert resp.status_code == 404
         db.refresh(bundle)
@@ -440,7 +450,9 @@ class TestAcceptAllLeavesRatingNull:
 
         monkeypatch.setattr(core_settings, "get_settings", lambda: _S())
         monkeypatch.setattr(
-            utils_settings, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+            utils_settings,
+            "get",
+            lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
         )
 
         def _fake_fetch(url, staging_dir, **kwargs):

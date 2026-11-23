@@ -32,6 +32,7 @@ bypasses stage_from_source/finalize_reassembled for that case and ingests the
 source directly, the same treatment manual add and Scan's import step give a
 path that is already in place.
 """
+
 from __future__ import annotations
 
 import errno
@@ -103,7 +104,10 @@ def _rename_same_filesystem(source: Path, dest: Path) -> bool:
 
 
 def stage_from_source(
-    source: Path, title: str, domain_root: Path, move: bool = False,
+    source: Path,
+    title: str,
+    domain_root: Path,
+    move: bool = False,
 ) -> cu.ReassembledUpload:
     """Stage *source* (already validated to exist and fall within the allowed
     browse roots) into a fresh, uniquely-named directory under domain_root, and
@@ -189,7 +193,11 @@ def stage_from_source(
             source.unlink()
 
     return cu.ReassembledUpload(
-        kind=kind, title=base_title, dest_dir=dest_dir, paths=paths, total_bytes=total_bytes,
+        kind=kind,
+        title=base_title,
+        dest_dir=dest_dir,
+        paths=paths,
+        total_bytes=total_bytes,
     )
 
 
@@ -217,14 +225,17 @@ def _import_in_place(source: Path, title: str, db: Session, delete_original: boo
     }
     if delete_original:
         result["delete_original_note"] = (
-            "The source was already inside the library, so nothing was copied "
-            "or deleted, it was imported in place."
+            "The source was already inside the library, so nothing was copied or deleted, it was imported in place."
         )
     return result
 
 
 def import_background(
-    source_path: str, title: str, domain_root: str, job_id: str, delete_original: bool,
+    source_path: str,
+    title: str,
+    domain_root: str,
+    job_id: str,
+    delete_original: bool,
 ) -> None:
     """BackgroundTask entry: own DB session, report to core.jobs, never raise."""
     from backend.core import jobs
@@ -240,13 +251,14 @@ def import_background(
             result = _import_in_place(source, title, db, delete_original)
         else:
             jobs.update(
-                job_id, progress=0.1,
+                job_id,
+                progress=0.1,
                 message="Moving into library…" if delete_original else "Copying into library…",
             )
             reasm = stage_from_source(source, title, root, move=delete_original)
             jobs.update(job_id, progress=0.6, message="Importing…")
             result = upload_finalize.finalize_reassembled(reasm, root, db)
-        jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'import')}\".")
+        jobs.complete(job_id, result=result, message=f'Added "{result.get("title", "import")}".')
     except lib_svc._ItemAlreadyExists as exc:
         # A duplicate-import attempt is an expected rejection, not a real
         # failure, _ItemAlreadyExists never sets its own message (its __init__

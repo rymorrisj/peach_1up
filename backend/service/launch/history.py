@@ -70,9 +70,7 @@ def filter_visible_launch_targets(q, active_user, db):
     for entity_type, column_name in _LAUNCH_TARGET_COLUMNS:
         column = getattr(LaunchHistory, column_name)
         visible_ids = (
-            get_filtered_entity_query(entity_type, active_user, db)
-            .with_entities(models[entity_type].id)
-            .subquery()
+            get_filtered_entity_query(entity_type, active_user, db).with_entities(models[entity_type].id).subquery()
         )
         q = q.filter(or_(column.is_(None), column.in_(visible_ids.select())))
     return q
@@ -105,6 +103,7 @@ def user_can_view_launch(record, active_user, db) -> bool:
     if record.profile_item_id is None:
         return True
     from backend.models.profile import ProfileItem
+
     prof = db.get(ProfileItem, record.profile_item_id)
     return prof is None or prof.user_item_id is None or prof.user_item_id == active_user.id
 
@@ -127,11 +126,7 @@ def prune_launch_history() -> int:
     cutoff = datetime.now(timezone.utc) - window
     session_factory = sessionmaker(bind=get_engine())
     with session_factory() as db:
-        deleted = (
-            db.query(LaunchHistory)
-            .filter(LaunchHistory.started_at < cutoff)
-            .delete(synchronize_session=False)
-        )
+        deleted = db.query(LaunchHistory).filter(LaunchHistory.started_at < cutoff).delete(synchronize_session=False)
         if deleted:
             db.commit()
     return deleted

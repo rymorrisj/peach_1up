@@ -60,8 +60,7 @@ def validate_media(media_path: Path) -> None:
         raise FileNotFoundError(f"Media file not found: {media_path}")
     if media_path.suffix.lower() not in SUPPORTED_MEDIA:
         raise ValueError(
-            f"Unsupported media format '{media_path.suffix}'. "
-            f"xemu supports: {', '.join(sorted(SUPPORTED_MEDIA))}"
+            f"Unsupported media format '{media_path.suffix}'. xemu supports: {', '.join(sorted(SUPPORTED_MEDIA))}"
         )
 
 
@@ -141,7 +140,7 @@ def read_xemu_asset_paths(toml_path: Path) -> dict[str, str]:
     try:
         with toml_path.open("rb") as fh:
             config = tomllib.load(fh)
-    except (OSError, tomllib.TOMLDecodeError):
+    except OSError, tomllib.TOMLDecodeError:
         return {}
 
     files = config.get("sys", {}).get("files", {})
@@ -219,10 +218,7 @@ def provision_xemu_defaults(
     existing = read_xemu_asset_paths(toml_path)
 
     def _resolve_flash_default() -> str:
-        flash_bins = [
-            f for f in sorted(data_dir.glob("*.bin"))
-            if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
-        ]
+        flash_bins = [f for f in sorted(data_dir.glob("*.bin")) if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")]
         if not flash_bins:
             raise FileNotFoundError(
                 f"No Xbox flash BIOS .bin found in {data_dir}. Place the flash ROM "
@@ -238,19 +234,13 @@ def provision_xemu_defaults(
     }
 
     asset_lines = "".join(
-        f'{key} = "{existing[key] if key in existing else defaults[key]()}"\n'
-        for key in XEMU_ASSET_KEY_ORDER
+        f'{key} = "{existing[key] if key in existing else defaults[key]()}"\n' for key in XEMU_ASSET_KEY_ORDER
     )
 
     net_section = "" if enable_networking else "\n[net]\nenable = false\n"
 
     content = (
-        "[general]\n"
-        "show_welcome = false\n\n"
-        "[sys.files]\n"
-        f"{asset_lines}"
-        f'dvd_path = "{dvd_path or ""}"\n'
-        f"{net_section}"
+        f'[general]\nshow_welcome = false\n\n[sys.files]\n{asset_lines}dvd_path = "{dvd_path or ""}"\n{net_section}'
     )
 
     tmp = toml_path.with_suffix(".tmp")
@@ -287,9 +277,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     _xemu_install = get_install_path("xemu")
     executable_path = str(_xemu_install) if _xemu_install and _xemu_install.is_file() else ""
     if not executable_path:
-        raise RuntimeError(
-            "xemu executable not found. Install it via the Emulators page."
-        )
+        raise RuntimeError("xemu executable not found. Install it via the Emulators page.")
     if not Path(executable_path).exists():
         raise FileNotFoundError(f"xemu executable not found: {executable_path}")
 
@@ -323,11 +311,11 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     vm_dir = exe_path.parent
     config_name = resolve_launch_config()
     data_dir = vm_dir / DATA_DIR_NAME / config_name
-    logger.debug(
-        "xemu.launch: dvd_posix=%s vm_dir=%s data_dir=%s", dvd_posix, vm_dir, data_dir
-    )
+    logger.debug("xemu.launch: dvd_posix=%s vm_dir=%s data_dir=%s", dvd_posix, vm_dir, data_dir)
     config_path = provision_xemu_defaults(
-        exe_path, data_dir, dvd_path=dvd_posix,
+        exe_path,
+        data_dir,
+        dvd_path=dvd_posix,
         enable_networking=spec.enable_networking,
     )
 
@@ -341,6 +329,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         from backend.service.utils.host_os.windows.app_container import (
             get_container_config as _build_sandbox_cfg,
         )
+
         hdd_path = data_dir / "xbox_hdd.qcow2"
         sandbox_config = _build_sandbox_cfg(
             "xemu",
@@ -349,22 +338,19 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             user_item_id=spec.user_item_id,
         )
         if spec.media_path is not None:
-            sandbox_config.broker_files.append(
-                BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
-            sandbox_config.broker_files.append(
-                BrokerFile(path=str(spec.media_path), access="r", mode="inherit"))
+            sandbox_config.broker_files.append(BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
+            sandbox_config.broker_files.append(BrokerFile(path=str(spec.media_path), access="r", mode="inherit"))
         logger.debug(
             "xemu.launch: broker_files=[%s]",
-            ", ".join(
-                f"{bf.mode}:{bf.access}:{bf.path}" for bf in sandbox_config.broker_files
-            ),
+            ", ".join(f"{bf.mode}:{bf.access}:{bf.path}" for bf in sandbox_config.broker_files),
         )
     else:
         sandbox_config = None
 
     logger.debug(
         "xemu.launch: args=%s config_path=%s",
-        args, config_path,
+        args,
+        config_path,
     )
     result = launch_under_job_object(
         executable_path=executable_path,

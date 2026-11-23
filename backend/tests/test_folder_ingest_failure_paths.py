@@ -48,12 +48,14 @@ def _fake_scan_result() -> ScanResult:
 @pytest.fixture(autouse=True)
 def _patch_detect(monkeypatch):
     import formatscout as smd
+
     monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
 
 
 @pytest.fixture(autouse=True)
 def _patch_platform_defaults(monkeypatch):
     import backend.service.utils.platform_defaults as ead
+
     monkeypatch.setattr(ead, "defaults_for_platform", lambda platform: (None, None))
 
 
@@ -79,6 +81,7 @@ class _FakeSettings:
 
 def _patch_settings(monkeypatch, media_root: Path):
     import backend.core.settings as settings_mod
+
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings(str(media_root)))
 
 
@@ -219,12 +222,17 @@ class TestCollectionOfOneValidationFailureLeavesNoPartialState:
         import formatscout as smd
 
         monkeypatch.setattr(
-            smd, "detect",
+            smd,
+            "detect",
             lambda path: make_scan("dos", reason="exe header", method=Method.PE_HEADER),
         )
 
         result_type, collection, disc_count = folder_ingest.ingest_folder(
-            src_dir, [exe], "Doom", mem_session, media_root,
+            src_dir,
+            [exe],
+            "Doom",
+            mem_session,
+            media_root,
         )
         assert mem_session.exec(select(func.count()).select_from(GameItemBundle)).one() == 1
         canonical_folder = Path(collection.items[0].folder_path)

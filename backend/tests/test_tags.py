@@ -16,6 +16,7 @@ from sqlmodel import func, select
 
 def _user(id, **overrides):
     from backend.models.user import UserItem
+
     kwargs = dict(id=id, name=f"UserItem{id}")
     kwargs.update(overrides)
     return UserItem(**kwargs)
@@ -54,11 +55,13 @@ def client(mem_db_session):
 
 def _override_user(c, user):
     from backend.core.dependencies import get_active_user
+
     c.app.dependency_overrides[get_active_user] = lambda: user
 
 
 def _make_tag(db, **overrides):
     from backend.models.tag import Tag
+
     kwargs = dict(name="Favorite", color="slate")
     kwargs.update(overrides)
     tag = Tag(**kwargs)
@@ -75,6 +78,7 @@ def _make_tag(db, **overrides):
 
 def _make_software_collection(db, **overrides):
     from backend.models.game import GameItemBundle
+
     kwargs = dict(title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom")
     kwargs.update(overrides)
     row = GameItemBundle(**kwargs)
@@ -86,6 +90,7 @@ def _make_software_collection(db, **overrides):
 
 def _make_software_item(db, **overrides):
     from backend.models.game import GameItem
+
     collection = overrides.pop("collection", None) or _make_software_collection(db)
     kwargs = dict(game_item_bundle_id=collection.id, file_path="/library/games/dos/doom/doom.iso")
     kwargs.update(overrides)
@@ -98,6 +103,7 @@ def _make_software_item(db, **overrides):
 
 def _make_media_item(db, **overrides):
     from backend.models.media import MediaItem
+
     kwargs = dict(title="Doom OST", media_kind="audio", file_path="/library/media/doom-ost.mp3", slug="doom-ost")
     kwargs.update(overrides)
     row = MediaItem(**kwargs)
@@ -109,6 +115,7 @@ def _make_media_item(db, **overrides):
 
 def _make_media_collection(db, **overrides):
     from backend.models.media import MediaItemBundle
+
     kwargs = dict(title="Doom OST Collection", media_kind="audio", slug="doom-ost-collection")
     kwargs.update(overrides)
     row = MediaItemBundle(**kwargs)
@@ -120,6 +127,7 @@ def _make_media_collection(db, **overrides):
 
 def _make_environment(db, **overrides):
     from backend.models.environment import EnvironmentItem
+
     kwargs = dict(name="Win98 Box", platform="win98", emulator_slug="86box", slug="win98-box")
     kwargs.update(overrides)
     row = EnvironmentItem(**kwargs)
@@ -131,6 +139,7 @@ def _make_environment(db, **overrides):
 
 def _make_rom_pack_item(db, **overrides):
     from backend.models.rom_pack import RomPackItem
+
     kwargs = dict(name="86Box ROM Pack", emulator_slug="86box", slug="86box-rom-pack", is_present=False)
     kwargs.update(overrides)
     row = RomPackItem(**kwargs)
@@ -142,6 +151,7 @@ def _make_rom_pack_item(db, **overrides):
 
 def _make_controller_mapping(db, **overrides):
     from backend.models.controller_mapping import ControllerMappingItem
+
     kwargs = dict(name="Xbox Pad", device_signature="030000005e0400008e02000010010000", slug="xbox-pad")
     kwargs.update(overrides)
     row = ControllerMappingItem(**kwargs)
@@ -353,6 +363,7 @@ class TestCreateTagAssignmentIdempotency:
         assert second.status_code == 204
 
         from backend.models.tag import EntityTag
+
         count = db.exec(
             select(func.count())
             .select_from(EntityTag)

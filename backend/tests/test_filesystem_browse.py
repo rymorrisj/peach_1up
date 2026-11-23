@@ -22,12 +22,17 @@ class TestFilesystemBrowseListing:
         library_path.mkdir()
 
         from backend.core import settings as settings_mod
+
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
             lambda: {
-                "LIBRARY_PATH": str(library_path), "SOFTWARE_PATH": "", "MEDIA_PATH": "",
-                "OS_PATH": "", "ROMS_PATH": "", "PROFILES_PATH": "",
+                "LIBRARY_PATH": str(library_path),
+                "SOFTWARE_PATH": "",
+                "MEDIA_PATH": "",
+                "OS_PATH": "",
+                "ROMS_PATH": "",
+                "PROFILES_PATH": "",
             },
         )
         # allowed_browse_roots() also allowlists every drive letter, which
@@ -138,7 +143,8 @@ class TestFilesystemBrowseListing:
         client, library_path = app_client
 
         resp = client.get(
-            "/api/v1/filesystem/browse", params={"path": str(library_path / "no_such_dir")},
+            "/api/v1/filesystem/browse",
+            params={"path": str(library_path / "no_such_dir")},
         )
 
         assert resp.status_code == 400

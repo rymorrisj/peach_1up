@@ -132,7 +132,8 @@ def _linked_bundle(game_item_bundle_id: int, db: "Session") -> Optional["MediaIt
     from backend.models.media import MediaItemBundle, _linked_items_for
 
     refs = [
-        ref for ref in _linked_items_for("game_item_bundle", game_item_bundle_id, db)
+        ref
+        for ref in _linked_items_for("game_item_bundle", game_item_bundle_id, db)
         if ref.entity_type == "media_item_bundle"
     ]
     if not refs:
@@ -227,8 +228,12 @@ def prepare_apply(
                 _running_applies.discard(key)
         raise
     return ApplyPlan(
-        game_id=game_item_bundle_id, assets=assets, previous_assets=previous_assets,
-        cover_asset_url=cover_asset_url, root=root, lock_keys=held,
+        game_id=game_item_bundle_id,
+        assets=assets,
+        previous_assets=previous_assets,
+        cover_asset_url=cover_asset_url,
+        root=root,
+        lock_keys=held,
     )
 
 
@@ -291,7 +296,10 @@ def _apply(
     from backend.models.media import MediaItem, MediaItemBundle, delete_links_for, make_entity_link, unique_media_slug
     from backend.service.games.cover_from_media import assign_cover_path
     from backend.service.media.file_cleanup import (
-        clear_cover_references, path_keys, remove_files, removable_media_files,
+        clear_cover_references,
+        path_keys,
+        remove_files,
+        removable_media_files,
     )
     from backend.service.utils.asset_fetch import commit_temp_image, fetch_image_to_temp, final_image_path
     from backend.service.utils.upload_utils import begin_upload

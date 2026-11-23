@@ -38,8 +38,12 @@ def resolve_xex_target(folder: Path) -> MediaTarget | None:
     if xex is None:
         return None
     return MediaTarget(
-        kind="xex_folder", detect_path=xex, launch_path=xex,
-        platform="xbox360", requires_install=False, license_files=(),
+        kind="xex_folder",
+        detect_path=xex,
+        launch_path=xex,
+        platform="xbox360",
+        requires_install=False,
+        license_files=(),
     )
 
 
@@ -69,6 +73,8 @@ def find_default_xex(folder: Path) -> Path | None:
         "xex resolver: no default.xex found in '%s', %d other .xex file(s) present, "
         "deterministically choosing '%s' (alphabetically first) as a tie-break. "
         "Rename the intended file to default.xex to avoid relying on this.",
-        folder, len(xex_files), chosen.name,
+        folder,
+        len(xex_files),
+        chosen.name,
     )
     return chosen

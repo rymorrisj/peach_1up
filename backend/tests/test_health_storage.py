@@ -14,6 +14,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _reset_storage_cache():
     from backend.api.routes import health
+
     health._storage_cache = None
     health._storage_cache_time = 0.0
     yield
@@ -39,6 +40,7 @@ def mem_db_session():
 
 def _owner_user():
     from backend.models.user import UserItem
+
     return UserItem(id=1, name="Owner", is_owner=True)
 
 

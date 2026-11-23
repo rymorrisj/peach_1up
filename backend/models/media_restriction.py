@@ -45,8 +45,7 @@ class MediaRestriction(SQLModel, table=True):
 
     def model_post_init(self, __context: object) -> None:
         set_count = sum(
-            fk is not None
-            for fk in (self.game_item_bundle_id, self.media_item_bundle_id, self.app_item_bundle_id)
+            fk is not None for fk in (self.game_item_bundle_id, self.media_item_bundle_id, self.app_item_bundle_id)
         )
         if set_count != 1:
             raise ValueError(

@@ -11,11 +11,13 @@ import pytest
 
 def _owner_user():
     from backend.models.user import UserItem
+
     return UserItem(id=1, name="Owner", is_owner=True)
 
 
 def _no_permission_user():
     from backend.models.user import UserItem
+
     return UserItem(id=2, name="Guest", is_owner=False, can_manage_environment=False)
 
 
@@ -143,9 +145,7 @@ class TestListWithPlatformParam:
         c, db = client
         from datetime import datetime, timezone
 
-        self._present_win98_environment(
-            db, tmp_path, platform="win98", installed_at=datetime.now(timezone.utc)
-        )
+        self._present_win98_environment(db, tmp_path, platform="win98", installed_at=datetime.now(timezone.utc))
 
         resp = c.get("/api/v1/environment-items?platform=winxp")
 
@@ -196,9 +196,7 @@ class TestListWithPlatformParam:
         c, db = client
         from datetime import datetime, timezone
 
-        self._present_win98_environment(
-            db, tmp_path, platform="win98", installed_at=datetime.now(timezone.utc)
-        )
+        self._present_win98_environment(db, tmp_path, platform="win98", installed_at=datetime.now(timezone.utc))
 
         resp = c.get("/api/v1/environment-items?platform=win98")
 
@@ -258,11 +256,13 @@ class TestCreateEnvironment:
         assert body["slug"]
 
         from backend.models.environment import EnvironmentItem
+
         assert db.get(EnvironmentItem, body["id"]) is not None
 
     def test_requires_can_manage_environment_permission(self, client):
         c, _ = client
         from backend.core.dependencies import get_active_user
+
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
         resp = c.post(
@@ -330,12 +330,14 @@ class TestDeleteEnvironment:
         assert del_resp.status_code == 204
 
         from backend.models.environment import EnvironmentItem
+
         assert db.get(EnvironmentItem, env_id) is None
 
     def test_requires_can_manage_environment_permission(self, client):
         c, db = client
         environment = _make_environment(db)
         from backend.core.dependencies import get_active_user
+
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
         resp = c.post(f"/api/v1/environment-items/{environment.id}/confirm-delete")
@@ -350,17 +352,20 @@ class TestDeleteEnvironment:
 class TestComputeEnvironmentPresence:
     def _env(self, **overrides):
         from backend.models.environment import EnvironmentItem
+
         kwargs = dict(name="Box", platform="win98", emulator_slug="86box")
         kwargs.update(overrides)
         return EnvironmentItem(**kwargs)
 
     def test_not_present_when_no_image_paths(self):
         from backend.service.environments.environments import compute_environment_presence
+
         environment = self._env(working_image_path=None, base_image_path=None)
         assert compute_environment_presence(environment) is False
 
     def test_present_when_working_and_base_present_and_valid(self, tmp_path):
         from backend.service.environments.environments import compute_environment_presence
+
         working = tmp_path / "working.img"
         base = tmp_path / "base.img"
         working.write_bytes(b"w" * 1024)
@@ -370,6 +375,7 @@ class TestComputeEnvironmentPresence:
 
     def test_not_present_when_working_missing_but_base_present(self, tmp_path):
         from backend.service.environments.environments import compute_environment_presence
+
         base = tmp_path / "base.img"
         base.write_bytes(b"b" * 1024)
         environment = self._env(
@@ -380,6 +386,7 @@ class TestComputeEnvironmentPresence:
 
     def test_not_present_when_working_present_but_base_missing(self, tmp_path):
         from backend.service.environments.environments import compute_environment_presence
+
         working = tmp_path / "working.img"
         working.write_bytes(b"w" * 1024)
         environment = self._env(working_image_path=str(working), base_image_path=None)
@@ -387,6 +394,7 @@ class TestComputeEnvironmentPresence:
 
     def test_not_present_when_working_image_fails_integrity_probe(self, tmp_path):
         from backend.service.environments.environments import compute_environment_presence
+
         working = tmp_path / "working.img"
         base = tmp_path / "base.img"
         working.write_bytes(b"")  # zero-byte -> fails _probe_image_integrity
@@ -468,6 +476,7 @@ def _empty_catalog(monkeypatch):
     emulator/BIOS/ROM-pack catalog is bundled config unrelated to it, so it's
     stubbed to empty rather than depending on the real catalog files."""
     from backend.service.utils import emulator_catalog
+
     monkeypatch.setattr(emulator_catalog, "load_catalog", lambda: [])
     monkeypatch.setattr(emulator_catalog, "load_bios_requirements", lambda: [])
 
@@ -489,12 +498,19 @@ class TestHealthSummaryEndpoint:
         assert resp.status_code == 200
         body = resp.json()
         assert set(body.keys()) == {
-            "environments", "library", "drives", "extensions", "emulators", "bios", "rom_packs",
+            "environments",
+            "library",
+            "drives",
+            "extensions",
+            "emulators",
+            "bios",
+            "rom_packs",
         }
 
     def test_requires_can_manage_environment_permission(self, client):
         c, _ = client
         from backend.core.dependencies import get_active_user
+
         c.app.dependency_overrides[get_active_user] = _no_permission_user
         resp = c.get("/api/v1/health/summary")
         assert resp.status_code == 403
@@ -508,7 +524,10 @@ class TestHealthRecomputeAllEndpoint:
         base.write_bytes(b"b" * 1024)
         working.write_bytes(b"w" * 1024)
         present_env = _make_environment(
-            db, slug="a", base_image_path=str(base), working_image_path=str(working),
+            db,
+            slug="a",
+            base_image_path=str(base),
+            working_image_path=str(working),
         )
         absent_env = _make_environment(db, slug="b")
 

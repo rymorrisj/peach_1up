@@ -17,6 +17,7 @@ _ERROR_TYPE = "rating_change_requires_confirmation"
 
 def _owner():
     from backend.models.user import UserItem
+
     return UserItem(id=1, name="Owner", is_owner=True)
 
 
@@ -27,7 +28,9 @@ def mem_db_session():
     import backend.models  # noqa: F401, registers all table models
 
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
@@ -51,7 +54,9 @@ def client(mem_db_session, tmp_path, monkeypatch, active_user_box):
     from backend.core.dependencies import get_active_user
 
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
     )
     # Game delete reads delete_media_on_removal from settings; never delete
     # files from these tests.
@@ -70,8 +75,9 @@ def client(mem_db_session, tmp_path, monkeypatch, active_user_box):
 def _game(db, slug, rating):
     from backend.models.game import GameItemBundle
 
-    game = GameItemBundle(title=f"Game {slug}", file_path=f"/library/games/ps1/{slug}", platform="ps1", slug=slug,
-                          content_rating=rating)
+    game = GameItemBundle(
+        title=f"Game {slug}", file_path=f"/library/games/ps1/{slug}", platform="ps1", slug=slug, content_rating=rating
+    )
     db.add(game)
     db.commit()
     db.refresh(game)
@@ -91,8 +97,13 @@ def _bundle(db, slug, rating=None, title=None):
 def _item(db, slug, bundle=None):
     from backend.models.media import MediaItem
 
-    item = MediaItem(title=f"Item {slug}", media_kind="image", file_path=f"/m/{slug}.png", slug=slug,
-                     media_item_bundle_id=bundle.id if bundle else None)
+    item = MediaItem(
+        title=f"Item {slug}",
+        media_kind="image",
+        file_path=f"/m/{slug}.png",
+        slug=slug,
+        media_item_bundle_id=bundle.id if bundle else None,
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -109,6 +120,7 @@ def _link(db, media_type, media_id, *games):
 
 def _link_count(db):
     from backend.models.media import MediaLink
+
     return db.query(MediaLink).count()
 
 
@@ -385,14 +397,18 @@ class TestMediaItemMoveGuard:
 
 class TestConflictBodyLeaksNoTitles:
     def test_game_delete_409_counts_hidden_media_without_naming_it(
-        self, client, mem_db_session, active_user_box,
+        self,
+        client,
+        mem_db_session,
+        active_user_box,
     ):
         from backend.models.media_restriction import MediaRestriction
         from backend.models.user import UserItem
 
         db = mem_db_session
-        caller = UserItem(id=2, name="Parent", is_owner=False, can_manage_game=True, can_manage_media=True,
-                          max_content_rating="T")
+        caller = UserItem(
+            id=2, name="Parent", is_owner=False, can_manage_game=True, can_manage_media=True, max_content_rating="T"
+        )
         db.add(caller)
         db.commit()
         game = _game(db, "t", "T")

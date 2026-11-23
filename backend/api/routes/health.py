@@ -48,6 +48,7 @@ def health_check():
     settings_ok = False
     try:
         from backend.core.settings import get_settings
+
         get_settings()
         settings_ok = True
     except RuntimeError:
@@ -56,6 +57,7 @@ def health_check():
     db_ok = False
     try:
         from backend.core.database import get_engine
+
         engine = get_engine()
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -109,6 +111,7 @@ _storage_cache_time: float = 0.0
 
 def _compute_storage_footprint(db: Session) -> dict:
     from backend.core.settings import get_base_path
+
     base = get_base_path()
 
     emu_size = _dir_size(base / "emulators")
@@ -135,9 +138,7 @@ def _compute_storage_footprint(db: Session) -> dict:
             "WHERE i.file_size_bytes IS NOT NULL"
         )
     ).fetchall()
-    unsized_count = db.execute(
-        text("SELECT COUNT(*) FROM game_items WHERE file_size_bytes IS NULL")
-    ).scalar() or 0
+    unsized_count = db.execute(text("SELECT COUNT(*) FROM game_items WHERE file_size_bytes IS NULL")).scalar() or 0
 
     platform_map: dict[str, dict] = {}
     for platform, size in sized_rows:
@@ -156,14 +157,20 @@ def _compute_storage_footprint(db: Session) -> dict:
     breakdown = sorted(platform_map.values(), key=lambda x: x["size_bytes"], reverse=True)
 
     categories = [
-        {"key": "emulators",      "label": "Emulator Binaries",        "size_bytes": emu_size,   "breakdown": []},
-        {"key": "library_media",  "label": "Library / Media",           "size_bytes": media_size, "breakdown": breakdown, "unsized_count": unsized_count},
-        {"key": "library_system", "label": "Library / System",          "size_bytes": sys_size,   "breakdown": []},
-        {"key": "drive_images",   "label": "Drive Images",              "size_bytes": drive_size, "breakdown": []},
-        {"key": "environments",   "label": "Environments (86Box VMs)",  "size_bytes": env_size,   "breakdown": []},
-        {"key": "external",       "label": "External (AppData)",        "size_bytes": ext_size,   "breakdown": []},
-        {"key": "database",       "label": "Database",                  "size_bytes": db_bytes,   "breakdown": []},
-        {"key": "logs",           "label": "Logs",                      "size_bytes": log_size,   "breakdown": []},
+        {"key": "emulators", "label": "Emulator Binaries", "size_bytes": emu_size, "breakdown": []},
+        {
+            "key": "library_media",
+            "label": "Library / Media",
+            "size_bytes": media_size,
+            "breakdown": breakdown,
+            "unsized_count": unsized_count,
+        },
+        {"key": "library_system", "label": "Library / System", "size_bytes": sys_size, "breakdown": []},
+        {"key": "drive_images", "label": "Drive Images", "size_bytes": drive_size, "breakdown": []},
+        {"key": "environments", "label": "Environments (86Box VMs)", "size_bytes": env_size, "breakdown": []},
+        {"key": "external", "label": "External (AppData)", "size_bytes": ext_size, "breakdown": []},
+        {"key": "database", "label": "Database", "size_bytes": db_bytes, "breakdown": []},
+        {"key": "logs", "label": "Logs", "size_bytes": log_size, "breakdown": []},
     ]
 
     return {
@@ -196,10 +203,7 @@ def rescan_file_sizes(
     _: UserItem = require_permission("can_manage_environment"),
 ):
     rows = db.execute(
-        text(
-            "SELECT id, file_path FROM game_items "
-            "WHERE file_size_bytes IS NULL AND file_path IS NOT NULL"
-        )
+        text("SELECT id, file_path FROM game_items WHERE file_size_bytes IS NULL AND file_path IS NOT NULL")
     ).fetchall()
     updated = 0
     for item_id, file_path in rows:

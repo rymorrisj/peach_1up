@@ -68,9 +68,7 @@ def _sweep_expired_locked(now: float) -> None:
         return
     _last_sweep = now
     stale_keys = [
-        key
-        for key, timestamps in _attempts.items()
-        if not timestamps or timestamps[-1] <= now - _windows.get(key, 0.0)
+        key for key, timestamps in _attempts.items() if not timestamps or timestamps[-1] <= now - _windows.get(key, 0.0)
     ]
     for key in stale_keys:
         _attempts.pop(key, None)

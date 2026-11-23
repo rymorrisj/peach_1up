@@ -12,6 +12,7 @@ compared size and SHA-256 once per file.
 Adoption itself (DB rows only, via the directory branch or _prepare_multi_disc)
 stays in folder_ingest and service.games.items.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -92,7 +93,11 @@ def _is_direct_child(folder: Path, games_root: Path) -> bool:
 
 
 def find_adoptable_folder(
-    anchors: list[Path], matches: list[Path], staging_dir: Path, games_root: Path, db: Session,
+    anchors: list[Path],
+    matches: list[Path],
+    staging_dir: Path,
+    games_root: Path,
+    db: Session,
 ) -> Path | None:
     """The leftover folder to index in place, or None to import as a new folder.
 

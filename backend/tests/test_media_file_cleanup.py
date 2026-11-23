@@ -72,8 +72,10 @@ def _leaf(db, file_path, executable_path=None, cover=None):
     db.commit()
     db.refresh(game)
     leaf = GameItem(
-        game_item_bundle_id=game.id, file_path=str(file_path),
-        executable_path=str(executable_path) if executable_path else None, cover_art_path=cover,
+        game_item_bundle_id=game.id,
+        file_path=str(file_path),
+        executable_path=str(executable_path) if executable_path else None,
+        cover_art_path=cover,
     )
     db.add(leaf)
     db.commit()
@@ -178,7 +180,10 @@ class TestRemovableMediaFiles:
         staged = _file(media / "_asset_staging" / "x.part")
         item = _item(db, cover)
 
-        spelled = [str(cover).replace("_game_covers", "_GAME_COVERS"), str(staged).replace("_asset_staging", "_Asset_Staging")]
+        spelled = [
+            str(cover).replace("_game_covers", "_GAME_COVERS"),
+            str(staged).replace("_asset_staging", "_Asset_Staging"),
+        ]
         assert removable_media_files(spelled, {item.id}, db) == []
 
     @windows_only

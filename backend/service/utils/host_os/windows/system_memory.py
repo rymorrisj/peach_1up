@@ -51,8 +51,6 @@ def get_total_physical_memory_mb() -> int:
     kernel32.GlobalMemoryStatusEx.restype = ctypes.wintypes.BOOL
 
     if not kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
-        raise RuntimeError(
-            f"GlobalMemoryStatusEx failed (GetLastError={ctypes.GetLastError()})."
-        )
+        raise RuntimeError(f"GlobalMemoryStatusEx failed (GetLastError={ctypes.GetLastError()}).")
 
     return status.ullTotalPhys // (1024 * 1024)

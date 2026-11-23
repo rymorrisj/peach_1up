@@ -114,7 +114,9 @@ class TestCanManageAppGate:
         c, db, app = http_client
         _set_active_user(app, _make_user(db, can_manage_app=False))
 
-        resp = c.post("/api/v1/app-items", json={"title": "New App", "file_path": "/library/apps/x", "platform": "winxp"})
+        resp = c.post(
+            "/api/v1/app-items", json={"title": "New App", "file_path": "/library/apps/x", "platform": "winxp"}
+        )
 
         assert resp.status_code == 403, resp.text
 

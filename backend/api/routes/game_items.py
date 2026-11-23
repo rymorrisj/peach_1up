@@ -39,9 +39,7 @@ def update_game_item(
     active_user: UserItem = require_permission("can_manage_game"),
 ):
     leaf = _visible_leaf(leaf_id, active_user, db)
-    return GameItemRead.model_validate(
-        lib_svc.update_library_leaf(leaf.game_item_bundle_id, leaf_id, body, db)
-    )
+    return GameItemRead.model_validate(lib_svc.update_library_leaf(leaf.game_item_bundle_id, leaf_id, body, db))
 
 
 @router.post("/game-item/{leaf_id}/verify", response_model=GameItemRead)

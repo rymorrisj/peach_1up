@@ -40,9 +40,13 @@ def _bundle(db, slug="doom", **overrides):
     db.add(bundle)
     db.commit()
     db.refresh(bundle)
-    db.add(GameItem(
-        game_item_bundle_id=bundle.id, disc_number=1, file_path=f"/library/games/dos/{slug}/{slug}.exe",
-    ))
+    db.add(
+        GameItem(
+            game_item_bundle_id=bundle.id,
+            disc_number=1,
+            file_path=f"/library/games/dos/{slug}/{slug}.exe",
+        )
+    )
     db.commit()
     db.refresh(bundle)
     return bundle
@@ -97,7 +101,10 @@ class TestHasLaunchedOnDetailRead:
 
         bundle = _bundle(db)
         _launch(
-            db, bundle.id, error_message="Launch timed out after 30s.", exit_code=-1,
+            db,
+            bundle.id,
+            error_message="Launch timed out after 30s.",
+            exit_code=-1,
             ended_at=datetime.now(timezone.utc),
         )
 

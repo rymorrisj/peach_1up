@@ -16,6 +16,7 @@ from backend.service.launch.launch_spec import LaunchSpec
 # _validate_game_executable, direct unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestValidateGameExecutable:
     def test_clean_path_passes(self):
         _validate_game_executable("GAME.EXE", "C:")
@@ -66,6 +67,7 @@ class TestValidateGameExecutable:
 # ---------------------------------------------------------------------------
 # write_launch_conf, game_executable pipeline tests
 # ---------------------------------------------------------------------------
+
 
 class TestWriteLaunchConfGameExecutable:
     def _conf_content(self, tmp_path, game_executable=None, suffix=".img"):

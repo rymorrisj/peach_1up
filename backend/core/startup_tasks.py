@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 def _sync_first_run_from_db(db) -> None:
     from backend.api.middleware.security import set_first_run_complete
     from backend.models.settings import Settings as SettingsModel
+
     row = db.get(SettingsModel, "first_run_complete")
     if row and row.value == "true":
         set_first_run_complete()
@@ -19,6 +20,7 @@ def _sync_first_run_from_db(db) -> None:
 def _cleanup_stale_sessions(db) -> None:
     try:
         from backend.models import LaunchHistory
+
         stale = db.query(LaunchHistory).filter(LaunchHistory.ended_at.is_(None)).all()
         for session in stale:
             session.ended_at = datetime.now(timezone.utc)
@@ -38,11 +40,8 @@ def _flag_corrupt_environment_working_paths(db) -> None:
     path is never a real image file, nothing further needs to be stored here."""
     try:
         from backend.models import EnvironmentItem
-        corrupt = (
-            db.query(EnvironmentItem)
-            .filter(EnvironmentItem.working_image_path.like("%.cfg"))
-            .all()
-        )
+
+        corrupt = db.query(EnvironmentItem).filter(EnvironmentItem.working_image_path.like("%.cfg")).all()
         for p in corrupt:
             logger.warning(
                 "Environment %s (%s) has a .cfg file as working_image_path, "
@@ -66,9 +65,7 @@ def _ensure_owner_user() -> None:
         has_owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).count() > 0
 
     if not has_owner:
-        logger.warning(
-            "No owner account found. Complete the first-run setup in the web interface."
-        )
+        logger.warning("No owner account found. Complete the first-run setup in the web interface.")
 
 
 def _ensure_default_paths() -> None:
@@ -92,6 +89,7 @@ def _ensure_default_paths() -> None:
 def _sync_detected_emulator_paths() -> None:
     try:
         from backend.service.utils.emulator_catalog import detect_and_sync_all
+
         detect_and_sync_all()
         logger.info("Startup: emulator configure pass complete")
     except Exception as exc:
@@ -139,7 +137,8 @@ def _heal_interrupted_rom_pack_clones() -> None:
                 logger.warning(
                     "Startup: removed half-populated rom pack directory for '%s' (%s), "
                     "a previous clone was interrupted by a restart; ready to retry.",
-                    entry.get("slug"), target,
+                    entry.get("slug"),
+                    target,
                 )
     except Exception as exc:
         logger.warning("Rom pack self-heal check failed: %s", exc)
@@ -155,8 +154,10 @@ def _sweep_upload_tmp() -> None:
         from backend.service.uploads.core import sweep_orphans
         from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS
 
-        ttl = int(get_settings().get("UPLOAD_TMP_TTL_SECONDS", DEFAULT_UPLOAD_TMP_TTL_SECONDS)
-                  or DEFAULT_UPLOAD_TMP_TTL_SECONDS)
+        ttl = int(
+            get_settings().get("UPLOAD_TMP_TTL_SECONDS", DEFAULT_UPLOAD_TMP_TTL_SECONDS)
+            or DEFAULT_UPLOAD_TMP_TTL_SECONDS
+        )
         removed = sweep_orphans(ttl)
         if removed:
             logger.info("Startup: swept %d orphaned upload tmp dir(s)", removed)
@@ -168,6 +169,7 @@ def _scan_installed_emulators() -> None:
     try:
         from backend.service.utils.emulator_catalog import load_catalog
         from backend.service.utils.emulator_installer import detect_binary
+
         catalog = load_catalog()
         detected = 0
         for entry in catalog:

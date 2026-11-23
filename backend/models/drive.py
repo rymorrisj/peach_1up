@@ -8,10 +8,12 @@ if TYPE_CHECKING:
     from backend.models.app import AppItemBundle
     from backend.models.game import GameItemBundle
 
+
 class DriveBase(SQLModel):
     name: str
     size_mb: int = 500
     image_path: Optional[str] = None
+
 
 # ---------------------------------------------------------------------------
 # Drive ownership: exactly one of game_item_bundle_id / app_item_bundle_id
@@ -27,6 +29,7 @@ class DriveBase(SQLModel):
 # this bug class: it moved to a polymorphic entity_a/entity_b shape with no
 # nullable-FK ambiguity to guard, so it has no model_post_init at all now.
 # ---------------------------------------------------------------------------
+
 
 class Drive(DriveBase, table=True):
     __tablename__ = "drives"
@@ -81,6 +84,7 @@ class Drive(DriveBase, table=True):
                 f"Drive (got game_item_bundle_id={self.game_item_bundle_id!r}, "
                 f"app_item_bundle_id={self.app_item_bundle_id!r})."
             )
+
 
 class DriveRead(DriveBase):
     id: int

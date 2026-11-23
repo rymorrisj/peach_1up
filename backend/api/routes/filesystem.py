@@ -15,9 +15,17 @@ router = APIRouter(prefix="/api/v1/filesystem", tags=["filesystem"])
 def _get_drive_label(letter: str) -> str:
     try:
         import ctypes
+
         buf = ctypes.create_unicode_buffer(261)
         ctypes.windll.kernel32.GetVolumeInformationW(  # type: ignore[attr-defined]
-            f"{letter}:\\", buf, 261, None, None, None, None, 0,
+            f"{letter}:\\",
+            buf,
+            261,
+            None,
+            None,
+            None,
+            None,
+            0,
         )
         name = buf.value
         return f"{name} ({letter}:)" if name else f"Local Disk ({letter}:)"
@@ -64,6 +72,7 @@ def browse(
 
     if path is None:
         from backend.core.settings import get_settings
+
         svc = get_settings()
         _LABELS = {
             "LIBRARY_PATH": "Library",
@@ -83,6 +92,7 @@ def browse(
         return {"current_path": None, "parent_path": None, "dirs": dirs, "files": []}
 
     from backend.service.utils.path_utils import normalise_path
+
     try:
         resolved = normalise_path(path)
     except ValueError as exc:

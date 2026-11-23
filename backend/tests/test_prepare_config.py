@@ -35,6 +35,7 @@ _GAME_CDROM_KEY = "cdrom_01_image_path"
 def _run(tmp_path: Path, monkeypatch, *, mbr: bool, iso: bool = False, media_path: Path | None = None):
     """Set up a _prepare_config scenario and return (cfg_path, img_path, iso_path)."""
     import backend.service.backends.box86 as box86_mod
+
     monkeypatch.setattr(box86_mod, "get_86box_profile", lambda _: _FAKE_PROFILE)
 
     img = tmp_path / "disk.vhd"
@@ -80,6 +81,7 @@ def _parse(cfg: Path) -> configparser.RawConfigParser:
 # Case A, pre-installed image: MBR signature present
 # ---------------------------------------------------------------------------
 
+
 class TestPrepareConfigCaseA:
     def test_boot_order_is_hdd_first(self, tmp_path, monkeypatch):
         cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True)
@@ -92,16 +94,14 @@ class TestPrepareConfigCaseA:
     def test_no_cdrom_image_path_written(self, tmp_path, monkeypatch):
         cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True)
         parser = _parse(cfg)
-        has_cdrom = (
-            parser.has_section(_CDROM_SECTION)
-            and parser.has_option(_CDROM_SECTION, _CDROM_KEY)
-        )
+        has_cdrom = parser.has_section(_CDROM_SECTION) and parser.has_option(_CDROM_SECTION, _CDROM_KEY)
         assert not has_cdrom
 
 
 # ---------------------------------------------------------------------------
 # Case B, blank disk with ISO: MBR absent, base_image_path set
 # ---------------------------------------------------------------------------
+
 
 class TestPrepareConfigCaseB:
     def test_boot_order_is_cdrom_first(self, tmp_path, monkeypatch):
@@ -125,6 +125,7 @@ class TestPrepareConfigCaseB:
 # Case C, blank disk, no ISO: MBR absent, no base_image_path
 # ---------------------------------------------------------------------------
 
+
 class TestPrepareConfigCaseC:
     def test_boot_order_is_cdrom_first(self, tmp_path, monkeypatch):
         cfg, _, _ = _run(tmp_path, monkeypatch, mbr=False)
@@ -137,16 +138,14 @@ class TestPrepareConfigCaseC:
     def test_no_cdrom_image_path_written(self, tmp_path, monkeypatch):
         cfg, _, _ = _run(tmp_path, monkeypatch, mbr=False)
         parser = _parse(cfg)
-        has_cdrom = (
-            parser.has_section(_CDROM_SECTION)
-            and parser.has_option(_CDROM_SECTION, _CDROM_KEY)
-        )
+        has_cdrom = parser.has_section(_CDROM_SECTION) and parser.has_option(_CDROM_SECTION, _CDROM_KEY)
         assert not has_cdrom
 
 
 # ---------------------------------------------------------------------------
 # Game/app media (cdrom_01), independent of base_image_path/cdrom_02
 # ---------------------------------------------------------------------------
+
 
 class TestPrepareConfigGameMedia:
     def test_iso_media_is_mounted_on_cdrom_01(self, tmp_path, monkeypatch):
@@ -170,10 +169,7 @@ class TestPrepareConfigGameMedia:
     def test_no_media_path_writes_nothing_on_cdrom_01(self, tmp_path, monkeypatch):
         cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=None)
         parser = _parse(cfg)
-        has_cdrom_01 = (
-            parser.has_section(_CDROM_SECTION)
-            and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
-        )
+        has_cdrom_01 = parser.has_section(_CDROM_SECTION) and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
         assert not has_cdrom_01
 
     def test_non_disc_media_is_skipped(self, tmp_path, monkeypatch):
@@ -181,10 +177,7 @@ class TestPrepareConfigGameMedia:
         media.write_bytes(b"")
         cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=media)
         parser = _parse(cfg)
-        has_cdrom_01 = (
-            parser.has_section(_CDROM_SECTION)
-            and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
-        )
+        has_cdrom_01 = parser.has_section(_CDROM_SECTION) and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
         assert not has_cdrom_01
 
     def test_directory_media_is_skipped(self, tmp_path, monkeypatch):
@@ -192,10 +185,7 @@ class TestPrepareConfigGameMedia:
         media.mkdir()
         cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=media)
         parser = _parse(cfg)
-        has_cdrom_01 = (
-            parser.has_section(_CDROM_SECTION)
-            and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
-        )
+        has_cdrom_01 = parser.has_section(_CDROM_SECTION) and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
         assert not has_cdrom_01
 
     def test_cdrom_01_cleared_when_switching_from_media_to_no_media(self, tmp_path, monkeypatch):
@@ -203,6 +193,7 @@ class TestPrepareConfigGameMedia:
         prior launch's cdrom_01 entry, same reset guarantee cdrom_02
         already has for base_image_path."""
         import backend.service.backends.box86 as box86_mod
+
         monkeypatch.setattr(box86_mod, "get_86box_profile", lambda _: _FAKE_PROFILE)
 
         media = tmp_path / "game.iso"
@@ -221,10 +212,7 @@ class TestPrepareConfigGameMedia:
             media_path=None,
         )
         parser = _parse(cfg)
-        has_cdrom_01 = (
-            parser.has_section(_CDROM_SECTION)
-            and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
-        )
+        has_cdrom_01 = parser.has_section(_CDROM_SECTION) and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
         assert not has_cdrom_01
 
     def test_game_media_coexists_with_base_image_on_cdrom_02(self, tmp_path, monkeypatch):

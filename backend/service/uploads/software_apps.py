@@ -18,6 +18,7 @@ kind="set" is not supported for Apps (AppItem has no disc_number concept), so
 it is excluded from this domain's allowed_kinds in register() below, enforced by
 the route layer before a session is even created.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -104,7 +105,7 @@ def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
         jobs.update(job_id, progress=0.0, message="Reassembling upload…")
         reasm = cu.reassemble(upload_id, Path(media_root), job_id=job_id)
         result = finalize_reassembled(reasm, Path(media_root), db)
-        jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'upload')}\".")
+        jobs.complete(job_id, result=result, message=f'Added "{result.get("title", "upload")}".')
     except Exception as exc:  # noqa: BLE001, background tasks must not propagate
         logger.exception("Background app upload finalize failed: upload_id=%s", upload_id)
         db.rollback()
@@ -116,6 +117,7 @@ def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
 
 def _root() -> Path:
     from backend.service.utils.path_utils import library_domain_root
+
     return library_domain_root("apps")
 
 

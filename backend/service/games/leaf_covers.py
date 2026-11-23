@@ -69,7 +69,7 @@ def app_owned_leaf_cover(raw: Optional[str], leaf_id: int) -> Optional[Path]:
     try:
         root = game_covers_root()
         resolved = Path(raw).resolve()
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return None
     if lexical_key(str(resolved.parent)) != lexical_key(str(root)) or resolved.stem != leaf_cover_stem(leaf_id):
         return None

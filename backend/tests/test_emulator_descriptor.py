@@ -60,10 +60,16 @@ class TestValidMinimalDescriptor:
         """86box-roms.toml (install_type='rom_pack') has no platform, container, or
         binary-launch fields populated; it's still schema-uniform with a
         launchable descriptor (see class docstring)."""
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            slug="86box-roms", name="86Box ROM Pack", binary="",
-            install_type="rom_pack", skip_memory_limit=True, skip_cpu_limit=True,
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                slug="86box-roms",
+                name="86Box ROM Pack",
+                binary="",
+                install_type="rom_pack",
+                skip_memory_limit=True,
+                skip_cpu_limit=True,
+            )
+        )
         assert descriptor.sizing_platform is None
         assert descriptor.supported_platforms == []
 
@@ -196,60 +202,72 @@ class TestValidateInstallDirWriteAccess:
     def test_container_disabled_skips_validator_entirely(self):
         """Even a broker config that would otherwise fail must pass when
         container_enabled is False, the validator's early-return guard."""
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            container_enabled=False,
-            portable_sentinel=".installed",
-            container_broker_files=[{"path_key": "install_dir", "access": "r"}],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                container_enabled=False,
+                portable_sentinel=".installed",
+                container_broker_files=[{"path_key": "install_dir", "access": "r"}],
+            )
+        )
         assert descriptor.container_enabled is False
 
     def test_empty_portable_sentinel_skips_validator(self):
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            container_enabled=True,
-            portable_sentinel="",
-            container_broker_files=[{"path_key": "install_dir", "access": "r"}],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                container_enabled=True,
+                portable_sentinel="",
+                container_broker_files=[{"path_key": "install_dir", "access": "r"}],
+            )
+        )
         assert descriptor.portable_sentinel == ""
 
     def test_no_install_dir_entry_skips_validator(self):
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            container_enabled=True,
-            portable_sentinel=".installed",
-            container_broker_files=[{"path_key": "saves_dir", "access": "rw"}],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                container_enabled=True,
+                portable_sentinel=".installed",
+                container_broker_files=[{"path_key": "saves_dir", "access": "rw"}],
+            )
+        )
         assert descriptor.container_enabled is True
 
     def test_install_dir_with_rw_access_directly_passes(self):
         """install_dir granted rw directly needs no second broker entry."""
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            container_enabled=True,
-            portable_sentinel=".installed",
-            container_broker_files=[{"path_key": "install_dir", "access": "rw"}],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                container_enabled=True,
+                portable_sentinel=".installed",
+                container_broker_files=[{"path_key": "install_dir", "access": "rw"}],
+            )
+        )
         assert descriptor.container_enabled is True
 
     def test_install_dir_read_only_with_no_matching_rw_grant_raises(self):
         with pytest.raises(ValidationError, match="needs write access"):
-            EmulatorDescriptor(**_valid_kwargs(
-                container_enabled=True,
-                portable_sentinel=".installed",
-                container_broker_files=[{"path_key": "install_dir", "access": "r"}],
-            ))
+            EmulatorDescriptor(
+                **_valid_kwargs(
+                    container_enabled=True,
+                    portable_sentinel=".installed",
+                    container_broker_files=[{"path_key": "install_dir", "access": "r"}],
+                )
+            )
 
     def test_install_dir_read_only_with_config_dir_rw_grant_resolving_identically_passes(self):
         """The 86box pattern called out in the docstring: config_dir derives
         to the same path as install_dir (both base/emulators/<slug>), so a
         separate rw+grant entry keyed on config_dir satisfies the write-access
         requirement without install_dir itself needing rw."""
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            slug="86box",
-            container_enabled=True,
-            portable_sentinel=".installed",
-            container_broker_files=[
-                {"path_key": "install_dir", "access": "r"},
-                {"path_key": "config_dir", "access": "rw", "mode": "grant"},
-            ],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                slug="86box",
+                container_enabled=True,
+                portable_sentinel=".installed",
+                container_broker_files=[
+                    {"path_key": "install_dir", "access": "r"},
+                    {"path_key": "config_dir", "access": "rw", "mode": "grant"},
+                ],
+            )
+        )
         assert descriptor.slug == "86box"
 
     def test_install_dir_read_only_with_rw_but_non_grant_mode_still_raises(self):
@@ -257,15 +275,17 @@ class TestValidateInstallDirWriteAccess:
         'secure') does not satisfy the requirement, mode='grant' is checked
         explicitly, not just access."""
         with pytest.raises(ValidationError, match="needs write access"):
-            EmulatorDescriptor(**_valid_kwargs(
-                slug="86box",
-                container_enabled=True,
-                portable_sentinel=".installed",
-                container_broker_files=[
-                    {"path_key": "install_dir", "access": "r"},
-                    {"path_key": "config_dir", "access": "rw", "mode": "secure"},
-                ],
-            ))
+            EmulatorDescriptor(
+                **_valid_kwargs(
+                    slug="86box",
+                    container_enabled=True,
+                    portable_sentinel=".installed",
+                    container_broker_files=[
+                        {"path_key": "install_dir", "access": "r"},
+                        {"path_key": "config_dir", "access": "rw", "mode": "secure"},
+                    ],
+                )
+            )
 
     def test_install_dir_read_only_with_rw_grant_at_different_path_still_raises(self):
         """An rw+grant entry that resolves to a DIFFERENT derived directory
@@ -273,26 +293,30 @@ class TestValidateInstallDirWriteAccess:
         satisfy the requirement, path identity is checked, not just that some
         rw+grant entry exists somewhere in the list."""
         with pytest.raises(ValidationError, match="needs write access"):
-            EmulatorDescriptor(**_valid_kwargs(
-                container_enabled=True,
-                portable_sentinel=".installed",
-                container_broker_files=[
-                    {"path_key": "install_dir", "access": "r"},
-                    {"path_key": "saves_dir", "access": "rw", "mode": "grant"},
-                ],
-            ))
+            EmulatorDescriptor(
+                **_valid_kwargs(
+                    container_enabled=True,
+                    portable_sentinel=".installed",
+                    container_broker_files=[
+                        {"path_key": "install_dir", "access": "r"},
+                        {"path_key": "saves_dir", "access": "rw", "mode": "grant"},
+                    ],
+                )
+            )
 
     def test_install_dir_as_literal_path_matching_rw_grant_literal_path_passes(self):
         """Path-identity check also works for two entries both keyed by
         literal 'path' (not path_key) resolving to the same string."""
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            container_enabled=True,
-            portable_sentinel=".installed",
-            container_broker_files=[
-                {"path": "C:/emulators/dosbox-x", "access": "r"},
-                {"path": "C:/emulators/dosbox-x", "access": "rw", "mode": "grant"},
-            ],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                container_enabled=True,
+                portable_sentinel=".installed",
+                container_broker_files=[
+                    {"path": "C:/emulators/dosbox-x", "access": "r"},
+                    {"path": "C:/emulators/dosbox-x", "access": "rw", "mode": "grant"},
+                ],
+            )
+        )
         assert descriptor.container_enabled is True
 
 
@@ -312,48 +336,67 @@ class TestValidateSupportedFormatsMatchesPlatforms:
             "snes": [".sfc", ".smc"],
         }
         monkeypatch.setattr(
-            file_types_mod, "supported_extensions_for_platform", lambda platform: table.get(platform, []),
+            file_types_mod,
+            "supported_extensions_for_platform",
+            lambda platform: table.get(platform, []),
         )
 
     def test_no_platform_and_no_supported_platforms_skips_validator(self):
         """rom_pack config: neither sizing_platform nor supported_platforms set, supported_formats
         is not checked at all regardless of its content."""
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            supported_formats=["totally", "wrong", "values"],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                supported_formats=["totally", "wrong", "values"],
+            )
+        )
         assert descriptor.sizing_platform is None
         assert descriptor.supported_platforms == []
 
     def test_matching_supported_formats_for_single_platform_passes(self):
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            sizing_platform="dos", supported_formats=[".iso", ".img", ".cue"],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                sizing_platform="dos",
+                supported_formats=[".iso", ".img", ".cue"],
+            )
+        )
         assert descriptor.sizing_platform == "dos"
 
     def test_missing_extension_for_single_platform_raises(self):
         with pytest.raises(ValidationError, match="Missing"):
-            EmulatorDescriptor(**_valid_kwargs(
-                sizing_platform="dos", supported_formats=[".iso", ".img"],
-            ))
+            EmulatorDescriptor(
+                **_valid_kwargs(
+                    sizing_platform="dos",
+                    supported_formats=[".iso", ".img"],
+                )
+            )
 
     def test_extra_unexpected_extension_for_single_platform_raises(self):
         with pytest.raises(ValidationError, match="unexpected"):
-            EmulatorDescriptor(**_valid_kwargs(
-                sizing_platform="dos", supported_formats=[".iso", ".img", ".cue", ".xyz"],
-            ))
+            EmulatorDescriptor(
+                **_valid_kwargs(
+                    sizing_platform="dos",
+                    supported_formats=[".iso", ".img", ".cue", ".xyz"],
+                )
+            )
 
     def test_multi_platform_supported_formats_is_the_union(self):
         """mesen-style multi-platform emulator: supported_formats must cover the
         union of every platform in supported_platforms, not just the first/primary one."""
-        descriptor = EmulatorDescriptor(**_valid_kwargs(
-            sizing_platform="nes", supported_platforms=["nes", "snes"],
-            supported_formats=[".nes", ".sfc", ".smc"],
-        ))
+        descriptor = EmulatorDescriptor(
+            **_valid_kwargs(
+                sizing_platform="nes",
+                supported_platforms=["nes", "snes"],
+                supported_formats=[".nes", ".sfc", ".smc"],
+            )
+        )
         assert descriptor.supported_platforms == ["nes", "snes"]
 
     def test_multi_platform_missing_one_platforms_extensions_raises(self):
         with pytest.raises(ValidationError, match="Missing"):
-            EmulatorDescriptor(**_valid_kwargs(
-                sizing_platform="nes", supported_platforms=["nes", "snes"],
-                supported_formats=[".nes"],  # missing snes's .sfc/.smc
-            ))
+            EmulatorDescriptor(
+                **_valid_kwargs(
+                    sizing_platform="nes",
+                    supported_platforms=["nes", "snes"],
+                    supported_formats=[".nes"],  # missing snes's .sfc/.smc
+                )
+            )

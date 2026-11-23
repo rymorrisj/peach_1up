@@ -77,9 +77,7 @@ def _get_valid_token(*, force_refresh: bool = False) -> str:
     if not force_refresh:
         cached_token = _s.get("igdb_access_token")
         cached_expires_at = _s.get("igdb_access_token_expires_at")
-        if cached_token and cached_expires_at and (
-            float(cached_expires_at) - time.time() > _REFRESH_MARGIN_SECONDS
-        ):
+        if cached_token and cached_expires_at and (float(cached_expires_at) - time.time() > _REFRESH_MARGIN_SECONDS):
             return cached_token
 
     token, expires_at = _fetch_new_token()
@@ -140,7 +138,7 @@ def _unix_to_date_string(epoch: int | None) -> str | None:
 # enforces. Only ESRB and PEGI are covered because those are the only two
 # schemes that vocabulary defines; IGDB's other organizations (CERO, USK,
 # GRAC, ACB) have no equivalent entry to map onto and are deliberately absent
-#, an age rating from one of those always resolves to None, not a guess.
+# , an age rating from one of those always resolves to None, not a guess.
 #
 # IGDB migrated this endpoint from a flat numeric category/rating enum to a
 # relational organization/rating_category schema (confirmed via IGDB's public
@@ -171,11 +169,16 @@ _IGDB_RATING_MAP: dict[str, dict[str, str]] = {
         # intentionally omitted, falls through to None (unrated), not guessed.
     },
     "PEGI": {
-        "3": "PEGI 3", "THREE": "PEGI 3",
-        "7": "PEGI 7", "SEVEN": "PEGI 7",
-        "12": "PEGI 12", "TWELVE": "PEGI 12",
-        "16": "PEGI 16", "SIXTEEN": "PEGI 16",
-        "18": "PEGI 18", "EIGHTEEN": "PEGI 18",
+        "3": "PEGI 3",
+        "THREE": "PEGI 3",
+        "7": "PEGI 7",
+        "SEVEN": "PEGI 7",
+        "12": "PEGI 12",
+        "TWELVE": "PEGI 12",
+        "16": "PEGI 16",
+        "SIXTEEN": "PEGI 16",
+        "18": "PEGI 18",
+        "EIGHTEEN": "PEGI 18",
     },
 }
 
@@ -230,9 +233,8 @@ class IGDBProvider:
                 game_id=g["id"],
                 title=g.get("name"),
                 release_date=_unix_to_date_string(g.get("first_release_date")),
-                platform=", ".join(
-                    p["name"] for p in g.get("platforms") or [] if isinstance(p, dict) and p.get("name")
-                ) or None,
+                platform=", ".join(p["name"] for p in g.get("platforms") or [] if isinstance(p, dict) and p.get("name"))
+                or None,
             )
             for g in games
             if g.get("id") is not None

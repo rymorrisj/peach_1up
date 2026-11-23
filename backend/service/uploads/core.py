@@ -18,6 +18,7 @@ sweep).
 Sessions are in-memory (matching _scan_state / install_registry). A crash loses
 the session but leaves the tmp dir on disk; sweep_orphans() reaps those.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -86,11 +87,17 @@ def tmp_root() -> Path:
     domain root rather than nested inside one, since staging happens before
     the upload's eventual destination domain is known."""
     from backend.service.utils.path_utils import library_root
+
     return library_root() / TMP_CHUNKS_DIRNAME
 
 
 def init_session(
-    kind: str, title: str, files: list[dict], chunk_max_bytes: int, *, media_kind: str | None = None,
+    kind: str,
+    title: str,
+    files: list[dict],
+    chunk_max_bytes: int,
+    *,
+    media_kind: str | None = None,
 ) -> str:
     """Validate the declared manifest, create the staging dir, and return an
     unguessable upload_id. Raises ValueError on a malformed manifest."""
@@ -133,9 +140,7 @@ def init_session(
         # overhead stays bounded even at the largest declared size, and the
         # ceiling applies whether or not a per-chunk cap is configured.
         min_required_chunks = max(1, math.ceil(size / chunk_max_bytes)) if chunk_max_bytes > 0 else 1
-        max_allowed_chunks = min(
-            max(1, math.ceil(size / _MIN_CHUNK_BYTES)), _MAX_CHUNKS_PER_FILE
-        )
+        max_allowed_chunks = min(max(1, math.ceil(size / _MIN_CHUNK_BYTES)), _MAX_CHUNKS_PER_FILE)
         if chunks < min_required_chunks:
             raise ValueError(
                 f"Declared chunk count for '{name}' ({chunks}) is too low to carry its "
@@ -154,10 +159,16 @@ def init_session(
         # None and reassemble() falls back to the flat basename in that case.
         raw_relative_path = f.get("relative_path")
         segments = sanitize_relative_path(str(raw_relative_path)) if raw_relative_path else None
-        slots.append({
-            "name": name, "size": size, "chunks": chunks, "received": set(),
-            "received_bytes": 0, "segments": segments,
-        })
+        slots.append(
+            {
+                "name": name,
+                "size": size,
+                "chunks": chunks,
+                "received": set(),
+                "received_bytes": 0,
+                "segments": segments,
+            }
+        )
     if declared_total > DEFAULT_MAX_BYTES:
         raise ValueError("Upload exceeds the maximum allowed size.")
 
@@ -236,9 +247,7 @@ async def store_chunk(
             projected = slot["received_bytes"] + written_bytes
             if projected > slot["size"] + chunk_max_bytes:
                 part_path.unlink(missing_ok=True)
-                raise ValueError(
-                    f"Cumulative bytes for file_index {file_index} exceed its declared size."
-                )
+                raise ValueError(f"Cumulative bytes for file_index {file_index} exceed its declared size.")
             slot["received_bytes"] = projected
         slot["received"].add(chunk_index)
         return {"received": len(slot["received"]), "total": slot["chunks"]}
@@ -347,7 +356,11 @@ def reassemble(upload_id: str, domain_root: Path, job_id: str | None = None) -> 
 
     _discard(upload_id, session_dir)
     return ReassembledUpload(
-        kind=kind, title=base_title, dest_dir=dest_dir, paths=written_paths, total_bytes=total_bytes,
+        kind=kind,
+        title=base_title,
+        dest_dir=dest_dir,
+        paths=written_paths,
+        total_bytes=total_bytes,
         media_kind=media_kind,
     )
 

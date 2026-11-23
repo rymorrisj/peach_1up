@@ -18,6 +18,7 @@ registry in backend.service.uploads.registry, populated by each domain
 module's explicit register() call from backend.core.lifespan at startup, so
 by the time any request reaches these routes, lifespan has already run.
 """
+
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -64,9 +65,10 @@ class InitBody(BaseModel):
 
 def _setting_int(key: str, default: int) -> int:
     from backend.core.settings import get_settings
+
     try:
         return int(get_settings().get(key, default) or default)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -121,7 +123,7 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
         # resolve it. Attached to the session (not returned for the client to
         # echo back at /complete) so /complete resolves it itself instead of
         # trusting a client-supplied job_id to identify which job to update.
-        job_id = jobs.create("upload", message=f"Uploading \"{title or 'upload'}\"…")
+        job_id = jobs.create("upload", message=f'Uploading "{title or "upload"}"…')
         cu.set_job_id(upload_id, job_id)
 
         return {
@@ -181,9 +183,7 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
         # finalize_background itself, not translated into an HTTP response
         # here, there is nothing left running synchronously in this request
         # to raise one from.
-        background_tasks.add_task(
-            domain.finalize_background, upload_id, str(media_root), job_id
-        )
+        background_tasks.add_task(domain.finalize_background, upload_id, str(media_root), job_id)
         return JSONResponse(status_code=202, content={"job_id": job_id, "status": "processing"})
 
     @router.delete("/{upload_id}", status_code=204)

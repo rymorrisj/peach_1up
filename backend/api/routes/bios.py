@@ -33,23 +33,27 @@ def list_bios_requirements(
     result = []
     for entry in load_bios_requirements():
         bios_path = entry.get("bios_path", "")
-        result.append({
-            "slug": entry["slug"],
-            "name": entry["name"],
-            "bios_group": entry.get("bios_group", ""),
-            "bios_path": bios_path,
-            "guidance_text": entry.get("guidance_text", ""),
-            "guidance_url": entry.get("guidance_url", ""),
-            "is_present": check_bios_presence(
-                bios_path,
-                required_files=entry.get("required_files"),
-                required_glob=entry.get("required_glob"),
-                required_glob_excludes=entry.get("required_glob_excludes"),
-            ) if bios_path else False,
-            "required": entry.get("required", True),
-        })
+        result.append(
+            {
+                "slug": entry["slug"],
+                "name": entry["name"],
+                "bios_group": entry.get("bios_group", ""),
+                "bios_path": bios_path,
+                "guidance_text": entry.get("guidance_text", ""),
+                "guidance_url": entry.get("guidance_url", ""),
+                "is_present": check_bios_presence(
+                    bios_path,
+                    required_files=entry.get("required_files"),
+                    required_glob=entry.get("required_glob"),
+                    required_glob_excludes=entry.get("required_glob_excludes"),
+                )
+                if bios_path
+                else False,
+                "required": entry.get("required", True),
+            }
+        )
     total = len(result)
-    return Page(items=result[offset:offset + limit], total=total, limit=limit, offset=offset)
+    return Page(items=result[offset : offset + limit], total=total, limit=limit, offset=offset)
 
 
 @router.post("/{slug}/place", response_model=BiosPlaceResult)
@@ -89,7 +93,10 @@ async def place_bios(
 
     try:
         result = await place_bios_asset(
-            slug=slug, source_path=source_path, uploads=uploads, dest_dir=dest_dir,
+            slug=slug,
+            source_path=source_path,
+            uploads=uploads,
+            dest_dir=dest_dir,
         )
     except PlacementError as exc:
         logger.warning("bios place rejected for '%s': %s", slug, exc)
@@ -99,7 +106,10 @@ async def place_bios(
 
     logger.info(
         "bios place '%s': %d copied, %d skipped, %d warning(s)",
-        slug, len(result.copied), len(result.skipped), len(result.warnings),
+        slug,
+        len(result.copied),
+        len(result.skipped),
+        len(result.warnings),
     )
 
     return BiosPlaceResult(

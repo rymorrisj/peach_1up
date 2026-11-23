@@ -72,7 +72,9 @@ def media_client(tmp_path, monkeypatch):
     from backend.main import app
 
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
@@ -197,17 +199,20 @@ class TestMediaRouteHardening:
         assert resp.status_code == 404
         assert "text/html" not in resp.headers.get("content-type", "")
 
-    @pytest.mark.parametrize("path", [
-        "..%2Foutside.txt",
-        "software/..%2F..%2Foutside.txt",
-        "%5C%5Cattacker%5Cshare%5Cx.png",       # \\attacker\share\x.png
-        "%2F%2Fattacker%2Fshare%2Fx.png",       # //attacker/share/x.png
-        "C:%5CWindows%5Cwin.png",               # drive-absolute
-        "C:x.png",                              # drive-relative
-        "%2Fetc%2Fx.png",                       # absolute
-        "cover.png:stream",                     # NTFS alternate data stream
-        "~%2Fcover.png",                        # home-relative
-    ])
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "..%2Foutside.txt",
+            "software/..%2F..%2Foutside.txt",
+            "%5C%5Cattacker%5Cshare%5Cx.png",  # \\attacker\share\x.png
+            "%2F%2Fattacker%2Fshare%2Fx.png",  # //attacker/share/x.png
+            "C:%5CWindows%5Cwin.png",  # drive-absolute
+            "C:x.png",  # drive-relative
+            "%2Fetc%2Fx.png",  # absolute
+            "cover.png:stream",  # NTFS alternate data stream
+            "~%2Fcover.png",  # home-relative
+        ],
+    )
     def test_hostile_paths_are_404_without_touching_disk(self, media_client, monkeypatch, path):
         """Rejected before Path.resolve() runs, so a UNC path never reaches
         the SMB client."""

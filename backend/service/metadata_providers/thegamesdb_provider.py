@@ -19,8 +19,12 @@ import httpx2
 
 from backend.core.logger import get_logger
 from backend.models.metadata_lookup import (
-    Developer, Genre, Publisher,
-    get_or_create_developer, get_or_create_genre, get_or_create_publisher,
+    Developer,
+    Genre,
+    Publisher,
+    get_or_create_developer,
+    get_or_create_genre,
+    get_or_create_publisher,
 )
 from backend.service.metadata_providers import ASSET_TYPES, GameDetails, MetadataAsset, SearchResult
 
@@ -76,7 +80,7 @@ def _ids_from_game_field(game: dict, field: str) -> list[int]:
     for value in raw:
         try:
             ids.append(int(value))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
     return ids
 
@@ -91,7 +95,7 @@ def _platform_names(raw: dict) -> dict[int, str]:
             continue
         try:
             names[int(entry.get("id"))] = entry["name"]
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
     return names
 
@@ -99,7 +103,7 @@ def _platform_names(raw: dict) -> dict[int, str]:
 def _platform_label(game: dict, names: dict[int, str]) -> Optional[str]:
     try:
         return names.get(int(game.get("platform")))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -233,7 +237,7 @@ class TheGamesDBProvider:
             if raw_provider_platform is not None:
                 try:
                     result.provider_platform_id = int(raw_provider_platform)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
             genre_ids = _ids_from_game_field(game, "genres")
@@ -244,17 +248,21 @@ class TheGamesDBProvider:
             if developer_ids:
                 _ensure_developers_cached(db)
                 # Single-valued in this app's schema, first id is treated as primary.
-                row = db.query(Developer).filter(
-                    Developer.provider == _PROVIDER, Developer.external_id == developer_ids[0]
-                ).first()
+                row = (
+                    db.query(Developer)
+                    .filter(Developer.provider == _PROVIDER, Developer.external_id == developer_ids[0])
+                    .first()
+                )
                 result.developer = row.name if row else None
 
             publisher_ids = _ids_from_game_field(game, "publishers")
             if publisher_ids:
                 _ensure_publishers_cached(db)
-                row = db.query(Publisher).filter(
-                    Publisher.provider == _PROVIDER, Publisher.external_id == publisher_ids[0]
-                ).first()
+                row = (
+                    db.query(Publisher)
+                    .filter(Publisher.provider == _PROVIDER, Publisher.external_id == publisher_ids[0])
+                    .first()
+                )
                 result.publisher = row.name if row else None
 
         images_data = images_raw.get("data", {})
@@ -279,9 +287,7 @@ class TheGamesDBProvider:
                 # Accept All rejects any type outside ASSET_TYPES, so an
                 # unrecognised label is not offered to the client at all.
                 continue
-            result.assets.append(
-                MetadataAsset(url=full_url, type=label, thumb_url=thumb_url)
-            )
+            result.assets.append(MetadataAsset(url=full_url, type=label, thumb_url=thumb_url))
 
         front_boxart = next(
             (img for img in all_images if img.get("type") == "boxart" and img.get("side") == "front"),

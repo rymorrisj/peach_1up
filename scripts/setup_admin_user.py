@@ -16,6 +16,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 def _get_db_path() -> Path:
     from backend.core.settings import get_db_path
+
     return get_db_path()
 
 
@@ -57,6 +58,7 @@ def run_setup(db_path: str | Path) -> bool:
     from backend.core.identity import clear_session
     from backend.core.settings import init_settings
     from backend.service.utils.pin_hashing import hash_pin
+
     init_settings()  # this script runs standalone, outside the FastAPI lifespan
     pin_hash = hash_pin(pin)
 
@@ -94,21 +96,23 @@ def run_setup(db_path: str | Path) -> bool:
             existing.failed_pin_attempts = 0
             clear_session(db, existing)
         else:
-            db.add(UserItem(
-                id=1,
-                name=name,
-                is_owner=True,
-                pin_hash=pin_hash,
-                pin_required=True,
-                can_launch_media=True,
-                can_manage_environment=True,
-                can_manage_game=True,
-                can_manage_media=True,
-                can_manage_settings=True,
-                can_manage_app=True,
-                can_manage_controllerMapping=True,
-                is_admin=True,
-            ))
+            db.add(
+                UserItem(
+                    id=1,
+                    name=name,
+                    is_owner=True,
+                    pin_hash=pin_hash,
+                    pin_required=True,
+                    can_launch_media=True,
+                    can_manage_environment=True,
+                    can_manage_game=True,
+                    can_manage_media=True,
+                    can_manage_settings=True,
+                    can_manage_app=True,
+                    can_manage_controllerMapping=True,
+                    is_admin=True,
+                )
+            )
         db.commit()
 
     print(f"Owner account '{name}' saved successfully.")

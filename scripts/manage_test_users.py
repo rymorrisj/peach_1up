@@ -17,6 +17,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 def _get_db_path() -> Path:
     from backend.core.settings import get_db_path
+
     return get_db_path()
 
 

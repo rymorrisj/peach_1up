@@ -16,6 +16,7 @@ from backend.service.utils.slug_generator import unique_slug
 
 def _validate_image_path(path_str: str) -> Path:
     from backend.service.utils.path_utils import normalise_path
+
     try:
         # allow_unc: Environment images may live on NAS shares (SECURITY.md,
         # "Environment image path traversal relies on the OS trust model").
@@ -76,6 +77,7 @@ def compute_environment_presence(environment: EnvironmentItem) -> bool:
     a live check of on-disk (or installed-binary) state, not a stored flag."""
     if environment.is_system or environment.platform in DOSBOX_PLATFORMS:
         from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
+
         install_path = _get_install_path(environment.emulator_slug) if environment.emulator_slug else None
         if install_path is None:
             return False
@@ -86,10 +88,13 @@ def compute_environment_presence(environment: EnvironmentItem) -> bool:
 
 def create_environment_item(body: EnvironmentItemCreate, db: Session) -> EnvironmentItem:
     from backend.core.logger import get_logger
+
     logger = get_logger(__name__)
 
     if body.platform not in PC_PLATFORMS:
-        raise HTTPException(status_code=422, detail=f"Only PC platforms are supported: {', '.join(sorted(PC_PLATFORMS))}.")
+        raise HTTPException(
+            status_code=422, detail=f"Only PC platforms are supported: {', '.join(sorted(PC_PLATFORMS))}."
+        )
 
     environment_data = body.model_dump()
     if body.base_image_path:
@@ -119,6 +124,7 @@ def create_environment_item(body: EnvironmentItemCreate, db: Session) -> Environ
     if not environment.working_image_path and environment.platform in PROVISIONABLE_PLATFORMS:
         try:
             from backend.service.utils.vm import provision_environment
+
             _iso, working_path, config_path, _install_path, _rom_path = provision_environment(environment)
             if _iso and not environment.base_image_path:
                 environment.base_image_path = _iso
@@ -131,7 +137,10 @@ def create_environment_item(body: EnvironmentItemCreate, db: Session) -> Environ
         except Exception as exc:
             logger.error(
                 "Auto-provisioning failed for environment %d (%s/%s): %s",
-                environment.id, environment.platform, environment.slug, exc,
+                environment.id,
+                environment.platform,
+                environment.slug,
+                exc,
             )
             # Provisioning failed after the row was already committed above,
             # so delete it rather than leave a half-provisioned environment
@@ -149,6 +158,7 @@ def create_environment_item(body: EnvironmentItemCreate, db: Session) -> Environ
 
 def delete_environment_item(environment_id: int, token: str, db: Session) -> None:
     from backend.core.logger import get_logger
+
     logger = get_logger(__name__)
 
     if not _consume(token, "environment_item", environment_id, "delete"):
@@ -181,7 +191,8 @@ def delete_environment_item(environment_id: int, token: str, db: Session) -> Non
             logger.info(
                 "Environment %d deleted; working_image_path '%s' left on disk, "
                 "still referenced by another environment.",
-                environment_id, working_path,
+                environment_id,
+                working_path,
             )
         else:
             try:
@@ -192,7 +203,9 @@ def delete_environment_item(environment_id: int, token: str, db: Session) -> Non
             except OSError as exc:
                 logger.warning(
                     "Could not delete working image %s for environment %d: %s",
-                    working_path, environment_id, exc,
+                    working_path,
+                    environment_id,
+                    exc,
                 )
 
     db.delete(environment)
@@ -213,7 +226,9 @@ def update_environment_item(environment_id: int, body: EnvironmentItemUpdate, db
     # this purpose.
     updates = body.model_dump(exclude_unset=True)
     if "platform" in updates and updates["platform"] not in PC_PLATFORMS:
-        raise HTTPException(status_code=422, detail=f"Only PC platforms are supported: {', '.join(sorted(PC_PLATFORMS))}.")
+        raise HTTPException(
+            status_code=422, detail=f"Only PC platforms are supported: {', '.join(sorted(PC_PLATFORMS))}."
+        )
     # Validate-and-normalise only when a non-empty path was actually sent; an
     # explicit null/empty value is a real clear and must pass through as None,
     # not be handed to _validate_image_path (which requires a real path and
@@ -237,6 +252,7 @@ def check_environment_item_health(environment: EnvironmentItem, db: Session) -> 
 
     if environment.is_system:
         from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
+
         install_path = _get_install_path(environment.emulator_slug) if environment.emulator_slug else None
         return {
             "is_present": present,
@@ -254,7 +270,9 @@ def check_environment_item_health(environment: EnvironmentItem, db: Session) -> 
 def batch_health_check(db: Session) -> dict:
     """Live recompute over all user Environments, nothing persisted."""
     environments = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()  # noqa: E712
-    results = [{"id": environment.id, "is_present": compute_environment_presence(environment)} for environment in environments]
+    results = [
+        {"id": environment.id, "is_present": compute_environment_presence(environment)} for environment in environments
+    ]
     return {"results": results, "checked": len(results)}
 
 
@@ -279,11 +297,10 @@ def get_health_summary(db: Session) -> dict:
     # Count actual per-collection Drive rows (mirrors get_drive_images_bytes, which
     # sums those same rows' image files).
     from backend.models.drive import Drive
+
     drive_count = db.query(Drive).count()
     extension_count = (
-        db.query(func.count(sa_distinct(GameItem.file_type)))
-        .filter(GameItem.file_type.isnot(None))
-        .scalar() or 0
+        db.query(func.count(sa_distinct(GameItem.file_type))).filter(GameItem.file_type.isnot(None)).scalar() or 0
     )
 
     catalog = load_catalog()
@@ -293,8 +310,10 @@ def get_health_summary(db: Session) -> dict:
     bios_reqs = load_bios_requirements()
     bios_total = len(bios_reqs)
     bios_present = sum(
-        1 for b in bios_reqs
-        if b.get("bios_path") and check_bios_presence(
+        1
+        for b in bios_reqs
+        if b.get("bios_path")
+        and check_bios_presence(
             b["bios_path"],
             required_files=b.get("required_files"),
             required_glob=b.get("required_glob"),
@@ -311,7 +330,8 @@ def get_health_summary(db: Session) -> dict:
         db.query(RomPackItem)
         .filter(RomPackItem.slug.in_(rom_pack_slugs), RomPackItem.is_present == True)  # noqa: E712
         .count()
-        if rom_pack_slugs else 0
+        if rom_pack_slugs
+        else 0
     )
 
     return {
@@ -339,6 +359,7 @@ def _safe_file_size(path: str | None) -> int:
 
 def get_drive_images_bytes(db: Session) -> int:
     from backend.models.drive import Drive
+
     return sum(_safe_file_size(d.image_path) for d in db.query(Drive).all())
 
 
@@ -368,5 +389,3 @@ def get_storage_stats(db: Session) -> dict:
         "os_images_bytes": os_images_bytes,
         "emulator_binaries_bytes": emulator_binaries_bytes,
     }
-
-

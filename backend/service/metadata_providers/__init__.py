@@ -150,8 +150,10 @@ def get_active_provider() -> MetadataProvider:
     provider = _s.get("metadata_provider", "thegamesdb")
     if provider == "thegamesdb":
         from backend.service.metadata_providers.thegamesdb_provider import TheGamesDBProvider
+
         return TheGamesDBProvider()
     if provider == "igdb":
         from backend.service.metadata_providers.igdb_provider import IGDBProvider
+
         return IGDBProvider()
     raise ValueError(f"Unknown metadata_provider {provider!r}; expected 'thegamesdb' or 'igdb'.")

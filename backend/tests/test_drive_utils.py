@@ -6,12 +6,14 @@ from unittest.mock import patch, MagicMock
 class TestComputeDriveSizeMb:
     def test_iso_floor_on_tiny_file(self, tmp_path):
         from backend.service.utils.drive_utils import compute_drive_size_mb
+
         f = tmp_path / "game.iso"
         f.write_bytes(b"\x00")
         assert compute_drive_size_mb(f, "iso") == 50
 
     def test_iso_cap_on_large_file(self, tmp_path):
         from backend.service.utils.drive_utils import compute_drive_size_mb
+
         f = tmp_path / "game.iso"
         f.write_bytes(b"\x00")
         mock_stat = MagicMock()
@@ -22,12 +24,14 @@ class TestComputeDriveSizeMb:
 
     def test_floppy_floor_on_tiny_file(self, tmp_path):
         from backend.service.utils.drive_utils import compute_drive_size_mb
+
         f = tmp_path / "disk.img"
         f.write_bytes(b"\x00")
         assert compute_drive_size_mb(f, "floppy") == 20
 
     def test_floppy_cap_on_large_file(self, tmp_path):
         from backend.service.utils.drive_utils import compute_drive_size_mb
+
         f = tmp_path / "disk.img"
         f.write_bytes(b"\x00")
         mock_stat = MagicMock()
@@ -38,6 +42,7 @@ class TestComputeDriveSizeMb:
 
     def test_fallback_2kb_file_meets_fat16_minimum(self, tmp_path):
         from backend.service.utils.drive_utils import compute_drive_size_mb
+
         f = tmp_path / "game.exe"
         f.write_bytes(b"\x00" * 2048)  # 2 KB
         result = compute_drive_size_mb(f, "unknown")
@@ -45,6 +50,7 @@ class TestComputeDriveSizeMb:
 
     def test_fallback_2kb_file_does_not_return_3(self, tmp_path):
         from backend.service.utils.drive_utils import compute_drive_size_mb
+
         f = tmp_path / "game.exe"
         f.write_bytes(b"\x00" * 2048)  # 2 KB, old formula returned 3, breaking FAT16
         result = compute_drive_size_mb(f, "unknown")
@@ -56,6 +62,7 @@ class TestDeleteDriveForCollection:
     def mem_session(self):
         from sqlmodel import SQLModel, Session, create_engine
         import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
+
         engine = create_engine("sqlite:///:memory:")
         SQLModel.metadata.create_all(engine)
         with Session(engine) as session:
@@ -93,5 +100,3 @@ class TestDeleteDriveForCollection:
         delete_drive_for_collection(collection, mem_session)
 
         assert collection.drive_id is None
-
-

@@ -127,12 +127,16 @@ def link_change_effects(
 def game_removal_effects(game_id: int, db: "Session") -> list[RatingChange]:
     """Effect of deleting game *game_id* (and with it every link it has) on
     every media unit linked to it."""
-    links = db.query(MediaLink).filter(
-        or_(
-            and_(MediaLink.entity_a_type == _GAME, MediaLink.entity_a_id == game_id),
-            and_(MediaLink.entity_b_type == _GAME, MediaLink.entity_b_id == game_id),
+    links = (
+        db.query(MediaLink)
+        .filter(
+            or_(
+                and_(MediaLink.entity_a_type == _GAME, MediaLink.entity_a_id == game_id),
+                and_(MediaLink.entity_b_type == _GAME, MediaLink.entity_b_id == game_id),
+            )
         )
-    ).all()
+        .all()
+    )
     bundle_ids: set[int] = set()
     item_ids: set[int] = set()
     for link in links:
@@ -147,8 +151,10 @@ def game_removal_effects(game_id: int, db: "Session") -> list[RatingChange]:
     standalone_ids: set[int] = set()
     if item_ids:
         standalone_ids = {
-            row_id for (row_id,) in db.query(MediaItem.id).filter(
-                MediaItem.id.in_(item_ids), MediaItem.media_item_bundle_id.is_(None),
+            row_id
+            for (row_id,) in db.query(MediaItem.id).filter(
+                MediaItem.id.in_(item_ids),
+                MediaItem.media_item_bundle_id.is_(None),
             )
         }
     units = {(_BUNDLE, i) for i in bundle_ids} | {(_ITEM, i) for i in standalone_ids}
@@ -204,5 +210,6 @@ def require_rating_change_confirmation(
         )
     _log.warning(
         "Effective content_rating loosened on %d media unit(s) by %s (confirmed by caller)",
-        loosened, action,
+        loosened,
+        action,
     )

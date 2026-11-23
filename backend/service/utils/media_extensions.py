@@ -39,13 +39,39 @@ ARCHIVE_EXTENSIONS: frozenset[str] = frozenset({".zip", ".7z"})
 
 MEDIA_KIND_EXTENSIONS: dict[MediaKind, frozenset[str]] = {
     "image": frozenset(INLINE_IMAGE_TYPES) | {".tif", ".tiff"} | ARCHIVE_EXTENSIONS,
-    "audio": frozenset({
-        ".mp3", ".flac", ".ogg", ".oga", ".opus", ".wav", ".m4a", ".aac",
-        ".aif", ".aiff", ".wma", ".mid", ".midi",
-    }) | ARCHIVE_EXTENSIONS,
-    "video": frozenset({
-        ".mp4", ".m4v", ".mkv", ".webm", ".avi", ".mov", ".wmv", ".mpg", ".mpeg", ".ogv",
-    }) | ARCHIVE_EXTENSIONS,
+    "audio": frozenset(
+        {
+            ".mp3",
+            ".flac",
+            ".ogg",
+            ".oga",
+            ".opus",
+            ".wav",
+            ".m4a",
+            ".aac",
+            ".aif",
+            ".aiff",
+            ".wma",
+            ".mid",
+            ".midi",
+        }
+    )
+    | ARCHIVE_EXTENSIONS,
+    "video": frozenset(
+        {
+            ".mp4",
+            ".m4v",
+            ".mkv",
+            ".webm",
+            ".avi",
+            ".mov",
+            ".wmv",
+            ".mpg",
+            ".mpeg",
+            ".ogv",
+        }
+    )
+    | ARCHIVE_EXTENSIONS,
     "text": frozenset({".txt", ".pdf", ".md", ".nfo", ".rtf", ".epub", ".cbz"}) | ARCHIVE_EXTENSIONS,
 }
 
@@ -94,6 +120,5 @@ def media_kind_for_extension(filename: str) -> Optional[MediaKind]:
 # What the chunked Media upload accepts: only extensions whose kind
 # media_kind_for_extension can infer, since its finalize creates the row.
 MEDIA_KIND_INFERABLE_EXTENSIONS: frozenset[str] = frozenset(
-    ext for ext in MEDIA_UPLOAD_EXTENSIONS
-    if sum(ext in allowed for allowed in MEDIA_KIND_EXTENSIONS.values()) == 1
+    ext for ext in MEDIA_UPLOAD_EXTENSIONS if sum(ext in allowed for allowed in MEDIA_KIND_EXTENSIONS.values()) == 1
 )

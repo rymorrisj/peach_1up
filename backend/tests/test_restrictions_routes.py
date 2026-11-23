@@ -143,8 +143,6 @@ class TestRestrictionsEndpoint:
         assert second.json() == {"restricted_user_item_ids": [user_b.id]}
 
         db.expire_all()
-        rows = db.exec(
-            select(MediaRestriction).where(MediaRestriction.game_item_bundle_id == collection.id)
-        ).all()
+        rows = db.exec(select(MediaRestriction).where(MediaRestriction.game_item_bundle_id == collection.id)).all()
         persisted_ids = {r.user_item_id for r in rows}
         assert persisted_ids == {user_b.id}

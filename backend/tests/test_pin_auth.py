@@ -45,12 +45,14 @@ def app_client(mem_session, monkeypatch):
     from backend.core.database import get_db
 
     import backend.core.settings as settings_mod
+
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
 
     # Tests hash PINs with a bare argon2 PasswordHasher (no pepper), so the
     # verify side must not apply whatever PIN_PEPPER happens to be set in the
     # developer's local .env, otherwise every "correct PIN" check 401s.
     import backend.service.utils.pin_hashing as pin_hashing_mod
+
     monkeypatch.setattr(pin_hashing_mod, "get_pin_pepper", lambda: "")
 
     app = FastAPI()
@@ -214,9 +216,7 @@ class TestSetupOwnerSession:
         )
         assert resp.status_code == 200, resp.text
 
-        owner = mem_session.exec(
-            select(UserItem).where(UserItem.is_owner.is_(True))
-        ).first()
+        owner = mem_session.exec(select(UserItem).where(UserItem.is_owner.is_(True))).first()
         assert owner.identity_token_secret is not None
 
 
@@ -287,9 +287,7 @@ class TestUpdateUser:
             {"name": "New Name", "is_admin": True},
         ],
     )
-    def test_self_edit_permission_flags_or_ttl_rejected_even_with_can_manage_users(
-        self, app_client, mem_session, body
-    ):
+    def test_self_edit_permission_flags_or_ttl_rejected_even_with_can_manage_users(self, app_client, mem_session, body):
         """A well-formed PATCH that touches anything besides `name` must be rejected
         server-side for a self-editing non-owner/non-admin, regardless of can_manage_users."""
         from backend.models.user import UserItem
@@ -443,7 +441,10 @@ class TestLogoutAndRefreshSession:
         from backend.models.user import UserItem
 
         sub = UserItem(
-            name="Kid", is_owner=False, is_admin=False, pin_required=False,
+            name="Kid",
+            is_owner=False,
+            is_admin=False,
+            pin_required=False,
             session_token_ttl=60,
         )
         mem_session.add(sub)

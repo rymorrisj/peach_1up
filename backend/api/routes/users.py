@@ -85,6 +85,7 @@ class ResetPinBody(BaseModel):
 
 def _validate_pin(pin: str) -> None:
     import re
+
     if not re.fullmatch(r"\d{4,6}", pin):
         raise HTTPException(status_code=422, detail="PIN must be 4–6 digits.")
 
@@ -208,6 +209,7 @@ def delete_user(
 
     from backend.models.media_restriction import MediaRestriction
     from backend.models.profile import ProfileItem
+
     db.query(MediaRestriction).filter(MediaRestriction.user_item_id == user_item_id).delete(synchronize_session=False)
     db.query(ProfileItem).filter(ProfileItem.user_item_id == user_item_id).update(
         {ProfileItem.user_item_id: owner_id}, synchronize_session=False

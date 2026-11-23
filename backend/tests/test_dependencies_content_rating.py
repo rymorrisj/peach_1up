@@ -337,7 +337,9 @@ class TestGetFilteredCollectionsUnknownRatingDenies:
         from backend.core.dependencies import get_filtered_game_item_bundles
 
         capped_allows_unrated = _make_user(
-            mem_db_session, max_content_rating="E", block_unrated_media=False,
+            mem_db_session,
+            max_content_rating="E",
+            block_unrated_media=False,
         )
         unrated = _make_collection(mem_db_session, slug="unrated", content_rating=None)
 

@@ -47,10 +47,7 @@ class TestEnvironmentCallSite:
 
     def test_no_working_image_and_platform_not_provisionable_blocks(self):
         env = _env(platform="xbox", working_image_path=None)
-        assert (
-            evaluate_launch_readiness(call_site="environment", environment=env)
-            == "environment_not_provisioned"
-        )
+        assert evaluate_launch_readiness(call_site="environment", environment=env) == "environment_not_provisioned"
 
     def test_environment_not_installed_never_returned_on_this_call_site(self):
         """Structural guarantee from the docstring: even an environment that
@@ -81,13 +78,19 @@ class TestItemCallSiteFullSequence:
         """Console items (is_pc=False) never reach the environment gates at
         all, a None environment is fine as long as a profile is assigned."""
         result = evaluate_launch_readiness(
-            call_site="item", environment=None, is_pc=False, profile_item_id=42,
+            call_site="item",
+            environment=None,
+            is_pc=False,
+            profile_item_id=42,
         )
         assert result is None
 
     def test_pc_item_with_no_resolvable_environment_blocks(self):
         result = evaluate_launch_readiness(
-            call_site="item", environment=None, is_pc=True, profile_item_id=1,
+            call_site="item",
+            environment=None,
+            is_pc=True,
+            profile_item_id=1,
         )
         assert result == "no_environment"
 
@@ -95,18 +98,25 @@ class TestItemCallSiteFullSequence:
         """No compatibility rule: the user's chosen Environment is never
         rejected for having a different platform from the item."""
         env = _env(
-            platform="win98", working_image_path="/images/win98/working.vhd",
+            platform="win98",
+            working_image_path="/images/win98/working.vhd",
             installed_at=datetime(2026, 1, 1),
         )
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, profile_item_id=1,
+            call_site="item",
+            environment=env,
+            is_pc=True,
+            profile_item_id=1,
         )
         assert result is None
 
     def test_pc_item_matching_platform_no_working_image_non_provisionable_blocks(self):
         env = _env(platform="xbox", working_image_path=None)
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, profile_item_id=1,
+            call_site="item",
+            environment=env,
+            is_pc=True,
+            profile_item_id=1,
         )
         assert result == "environment_not_provisioned"
 
@@ -117,7 +127,10 @@ class TestItemCallSiteFullSequence:
         (auto-provisionable) and no installed_at still passes clean."""
         env = _env(platform="dos", working_image_path=None, installed_at=None)
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, profile_item_id=1,
+            call_site="item",
+            environment=env,
+            is_pc=True,
+            profile_item_id=1,
         )
         assert result is None
 
@@ -126,7 +139,10 @@ class TestItemCallSiteFullSequence:
         is still null, the OS install step was never completed."""
         env = _env(platform="win95", working_image_path="/images/win95/working.vhd", installed_at=None)
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, profile_item_id=1,
+            call_site="item",
+            environment=env,
+            is_pc=True,
+            profile_item_id=1,
         )
         assert result == "environment_not_installed"
 
@@ -139,7 +155,10 @@ class TestItemCallSiteFullSequence:
             installed_at=datetime.now(timezone.utc),
         )
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, profile_item_id=1,
+            call_site="item",
+            environment=env,
+            is_pc=True,
+            profile_item_id=1,
         )
         assert result is None
 
@@ -152,7 +171,10 @@ class TestItemCallSiteFullSequence:
             installed_at=datetime.now(timezone.utc),
         )
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, profile_item_id=7,
+            call_site="item",
+            environment=env,
+            is_pc=True,
+            profile_item_id=7,
         )
         assert result is None
 

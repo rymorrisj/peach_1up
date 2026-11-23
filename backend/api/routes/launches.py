@@ -5,8 +5,11 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_app_item, get_filtered_game_item_bundle,
-    require_owner_or_admin, require_permission,
+    get_active_user,
+    get_filtered_app_item,
+    get_filtered_game_item_bundle,
+    require_owner_or_admin,
+    require_permission,
 )
 from backend.core.logger import get_logger
 from backend.models import EnvironmentItem, LaunchHistory, ProfileItem
@@ -14,13 +17,17 @@ from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import UserItem
 from backend.service.launch import coordinator as svc
 from backend.service.launch.history import (
-    filter_visible_launch_targets, launch_target_visible, scope_launch_query, user_can_view_launch,
+    filter_visible_launch_targets,
+    launch_target_visible,
+    scope_launch_query,
+    user_can_view_launch,
 )
 from backend.service.utils.emulator_catalog import resolve_container_enabled
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["launches"])
+
 
 class LaunchRequest(BaseModel):
     profile_item_id: int | None = None
@@ -148,11 +155,7 @@ def delete_launches(
     multi-record ("delete these N checked") UI flows from one endpoint."""
     if not body.ids:
         return {"deleted": 0}
-    deleted = (
-        db.query(LaunchHistory)
-        .filter(LaunchHistory.id.in_(body.ids))
-        .delete(synchronize_session=False)
-    )
+    deleted = db.query(LaunchHistory).filter(LaunchHistory.id.in_(body.ids)).delete(synchronize_session=False)
     db.commit()
     return {"deleted": deleted}
 
@@ -188,6 +191,7 @@ def get_launch(
     result = LaunchHistoryRead.model_validate(record)
     result.container_moniker = container_moniker
     return result
+
 
 @router.post("/launches/{history_id}/stop", status_code=200)
 def stop_launch(

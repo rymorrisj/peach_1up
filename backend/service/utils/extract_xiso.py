@@ -76,8 +76,7 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
     binary = get_extract_xiso_path()
     if binary is None:
         raise FileNotFoundError(
-            "extract-xiso is not built. Run services/vendor/extract-xiso/build.sh "
-            "(or the project build.bat) first."
+            "extract-xiso is not built. Run services/vendor/extract-xiso/build.sh (or the project build.bat) first."
         )
 
     resolved_source = source_path.resolve()
@@ -114,14 +113,11 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
 
     if result.returncode != 0:
         raise RuntimeError(
-            f"extract-xiso failed (exit {result.returncode}): "
-            f"{result.stderr.strip() or result.stdout.strip()}"
+            f"extract-xiso failed (exit {result.returncode}): {result.stderr.strip() or result.stdout.strip()}"
         )
 
     if not resolved_source.is_file():
-        raise RuntimeError(
-            f"extract-xiso reported success but {resolved_source} no longer exists."
-        )
+        raise RuntimeError(f"extract-xiso reported success but {resolved_source} no longer exists.")
     rewritten_size = resolved_source.stat().st_size
     if rewritten_size < _MIN_PLAUSIBLE_XISO_BYTES:
         raise RuntimeError(

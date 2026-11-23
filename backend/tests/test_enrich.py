@@ -6,6 +6,7 @@ is gone while game delete still sweeps old app-owned disc covers.
 Route-level wiring (403 gates, the 409 over HTTP) is in
 test_game_metadata_routes.py.
 """
+
 import pytest
 
 
@@ -78,8 +79,14 @@ class TestSelectiveFields:
         from backend.models.metadata_lookup import get_genres_for_game_item_bundle, set_genres_for_game_item_bundle
 
         bundle = _bundle(
-            mem_session, description="Demons.", publisher="id", developer="id Software", year=1993,
-            content_rating="M", external_game_id=55, metadata_source="IGDB",
+            mem_session,
+            description="Demons.",
+            publisher="id",
+            developer="id Software",
+            year=1993,
+            content_rating="M",
+            external_game_id=55,
+            metadata_source="IGDB",
             external_links=[{"type": "trailer", "url": "https://example.com/t"}],
         )
         set_genres_for_game_item_bundle(mem_session, bundle.id, ["Shooter"])
@@ -89,7 +96,10 @@ class TestSelectiveFields:
 
         assert entity.title == "Doom (1993)"
         assert (entity.description, entity.publisher, entity.developer, entity.year) == (
-            "Demons.", "id", "id Software", 1993,
+            "Demons.",
+            "id",
+            "id Software",
+            1993,
         )
         assert (entity.content_rating, entity.external_game_id, entity.metadata_source) == ("M", 55, "IGDB")
         assert entity.external_links == [{"type": "trailer", "url": "https://example.com/t"}]
@@ -150,12 +160,15 @@ class TestRatingGuard:
 
         assert (entity.content_rating, entity.description) == ("M", "new")
 
-    @pytest.mark.parametrize("sent,reason", [
-        (None, "cleared"),
-        ("not a rating", "cleared"),
-        ("PEGI 3", "scheme_changed"),
-        ("E", "lowered"),
-    ])
+    @pytest.mark.parametrize(
+        "sent,reason",
+        [
+            (None, "cleared"),
+            ("not a rating", "cleared"),
+            ("PEGI 3", "scheme_changed"),
+            ("E", "lowered"),
+        ],
+    )
     def test_each_loosening_reports_a_machine_readable_reason(self, mem_session, sent, reason):
         from fastapi import HTTPException
 
@@ -176,44 +189,68 @@ class TestProviderLinks:
     def test_only_provider_sourced_links_are_replaced(self, mem_session):
         manual = {"type": "other", "url": "https://me.example/notes"}
         legacy = {"type": "trailer", "url": "https://www.youtube.com/watch?v=old"}
-        bundle = _bundle(mem_session, external_links=[
-            manual, legacy,
-            {"type": "official", "url": "https://old.example/site", "source": "provider"},
-        ])
+        bundle = _bundle(
+            mem_session,
+            external_links=[
+                manual,
+                legacy,
+                {"type": "official", "url": "https://old.example/site", "source": "provider"},
+            ],
+        )
 
-        entity = _enrich(mem_session, bundle, {"external_links": [
-            {"type": "official", "url": "https://new.example/site"},
-        ]})
+        entity = _enrich(
+            mem_session,
+            bundle,
+            {
+                "external_links": [
+                    {"type": "official", "url": "https://new.example/site"},
+                ]
+            },
+        )
 
         assert entity.external_links == [
-            manual, legacy, {"type": "official", "url": "https://new.example/site", "source": "provider"},
+            manual,
+            legacy,
+            {"type": "official", "url": "https://new.example/site", "source": "provider"},
         ]
 
     def test_a_fetched_url_replaces_the_same_unmarked_entry(self, mem_session):
         legacy = {"type": "trailer", "url": "https://www.youtube.com/watch?v=abc"}
         bundle = _bundle(mem_session, external_links=[legacy])
 
-        entity = _enrich(mem_session, bundle, {"external_links": [
-            {"type": "trailer", "url": "https://www.youtube.com/watch?v=abc"},
-        ]})
+        entity = _enrich(
+            mem_session,
+            bundle,
+            {
+                "external_links": [
+                    {"type": "trailer", "url": "https://www.youtube.com/watch?v=abc"},
+                ]
+            },
+        )
 
         assert entity.external_links == [{**legacy, "source": "provider"}]
 
     def test_non_http_urls_are_dropped_and_duplicates_collapse(self, mem_session):
         bundle = _bundle(mem_session)
 
-        entity = _enrich(mem_session, bundle, {"external_links": [
-            {"type": "official", "url": "javascript:alert(1)"},
-            {"type": "official", "url": "file:///etc/passwd"},
-            {"type": "official", "url": "ftp://example.com/x"},
-            {"type": "official", "url": "https://user:pw@example.com/"},
-            {"type": "official", "url": "//example.com/x"},
-            {"type": "official", "url": "https://example.com/a b"},
-            {"type": "bogus", "url": "https://example.com/ok"},
-            {"type": "store", "url": "https://example.com/ok"},
-            {"url": "http://example.com/plain"},
-            "https://example.com/not-a-dict",
-        ]})
+        entity = _enrich(
+            mem_session,
+            bundle,
+            {
+                "external_links": [
+                    {"type": "official", "url": "javascript:alert(1)"},
+                    {"type": "official", "url": "file:///etc/passwd"},
+                    {"type": "official", "url": "ftp://example.com/x"},
+                    {"type": "official", "url": "https://user:pw@example.com/"},
+                    {"type": "official", "url": "//example.com/x"},
+                    {"type": "official", "url": "https://example.com/a b"},
+                    {"type": "bogus", "url": "https://example.com/ok"},
+                    {"type": "store", "url": "https://example.com/ok"},
+                    {"url": "http://example.com/plain"},
+                    "https://example.com/not-a-dict",
+                ]
+            },
+        )
 
         assert entity.external_links == [
             {"type": "other", "url": "https://example.com/ok", "source": "provider"},
@@ -225,24 +262,37 @@ class TestProviderLinks:
 
         bundle = _bundle(mem_session)
 
-        entity = _enrich(mem_session, bundle, {"external_links": [
-            {"type": "other", "url": f"https://example.com/{n}"} for n in range(PROVIDER_LINK_CAP + 10)
-        ]})
+        entity = _enrich(
+            mem_session,
+            bundle,
+            {
+                "external_links": [
+                    {"type": "other", "url": f"https://example.com/{n}"} for n in range(PROVIDER_LINK_CAP + 10)
+                ]
+            },
+        )
 
         assert len(entity.external_links) == PROVIDER_LINK_CAP
 
     def test_an_empty_list_removes_provider_links_and_keeps_the_rest(self, mem_session):
         manual = {"type": "other", "url": "https://me.example/notes"}
-        bundle = _bundle(mem_session, external_links=[
-            manual, {"type": "official", "url": "https://old.example/site", "source": "provider"},
-        ])
+        bundle = _bundle(
+            mem_session,
+            external_links=[
+                manual,
+                {"type": "official", "url": "https://old.example/site", "source": "provider"},
+            ],
+        )
 
         assert _enrich(mem_session, bundle, {"external_links": []}).external_links == [manual]
 
     def test_no_links_left_stores_null(self, mem_session):
-        bundle = _bundle(mem_session, external_links=[
-            {"type": "official", "url": "https://old.example/site", "source": "provider"},
-        ])
+        bundle = _bundle(
+            mem_session,
+            external_links=[
+                {"type": "official", "url": "https://old.example/site", "source": "provider"},
+            ],
+        )
 
         assert _enrich(mem_session, bundle, {"external_links": []}).external_links is None
 
@@ -260,7 +310,9 @@ class TestFetchedAtOnlyOnChange:
         bundle = _bundle(mem_session, description="Demons.", developer="id", year=1993)
 
         entity = _enrich(
-            mem_session, bundle, {"title": "Doom", "description": "Demons.", "developer": "id", "year": 1993},
+            mem_session,
+            bundle,
+            {"title": "Doom", "description": "Demons.", "developer": "id", "year": 1993},
         )
         assert entity.metadata_fetched_at is None
 
@@ -286,9 +338,12 @@ class TestFetchedAtOnlyOnChange:
         assert _enrich(mem_session, bundle, {"genre": ["Shooter"]}).metadata_fetched_at is not None
 
     def test_identical_links_do_not_stamp(self, mem_session):
-        bundle = _bundle(mem_session, external_links=[
-            {"type": "official", "url": "https://example.com/", "source": "provider"},
-        ])
+        bundle = _bundle(
+            mem_session,
+            external_links=[
+                {"type": "official", "url": "https://example.com/", "source": "provider"},
+            ],
+        )
 
         entity = _enrich(mem_session, bundle, {"external_links": [{"type": "official", "url": "https://example.com/"}]})
         assert entity.metadata_fetched_at is None

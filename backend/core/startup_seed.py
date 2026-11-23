@@ -3,19 +3,61 @@ from backend.core.logger import get_logger
 logger = get_logger(__name__)
 
 _DEFAULT_PROFILES = [
-    {"name": "DOS Default",     "slug": "dos-default",   "platform": "dos",   "emulator_slug": "dosbox-x",   "is_bundled": True},
-    {"name": "Win 95 Default",  "slug": "win95-compat",  "platform": "win95", "emulator_slug": "86box",       "is_bundled": True},
-    {"name": "Win 98 Default",  "slug": "win98-compat",  "platform": "win98", "emulator_slug": "86box",       "is_bundled": True},
-    {"name": "Win XP Default",  "slug": "winxp-default", "platform": "winxp", "emulator_slug": "86box",       "is_bundled": True},
-    {"name": "PS1 Default",     "slug": "ps1-default",   "platform": "ps1",   "emulator_slug": "duckstation", "is_bundled": True},
-    {"name": "PS2 Default",     "slug": "ps2-default",   "platform": "ps2",   "emulator_slug": "pcsx2",       "is_bundled": True},
-    {"name": "PS3 Default",  "slug": "ps3-default",  "platform": "ps3", "emulator_slug": "rpcs3",     "is_bundled": True},
-    {"name": "Xbox OG Default", "slug": "xbox-default",  "platform": "xbox",  "emulator_slug": "xemu",        "is_bundled": True},
-    {"name": "xbox 360 Default",  "slug": "xbox-360-default",  "platform": "xbox360", "emulator_slug": "xenia",     "is_bundled": True},
-    {"name": "NES Default",     "slug": "nes-default",   "platform": "nes",   "emulator_slug": "mesen",       "is_bundled": True},
-    {"name": "SNES Default",    "slug": "snes-default",  "platform": "snes",  "emulator_slug": "mesen",       "is_bundled": True},
-    {"name": "N64 Default",        "slug": "n64-default",        "platform": "n64",       "emulator_slug": "project64",   "is_bundled": True},
-    {"name": "Dreamcast Default",  "slug": "dreamcast-default",  "platform": "dreamcast", "emulator_slug": "flycast",     "is_bundled": True},
+    {"name": "DOS Default", "slug": "dos-default", "platform": "dos", "emulator_slug": "dosbox-x", "is_bundled": True},
+    {
+        "name": "Win 95 Default",
+        "slug": "win95-compat",
+        "platform": "win95",
+        "emulator_slug": "86box",
+        "is_bundled": True,
+    },
+    {
+        "name": "Win 98 Default",
+        "slug": "win98-compat",
+        "platform": "win98",
+        "emulator_slug": "86box",
+        "is_bundled": True,
+    },
+    {
+        "name": "Win XP Default",
+        "slug": "winxp-default",
+        "platform": "winxp",
+        "emulator_slug": "86box",
+        "is_bundled": True,
+    },
+    {
+        "name": "PS1 Default",
+        "slug": "ps1-default",
+        "platform": "ps1",
+        "emulator_slug": "duckstation",
+        "is_bundled": True,
+    },
+    {"name": "PS2 Default", "slug": "ps2-default", "platform": "ps2", "emulator_slug": "pcsx2", "is_bundled": True},
+    {"name": "PS3 Default", "slug": "ps3-default", "platform": "ps3", "emulator_slug": "rpcs3", "is_bundled": True},
+    {
+        "name": "Xbox OG Default",
+        "slug": "xbox-default",
+        "platform": "xbox",
+        "emulator_slug": "xemu",
+        "is_bundled": True,
+    },
+    {
+        "name": "xbox 360 Default",
+        "slug": "xbox-360-default",
+        "platform": "xbox360",
+        "emulator_slug": "xenia",
+        "is_bundled": True,
+    },
+    {"name": "NES Default", "slug": "nes-default", "platform": "nes", "emulator_slug": "mesen", "is_bundled": True},
+    {"name": "SNES Default", "slug": "snes-default", "platform": "snes", "emulator_slug": "mesen", "is_bundled": True},
+    {"name": "N64 Default", "slug": "n64-default", "platform": "n64", "emulator_slug": "project64", "is_bundled": True},
+    {
+        "name": "Dreamcast Default",
+        "slug": "dreamcast-default",
+        "platform": "dreamcast",
+        "emulator_slug": "flycast",
+        "is_bundled": True,
+    },
 ]
 
 
@@ -82,6 +124,7 @@ def _seed_system_tags(db) -> bool:
 def _seed_default_profiles(db) -> bool:
     try:
         from backend.models import ProfileItem
+
         added = 0
         for data in _DEFAULT_PROFILES:
             if not db.query(ProfileItem).filter(ProfileItem.slug == data["slug"]).first():
@@ -102,7 +145,7 @@ def _seed_default_profiles(db) -> bool:
 # Environment field like a user-created one. Per-item drives are created
 # lazily by drive_hydration; DOSBox-X item launches mount no shared image.
 _DOSBOX_ENVIRONMENTS = [
-    {"slug": "dos",   "name": "DOS",          "platform": "dos",   "profile_slug": "dos-default",   "image_rel": "os/dos/dos.img"},
+    {"slug": "dos", "name": "DOS", "platform": "dos", "profile_slug": "dos-default", "image_rel": "os/dos/dos.img"},
 ]
 
 
@@ -127,19 +170,22 @@ def _seed_dosbox_environments(db) -> bool:
             if profile is None:
                 logger.error(
                     "Cannot seed '%s' environment: bundled profile '%s' not found",
-                    env["slug"], env["profile_slug"],
+                    env["slug"],
+                    env["profile_slug"],
                 )
                 return False
             image_path = str((os_root / env["image_rel"]).resolve())
-            db.add(EnvironmentItem(
-                slug=env["slug"],
-                name=env["name"],
-                platform=env["platform"],
-                emulator_slug="dosbox-x",
-                profile_item_id=profile.id,
-                working_image_path=image_path,
-                is_system=False,
-            ))
+            db.add(
+                EnvironmentItem(
+                    slug=env["slug"],
+                    name=env["name"],
+                    platform=env["platform"],
+                    emulator_slug="dosbox-x",
+                    profile_item_id=profile.id,
+                    working_image_path=image_path,
+                    is_system=False,
+                )
+            )
             added += 1
         if added:
             db.flush()

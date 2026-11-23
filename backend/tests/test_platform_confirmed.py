@@ -77,14 +77,20 @@ class TestFinalizeRowFieldsSetsPlatformConfirmed:
             formatscout,
             "classify",
             lambda target, title, platform: SimpleNamespace(
-                status="unchecked", similarity=None, computed_sha1=None,
+                status="unchecked",
+                similarity=None,
+                computed_sha1=None,
             ),
         )
         monkeypatch.setattr("backend.service.utils.rating_detect.detect_rating", lambda path: None)
 
     def _fields(self, scan, db, **kwargs):
         collection_fields, _ = svc._finalize_row_fields(
-            "Ico", [Path("/library/games/ps1/ico/ico.chd")], scan, db, **kwargs,
+            "Ico",
+            [Path("/library/games/ps1/ico/ico.chd")],
+            scan,
+            db,
+            **kwargs,
         )
         return collection_fields
 
@@ -155,7 +161,10 @@ class TestPs3FolderScanIsAuthoritative:
         monkeypatch.setattr(svc, "resolve_media_file_from_directory", _no_single_media_file)
 
         detection = svc._detect_directory_source(
-            folder, user_override_platform=None, platform_hint=None, log=logging.getLogger(__name__),
+            folder,
+            user_override_platform=None,
+            platform_hint=None,
+            log=logging.getLogger(__name__),
         )
 
         assert detection.scan.platform == "ps3"

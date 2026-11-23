@@ -247,9 +247,7 @@ class MediaItemBundleRead(SQLModel):
 
 class MediaLink(SQLModel, table=True):
     __tablename__ = "media_links"
-    __table_args__ = (
-        UniqueConstraint("entity_a_type", "entity_a_id", "entity_b_type", "entity_b_id"),
-    )
+    __table_args__ = (UniqueConstraint("entity_a_type", "entity_a_id", "entity_b_type", "entity_b_id"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     entity_a_type: str = Field(sa_column=Column(String, nullable=False, index=True))
@@ -294,13 +292,13 @@ def make_entity_link(
     a = (entity_type, entity_id)
     b = (target_entity_type, target_entity_id)
     if a == b:
-        raise ValueError(
-            f"Cannot link an entity to itself (entity_type={entity_type!r}, entity_id={entity_id!r})."
-        )
+        raise ValueError(f"Cannot link an entity to itself (entity_type={entity_type!r}, entity_id={entity_id!r}).")
     lo, hi = (a, b) if a < b else (b, a)
     return MediaLink(
-        entity_a_type=lo[0], entity_a_id=lo[1],
-        entity_b_type=hi[0], entity_b_id=hi[1],
+        entity_a_type=lo[0],
+        entity_a_id=lo[1],
+        entity_b_type=hi[0],
+        entity_b_id=hi[1],
         link_note=link_note,
     )
 
@@ -314,9 +312,11 @@ def _link_target_model(entity_type: str) -> Optional[type]:
     game.py, and app.py."""
     if entity_type == "game_item_bundle":
         from backend.models.game import GameItemBundle
+
         return GameItemBundle
     if entity_type == "app_item_bundle":
         from backend.models.app import AppItemBundle
+
         return AppItemBundle
     if entity_type == "media_item":
         return MediaItem
@@ -410,14 +410,18 @@ def _linked_items_for_many(
     from sqlalchemy import select as _select
 
     id_set = set(entity_ids)
-    rows = db.execute(
-        _select(MediaLink).where(
-            or_(
-                and_(MediaLink.entity_a_type == entity_type, MediaLink.entity_a_id.in_(id_set)),
-                and_(MediaLink.entity_b_type == entity_type, MediaLink.entity_b_id.in_(id_set)),
+    rows = (
+        db.execute(
+            _select(MediaLink).where(
+                or_(
+                    and_(MediaLink.entity_a_type == entity_type, MediaLink.entity_a_id.in_(id_set)),
+                    and_(MediaLink.entity_b_type == entity_type, MediaLink.entity_b_id.in_(id_set)),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # (my_entity_id, link, counterpart_type, counterpart_id) per matched row.
     pending: list[tuple[int, "MediaLink", str, int]] = []
@@ -484,9 +488,7 @@ def items_to_read_bulk(items: list[MediaItem], db: "Session", *, viewer: "UserIt
     return reads
 
 
-def media_item_bundle_to_read(
-    bundle: MediaItemBundle, db: "Session", *, viewer: "UserItem"
-) -> MediaItemBundleRead:
+def media_item_bundle_to_read(bundle: MediaItemBundle, db: "Session", *, viewer: "UserItem") -> MediaItemBundleRead:
     return media_item_bundle_to_read_bulk([bundle], db, viewer=viewer)[0]
 
 

@@ -100,6 +100,7 @@ class TestIssueSession:
 
         assert token1 != token2
         from backend.core.identity import hash_session_token
+
         assert user.session_token_hash == hash_session_token(token2)
 
     def test_backfills_missing_identity_secret(self, mem_session):

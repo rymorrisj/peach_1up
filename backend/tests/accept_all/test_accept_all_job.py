@@ -8,7 +8,7 @@ the accept-metadata-assets routes in backend/api/routes/game_metadata.py):
 - cancel stops the job and cleans up like a failure
 - the apply locks are released on done, failed, cancelled and any exception
 
-Downloads are replaced by the fake in test_accept_all_storage.py. Jobs are run
+Downloads are replaced by the fake in conftest.py. Jobs are run
 by calling the BackgroundTasks entries directly, on the test's own engine.
 """
 
@@ -19,7 +19,7 @@ import pytest
 from fastapi import HTTPException
 
 from backend.service.utils.asset_fetch import AssetFetchFailure
-from backend.tests.test_accept_all_storage import _BOX, _assets, _counts, _game, _game_with_discs, _url, db, env  # noqa: F401
+from backend.tests.accept_all.helpers import _BOX, _assets, _counts, _game, _game_with_discs, _url
 
 _ROUTE = "/api/v1/game-items"
 
@@ -78,10 +78,17 @@ class TestLifecycle:
 
         assert [s["state"] for s in seen] == ["running", "running"]
         assert [(s["done"], s["total"], s["label"]) for s in seen] == [
-            (0, 2, "screenshot (1 of 2)"), (1, 2, "screenshot (2 of 2)"),
+            (0, 2, "screenshot (1 of 2)"),
+            (1, 2, "screenshot (2 of 2)"),
         ]
         final = _status(job_id)
-        assert (final["state"], final["done"], final["total"], final["label"], final["error"]) == ("done", 2, 2, None, None)
+        assert (final["state"], final["done"], final["total"], final["label"], final["error"]) == (
+            "done",
+            2,
+            2,
+            None,
+            None,
+        )
         assert final["result"]["item_count"] == 2
         assert jobs.get(job_id)["status"] == "done"
         assert len(env.files()) == 2
@@ -90,7 +97,10 @@ class TestLifecycle:
     def test_game_cover_is_set_in_the_same_job(self, db, env):
         game, leaves = _game_with_discs(db)
         job_id, tasks = _start(
-            db, game, _assets(_url(0), _BOX, types=["screenshot", "boxart_front"]), cover_asset_url=_BOX,
+            db,
+            game,
+            _assets(_url(0), _BOX, types=["screenshot", "boxart_front"]),
+            cover_asset_url=_BOX,
         )
 
         _run(tasks)
@@ -113,46 +123,56 @@ class TestLifecycle:
 _FAILURES = {
     "provider_5xx": (
         lambda: AssetFetchFailure(502, "x", kind="upstream", upstream_status=503),
-        "provider_error", "TheGamesDB server returned 503.",
+        "provider_error",
+        "TheGamesDB server returned 503.",
     ),
     "unusable_redirect": (
         lambda: HTTPException(502, "Asset redirect has no Location header"),
-        "provider_error", "TheGamesDB server sent an unusable response.",
+        "provider_error",
+        "TheGamesDB server sent an unusable response.",
     ),
     "dns": (
         lambda: AssetFetchFailure(502, "x", kind="network"),
-        "network_error", "Could not resolve the TheGamesDB server.",
+        "network_error",
+        "Could not resolve the TheGamesDB server.",
     ),
     "connection": (
         lambda: httpx2.ConnectError("refused https://cdn.thegamesdb.net/a.jpg?apikey=SECRET"),
-        "network_error", "Could not reach the TheGamesDB server.",
+        "network_error",
+        "Could not reach the TheGamesDB server.",
     ),
     "download_timeout": (
         lambda: httpx2.ReadTimeout("timed out https://cdn.thegamesdb.net/a.jpg"),
-        "network_error", "Timed out waiting for the TheGamesDB server.",
+        "network_error",
+        "Timed out waiting for the TheGamesDB server.",
     ),
     "too_large": (
         lambda: HTTPException(422, "Asset image exceeds the 20 MB size limit"),
-        "asset_rejected", "20 MB size limit",
+        "asset_rejected",
+        "20 MB size limit",
     ),
     "wrong_type": (
         lambda: HTTPException(422, "Asset url returned a disallowed content-type: text/html"),
-        "asset_rejected", "disallowed content-type",
+        "asset_rejected",
+        "disallowed content-type",
     ),
     "not_allowlisted": (
         lambda: HTTPException(422, "Asset url host is not an allowed metadata provider CDN"),
-        "asset_rejected", "not an allowed metadata provider CDN",
+        "asset_rejected",
+        "not an allowed metadata provider CDN",
     ),
     "time_budget": (
         lambda: AssetFetchFailure(422, "x", kind="time_budget"),
-        "time_budget_exceeded", "time limit",
+        "time_budget_exceeded",
+        "time limit",
     ),
     "disk_full": (lambda: OSError(errno.ENOSPC, "No space left on device"), "disk_full", "The disk is full."),
     "permission": (lambda: PermissionError(errno.EACCES, "denied"), "permission_error", "Permission denied"),
     "other_io": (lambda: OSError(errno.EIO, "io"), "storage_error", "(EIO)"),
     "conflict": (
         lambda: HTTPException(409, "Asset destination already exists: a.jpg"),
-        "conflict", "already exists",
+        "conflict",
+        "already exists",
     ),
     "unexpected": (lambda: RuntimeError("secret internals"), "internal_error", "Unexpected error."),
 }

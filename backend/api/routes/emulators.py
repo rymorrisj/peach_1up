@@ -110,6 +110,7 @@ class XemuAssetPathsPatch(BaseModel):
 
 def _xemu_toml_path() -> Path:
     from backend.core.settings import get_base_path
+
     return get_base_path() / "emulators" / "xemu" / "xemu.toml"
 
 
@@ -216,12 +217,12 @@ def _active_emulator_scopes(db: Session) -> set[tuple[str, Optional[int]]]:
     against ProfileItem so AppContainer reset and emulator delete can refuse to
     act on an emulator that's actively running underneath an in-flight launch.
     """
-    profile_item_ids = {
-        e.profile_item_id for e in process_registry.get_all().values() if e.profile_item_id is not None
-    }
+    profile_item_ids = {e.profile_item_id for e in process_registry.get_all().values() if e.profile_item_id is not None}
     if not profile_item_ids:
         return set()
-    rows = db.query(ProfileItem.emulator_slug, ProfileItem.user_item_id).filter(ProfileItem.id.in_(profile_item_ids)).all()
+    rows = (
+        db.query(ProfileItem.emulator_slug, ProfileItem.user_item_id).filter(ProfileItem.id.in_(profile_item_ids)).all()
+    )
     return {(slug, uid) for slug, uid in rows}
 
 
@@ -255,7 +256,8 @@ def reset_sandbox_state(
             # scope on record for this emulator, plus the "shared" scope used
             # by profiles with no user_item_id, to match the old per-slug sweep.
             user_item_ids: set[int | None] = {
-                row[0] for row in db.query(ProfileItem.user_item_id).filter(ProfileItem.emulator_slug == slug).distinct()
+                row[0]
+                for row in db.query(ProfileItem.user_item_id).filter(ProfileItem.emulator_slug == slug).distinct()
             }
             user_item_ids.add(None)
             for user_item_id in user_item_ids:
@@ -263,7 +265,8 @@ def reset_sandbox_state(
                 if (slug, user_item_id) in active_scopes:
                     logger.warning(
                         "Skipped AppContainer reset for %s (user=%s): emulator is actively running",
-                        slug, scope_label,
+                        slug,
+                        scope_label,
                     )
                     skipped.append(f"{slug}:{scope_label}")
                     continue
@@ -271,9 +274,7 @@ def reset_sandbox_state(
                     _reset_container(slug, user_item_id)
                     reset_count += 1
                 except Exception as exc:
-                    logger.warning(
-                        "Failed to reset AppContainer for %s (user=%s): %s", slug, scope_label, exc
-                    )
+                    logger.warning("Failed to reset AppContainer for %s (user=%s): %s", slug, scope_label, exc)
                     errors.append(f"{slug}:{scope_label}")
 
     return {"reset": reset_count, "errors": errors, "skipped_active": skipped}
@@ -294,9 +295,7 @@ def get_xemu_asset_paths(_: UserItem = require_permission("is_admin")):
     with xemu_toml.open("rb") as fh:
         config = tomllib.load(fh)
     files = config.get("sys", {}).get("files", {})
-    return XemuAssetPathsResponse(
-        **{field: files.get(key, "") for field, key in XEMU_ASSET_TOML_KEYS.items()}
-    )
+    return XemuAssetPathsResponse(**{field: files.get(key, "") for field, key in XEMU_ASSET_TOML_KEYS.items()})
 
 
 @router.patch("/xemu/asset-paths", response_model=XemuAssetPathsResponse)
@@ -340,9 +339,7 @@ def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: UserItem = require_perm
 
     _write_xemu_toml(xemu_toml, sections)
 
-    return XemuAssetPathsResponse(
-        **{field: files.get(key, "") for field, key in XEMU_ASSET_TOML_KEYS.items()}
-    )
+    return XemuAssetPathsResponse(**{field: files.get(key, "") for field, key in XEMU_ASSET_TOML_KEYS.items()})
 
 
 @router.post("/{slug}/install")
@@ -359,10 +356,7 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: User
         if binary is None:
             raise HTTPException(
                 status_code=404,
-                detail=(
-                    f"Binary not found for '{slug}'. "
-                    f"Extract the emulator archive into emulators/{slug}/."
-                ),
+                detail=(f"Binary not found for '{slug}'. Extract the emulator archive into emulators/{slug}/."),
             )
         install_registry.set_status(slug, "complete", install_path=str(binary))
         return {"status": "detected", "slug": slug, "install_path": str(binary)}
@@ -401,9 +395,7 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: User
 async def _run_github_release_install(slug: str) -> None:
     try:
         result = await asyncio.to_thread(install_from_github_release, slug)
-        install_registry.set_status(
-            slug, "complete", install_path=result.get("install_path")
-        )
+        install_registry.set_status(slug, "complete", install_path=result.get("install_path"))
         if not result.get("digest_verified"):
             logger.warning(
                 "GitHub release install %s completed without digest verification "

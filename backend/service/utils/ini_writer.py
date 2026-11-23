@@ -36,7 +36,7 @@ def patch_ini(
     parser.optionxform = str
     if path.exists():
         parser.read(str(path), encoding="utf-8-sig")
-    for section in (remove_sections or []):
+    for section in remove_sections or []:
         if parser.has_section(section):
             parser.remove_section(section)
     for section, keys in edits.items():

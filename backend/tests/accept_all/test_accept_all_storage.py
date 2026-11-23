@@ -10,115 +10,17 @@ Downloads are replaced by a fake that writes into the staging dir it is
 handed, the same contract fetch_image_to_temp has.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
 
-_BOX = "https://cdn.thegamesdb.net/images/original/boxart/front/1.jpg"
-
-
-def _url(n: int) -> str:
-    return f"https://cdn.thegamesdb.net/images/original/screenshots/{n}.jpg"
-
-
-@pytest.fixture
-def db():
-    from sqlalchemy.pool import StaticPool
-    from sqlmodel import Session, SQLModel, create_engine
-    import backend.models  # noqa: F401, registers all table models
-
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
-
-
-class _Env:
-    def __init__(self, lib: Path, media: Path):
-        self.lib = lib
-        self.media = media
-        self.fetched: list[str] = []
-        self.fail_on: str | None = None
-        self.before_fetch = None
-
-    def files(self) -> list[Path]:
-        """Every file under MEDIA_PATH outside the staging area."""
-        return sorted(
-            p for p in self.media.rglob("*")
-            if p.is_file() and "_asset_staging" not in p.relative_to(self.media).parts
-        )
-
-    def staging_leftovers(self) -> list[Path]:
-        staging = self.media / "_asset_staging"
-        return list(staging.rglob("*")) if staging.exists() else []
-
-
-@pytest.fixture
-def env(tmp_path, monkeypatch):
-    import backend.core.settings as core_settings
-    import backend.service.utils.asset_fetch as asset_fetch_mod
-    import backend.service.utils.settings as utils_settings
-
-    lib = tmp_path / "library"
-    media = lib / "software" / "media"
-    media.mkdir(parents=True)
-    state = _Env(lib, media)
-
-    class _S:
-        def get_env_var(self, key):
-            return str(media) if key == "MEDIA_PATH" else str(lib)
-
-        def get(self, key, default=None):
-            return default
-
-    monkeypatch.setattr(core_settings, "get_settings", lambda: _S())
-    monkeypatch.setattr(utils_settings, "get", lambda key, default=None: str(lib) if key == "LIBRARY_PATH" else default)
-
-    def _fake_fetch(url, staging_dir, **kwargs):
-        from fastapi import HTTPException
-
-        if state.before_fetch is not None:
-            state.before_fetch(url, kwargs)
-        if url == state.fail_on:
-            raise HTTPException(status_code=502, detail="Asset fetch failed: boom")
-        state.fetched.append(url)
-        fd, raw = tempfile.mkstemp(suffix=".part", dir=staging_dir)
-        with open(fd, "wb") as fh:
-            fh.write(b"\xff\xd8\xff" + url.encode())
-        return Path(raw), ".jpg"
-
-    monkeypatch.setattr(asset_fetch_mod, "fetch_image_to_temp", _fake_fetch)
-    return state
-
-
-def _game(db, title="Doom"):
-    from backend.models.game import GameItemBundle
-
-    game = GameItemBundle(title=title, platform="dos", slug=title.lower())
-    db.add(game)
-    db.commit()
-    db.refresh(game)
-    return game
-
-
-def _assets(*urls, types=None):
-    from backend.service.metadata_providers import MetadataAsset
-
-    types = types or ["screenshot"] * len(urls)
-    return [MetadataAsset(url=u, type=t) for u, t in zip(urls, types)]
+from backend.tests.accept_all.helpers import _BOX, _assets, _counts, _game, _game_with_discs, _url
 
 
 def _apply(db, game, assets, **kwargs):
     from backend.service.games.media_link import prepare_apply, run_apply
 
     return run_apply(prepare_apply(game.id, assets, db, **kwargs), db)
-
-
-def _counts(db):
-    from backend.models.media import MediaItem, MediaItemBundle, MediaLink
-
-    return db.query(MediaItem).count(), db.query(MediaItemBundle).count(), db.query(MediaLink).count()
 
 
 # META-6: all or nothing
@@ -308,7 +210,8 @@ class TestFetchCreatedItems:
         bundle = _apply(db, _game(db), _assets(_BOX, _url(0), types=["boxart_front", "screenshot"]))
 
         assert sorted((i.asset_type, i.source_url) for i in bundle.items) == [
-            ("boxart_front", _BOX), ("screenshot", _url(0)),
+            ("boxart_front", _BOX),
+            ("screenshot", _url(0)),
         ]
 
     def test_repeated_url_in_one_request_is_downloaded_once(self, db, env):
@@ -380,9 +283,14 @@ class TestFetchCreatedItems:
         manual_file = env.media / "manual" / "scan.jpg"
         manual_file.parent.mkdir()
         manual_file.write_bytes(b"\xff\xd8\xffmanual")
-        db.add(MediaItem(
-            title="Scan", media_kind="image", file_path=str(manual_file), media_item_bundle_id=bundle.id,
-        ))
+        db.add(
+            MediaItem(
+                title="Scan",
+                media_kind="image",
+                file_path=str(manual_file),
+                media_item_bundle_id=bundle.id,
+            )
+        )
         db.commit()
 
         bundle = _apply(db, game, _assets(_url(2)), previous_assets="replace")
@@ -462,7 +370,9 @@ class TestFetchCreatedItems:
 class TestBundleCover:
     def test_new_bundle_cover_prefers_box_art_over_list_order(self, db, env):
         bundle = _apply(
-            db, _game(db), _assets(_url(0), _BOX, types=["screenshot", "boxart_front"]),
+            db,
+            _game(db),
+            _assets(_url(0), _BOX, types=["screenshot", "boxart_front"]),
         )
 
         cover_item = next(i for i in bundle.items if i.asset_type == "boxart_front")
@@ -501,29 +411,15 @@ class TestBundleCover:
 # Game cover (cover_asset_url)
 
 
-def _game_with_discs(db, count=1, display=None):
-    from backend.models.game import GameItem
-
-    game = _game(db)
-    leaves = []
-    for number in range(1, count + 1):
-        leaf = GameItem(game_item_bundle_id=game.id, file_path=f"/library/games/doom/disc{number}.iso", disc_number=number)
-        db.add(leaf)
-        db.commit()
-        db.refresh(leaf)
-        leaves.append(leaf)
-    if display is not None:
-        game.display_disk_id = leaves[display].id
-        db.commit()
-    return game, leaves
-
-
 class TestGameCover:
     def test_cover_is_set_on_the_display_disc_from_the_chosen_asset(self, db, env):
         game, leaves = _game_with_discs(db, count=2, display=1)
 
         bundle = _apply(
-            db, game, _assets(_url(0), _BOX, types=["screenshot", "boxart_front"]), cover_asset_url=_BOX,
+            db,
+            game,
+            _assets(_url(0), _BOX, types=["screenshot", "boxart_front"]),
+            cover_asset_url=_BOX,
         )
 
         chosen = next(i for i in bundle.items if i.source_url == _BOX)
@@ -559,8 +455,13 @@ class TestGameCover:
         box_path = _apply(db, game, _assets(_BOX, types=["boxart_front"])).items[0].file_path
         env.fetched.clear()
 
-        _apply(db, game, _assets(_BOX, _url(0), types=["boxart_front", "screenshot"]),
-               previous_assets="keep", cover_asset_url=_BOX)
+        _apply(
+            db,
+            game,
+            _assets(_BOX, _url(0), types=["boxart_front", "screenshot"]),
+            previous_assets="keep",
+            cover_asset_url=_BOX,
+        )
 
         db.refresh(leaves[0])
         assert leaves[0].cover_art_path == str(Path(box_path).resolve())

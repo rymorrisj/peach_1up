@@ -8,10 +8,10 @@ import sys
 from logging.handlers import RotatingFileHandler
 
 _ANSI: dict[int, str] = {
-    logging.DEBUG:    "\033[2;37m",
-    logging.INFO:     "\033[32m",
-    logging.WARNING:  "\033[33m",
-    logging.ERROR:    "\033[31m",
+    logging.DEBUG: "\033[2;37m",
+    logging.INFO: "\033[32m",
+    logging.WARNING: "\033[33m",
+    logging.ERROR: "\033[31m",
     logging.CRITICAL: "\033[1;31m",
 }
 _RESET = "\033[0m"
@@ -148,6 +148,7 @@ def setup_logging() -> None:
         return
 
     from backend.core.settings import get_base_path
+
     logs_dir = get_base_path() / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
 

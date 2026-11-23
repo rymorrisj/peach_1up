@@ -14,6 +14,7 @@ All asset downloads call into them.
 No test touches the network: httpx2 is replaced with a MagicMock and the
 resolver (_resolve_host_addresses) with a fake, autouse below.
 """
+
 from unittest.mock import MagicMock
 
 import httpx2
@@ -126,12 +127,15 @@ class TestValidateRequestUrl:
         exc = self._assert_422("https://evil.example.com/x.jpg")
         assert "allowed" in exc.detail
 
-    @pytest.mark.parametrize("url", [
-        "https://127.0.0.1/x.jpg",
-        "https://[::1]/x.jpg",
-        "https://169.254.169.254/latest/meta-data/",
-        "https://localhost/x.jpg",
-    ])
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://127.0.0.1/x.jpg",
+            "https://[::1]/x.jpg",
+            "https://169.254.169.254/latest/meta-data/",
+            "https://localhost/x.jpg",
+        ],
+    )
     def test_ip_literal_and_localhost_targets_rejected(self, url):
         self._assert_422(url)
 
@@ -146,9 +150,18 @@ class TestValidateRequestUrl:
     def test_malformed_port_rejected(self):
         self._assert_422("https://cdn.thegamesdb.net:notaport/x.jpg")
 
-    @pytest.mark.parametrize("private_ip", [
-        "10.0.0.5", "127.0.0.1", "192.168.1.20", "169.254.169.254", "::1", "fe80::1%eth0", "0.0.0.0",
-    ])
+    @pytest.mark.parametrize(
+        "private_ip",
+        [
+            "10.0.0.5",
+            "127.0.0.1",
+            "192.168.1.20",
+            "169.254.169.254",
+            "::1",
+            "fe80::1%eth0",
+            "0.0.0.0",
+        ],
+    )
     def test_allowlisted_name_resolving_to_private_ip_rejected(self, monkeypatch, private_ip):
         """DNS name on the allowlist, but its A/AAAA record points inside."""
         _fake_dns(monkeypatch, {"cdn.thegamesdb.net": [private_ip]})
@@ -454,13 +467,16 @@ class TestDownloadContent:
         exc = _expect_status(422, _download, monkeypatch, mock_httpx2, tmp_lib)
         assert "20 MB" in exc.detail
 
-    @pytest.mark.parametrize("body,content_type,ext", [
-        (_JPEG, "image/jpeg", ".jpg"),
-        (_JPEG, "image/jpg", ".jpg"),
-        (_PNG, "image/png", ".png"),
-        (_GIF, "image/gif", ".gif"),
-        (_WEBP, "image/webp", ".webp"),
-    ])
+    @pytest.mark.parametrize(
+        "body,content_type,ext",
+        [
+            (_JPEG, "image/jpeg", ".jpg"),
+            (_JPEG, "image/jpg", ".jpg"),
+            (_PNG, "image/png", ".png"),
+            (_GIF, "image/gif", ".gif"),
+            (_WEBP, "image/webp", ".webp"),
+        ],
+    )
     def test_allowlisted_formats_are_written(self, tmp_lib, monkeypatch, body, content_type, ext):
         mock_httpx2 = _make_mock_httpx2(content_type=content_type, body_chunks=[body])
         result = _download(monkeypatch, mock_httpx2, tmp_lib)
@@ -496,13 +512,16 @@ class TestDownloadContent:
 
 
 class TestDownloadFinalPath:
-    @pytest.mark.parametrize("stem", [
-        "..\\..\\evil",
-        "../../evil",
-        "/etc/evil",
-        "C:\\Windows\\evil",
-        "\\\\attacker\\share\\evil",
-    ])
+    @pytest.mark.parametrize(
+        "stem",
+        [
+            "..\\..\\evil",
+            "../../evil",
+            "/etc/evil",
+            "C:\\Windows\\evil",
+            "\\\\attacker\\share\\evil",
+        ],
+    )
     def test_hostile_stem_cannot_leave_dest_dir(self, tmp_lib, monkeypatch, stem):
         dest_dir = tmp_lib / "media" / "doom"
         mock_httpx2 = _make_mock_httpx2(body_chunks=[_JPEG])
@@ -613,7 +632,12 @@ class TestStreamedTempFetch:
         mock_httpx2 = _make_mock_httpx2(body_chunks=[_JPEG])
 
         exc = _expect_status(
-            422, _fetch_to_temp, monkeypatch, mock_httpx2, tmp_lib / "staging", deadline=time.monotonic() - 1,
+            422,
+            _fetch_to_temp,
+            monkeypatch,
+            mock_httpx2,
+            tmp_lib / "staging",
+            deadline=time.monotonic() - 1,
         )
 
         assert "time budget" in exc.detail

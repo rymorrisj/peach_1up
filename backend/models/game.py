@@ -70,7 +70,7 @@ class GameItem(SQLModel, table=True):
     original_name: Optional[str] = None
     # True only when folder_path was created/renamed exclusively for this item
     # (or, for a multi-disc set, this bundle) by the ingest pipeline itself
-    #, safe to rmtree on delete. False/None means folder_path is a pre-existing
+    # , safe to rmtree on delete. False/None means folder_path is a pre-existing
     # directory the ingest pipeline does not own (e.g. the parent of a loose
     # file ingested with no SOFTWARE_PATH configured) and must never be rmtree'd;
     # None covers rows written before this column existed, treated the same as
@@ -85,9 +85,7 @@ class GameItem(SQLModel, table=True):
     # backend/service/games/items.py, one classify() call per disc), and
     # refreshed on demand by the /api/v1/game-item/{leaf_id}/verify and
     # /api/v1/game-item-bundle/{collection_id}/verify endpoints.
-    verification_status: VerificationStatus = Field(
-        default="unchecked", sa_column=Column(String, nullable=False)
-    )
+    verification_status: VerificationStatus = Field(default="unchecked", sa_column=Column(String, nullable=False))
     # ClassifyResult.similarity (title_match.py's SequenceMatcher ratio),
     # persisted only when verification_status is "mismatch", the only status
     # fuzzy_title_match() ever produces a score for. None for every other
@@ -114,9 +112,8 @@ class GameItem(SQLModel, table=True):
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
     )
 
-    game_item_bundle: Optional["GameItemBundle"] = Relationship(
-        back_populates="items"
-    )
+    game_item_bundle: Optional["GameItemBundle"] = Relationship(back_populates="items")
+
 
 class GameItemRead(SQLModel):
     id: int
@@ -163,6 +160,7 @@ class GameItemRead(SQLModel):
             pass
         return self
 
+
 class GameItemUpdate(SQLModel):
     executable_path: Optional[str] = None
     cover_art_path: Optional[str] = None
@@ -173,6 +171,7 @@ class GameItemReorder(SQLModel):
     # becomes the new launch disc. disc_number columns are existing data, not
     # a schema change, this only adds a write path for them.
     disc_order: list[int]
+
 
 # ---------------------------------------------------------------------------
 # Parent entity: GameItemBundle (the game). Owns metadata, the writable drive
@@ -354,9 +353,7 @@ class GameItemBundleUpdate(SQLModel):
     @classmethod
     def _reject_dead_fields(cls, data: object) -> object:
         if isinstance(data, dict) and "drive_size_mb" in data:
-            raise ValueError(
-                "drive_size_mb is not a valid update field and has no database column."
-            )
+            raise ValueError("drive_size_mb is not a valid update field and has no database column.")
         return data
 
 
@@ -504,11 +501,7 @@ def _bundle_has_launched(bundle_id: int, db: "Session") -> bool:
 
     from backend.models.launch_history import LaunchHistory
 
-    return bool(
-        db.execute(
-            _select(exists().where(LaunchHistory.game_item_bundle_id == bundle_id))
-        ).scalar()
-    )
+    return bool(db.execute(_select(exists().where(LaunchHistory.game_item_bundle_id == bundle_id))).scalar())
 
 
 # ---------------------------------------------------------------------------
@@ -570,21 +563,18 @@ def _leaf_to_read(leaf: GameItem) -> Optional[GameItemRead]:
             "Library item %s failed read validation (%s); serving with file_type "
             "nulled. This usually means a file_type value not in the current "
             "FileType set was persisted before validation existed.",
-            leaf_id, exc,
+            leaf_id,
+            exc,
         )
         try:
-            payload = {
-                name: getattr(leaf, name, None)
-                for name in GameItemRead.model_fields
-                if name != "cover_art_url"
-            }
+            payload = {name: getattr(leaf, name, None) for name in GameItemRead.model_fields if name != "cover_art_url"}
             payload["file_type"] = None
             return GameItemRead.model_validate(payload)
         except ValidationError as exc2:
             log.warning(
-                "Library item %s is unreadable even after degrading file_type; "
-                "dropping it from the response: %s",
-                leaf_id, exc2,
+                "Library item %s is unreadable even after degrading file_type; dropping it from the response: %s",
+                leaf_id,
+                exc2,
             )
             return None
 
@@ -593,11 +583,9 @@ def _leaves_for_bundle(bundle_id: int, db: "Session") -> list[GameItem]:
     from sqlalchemy import select as _select
 
     return list(
-        db.execute(
-            _select(GameItem)
-            .where(GameItem.game_item_bundle_id == bundle_id)
-            .order_by(GameItem.disc_number)
-        ).scalars().all()
+        db.execute(_select(GameItem).where(GameItem.game_item_bundle_id == bundle_id).order_by(GameItem.disc_number))
+        .scalars()
+        .all()
     )
 
 
@@ -639,10 +627,7 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session", *, viewer: "Use
     read.tags = get_tags_for_entity("game_item_bundle", c.id, db)
     read.genres = get_genres_for_game_item_bundle(c.id, db)
     read.linked_items = _linked_items_for("game_item_bundle", c.id, db, viewer=viewer)
-    environment = (
-        resolve_environment_for_launch_gate(c.environment_item_id, db)
-        if c.item_type == "pc" else None
-    )
+    environment = resolve_environment_for_launch_gate(c.environment_item_id, db) if c.item_type == "pc" else None
     read.launch_blocked_reason = _launch_blocked_reason(c, environment)
     _worst = _rollup_verification_item(read.items)
     read.verification_status = _worst.verification_status if _worst is not None else "unchecked"
@@ -667,11 +652,15 @@ def game_item_bundles_to_read_bulk(
         return []
 
     bundle_ids = [c.id for c in bundles]
-    leaves = db.execute(
-        _select(GameItem)
-        .where(GameItem.game_item_bundle_id.in_(bundle_ids))
-        .order_by(GameItem.game_item_bundle_id, GameItem.disc_number)
-    ).scalars().all()
+    leaves = (
+        db.execute(
+            _select(GameItem)
+            .where(GameItem.game_item_bundle_id.in_(bundle_ids))
+            .order_by(GameItem.game_item_bundle_id, GameItem.disc_number)
+        )
+        .scalars()
+        .all()
+    )
 
     leaves_by_bundle: dict[int, list[GameItemRead]] = {}
     for leaf in leaves:

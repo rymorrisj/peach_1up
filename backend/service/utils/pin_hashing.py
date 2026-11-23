@@ -33,6 +33,7 @@ _HASH_LEN = 32
 def get_pin_pepper() -> str:
     """Return the configured PIN pepper, or "" if unset (opt-in, disabled by default)."""
     from backend.service.utils.env_secrets import get_env_secret
+
     return get_env_secret("PIN_PEPPER")
 
 

@@ -14,8 +14,13 @@ from sqlalchemy.orm import Session
 
 from backend.constants import PLATFORM_SELECTED_BY_USER_REASON
 from backend.models.game import (
-    GameItemBundle, GameItemBundleCreate, GameItemBundleUpdate,
-    GameItem, GameItemReorder, GameItemUpdate, derive_item_type,
+    GameItemBundle,
+    GameItemBundleCreate,
+    GameItemBundleUpdate,
+    GameItem,
+    GameItemReorder,
+    GameItemUpdate,
+    derive_item_type,
 )
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.file_types import is_drive_image, file_type_from_path, resolve_media_file_from_directory
@@ -38,27 +43,53 @@ _FOLDER_RENAME_RETRY_DELAYS: tuple[float, ...] = (0.1, 0.25, 0.5, 1.0)
 
 # Keys in the prepared row that belong to the collection (parent) vs the leaf.
 _COLLECTION_COLUMNS = {
-    "title", "platform", "slug", "sort_title", "category", "description", "publisher",
-    "year", "external_game_id", "metadata_source", "content_rating",
-    "launch_commands", "launch_review_flagged", "installed", "requires_install",
-    "environment_item_id", "profile_item_id", "last_launched_at", "launch_count",
+    "title",
+    "platform",
+    "slug",
+    "sort_title",
+    "category",
+    "description",
+    "publisher",
+    "year",
+    "external_game_id",
+    "metadata_source",
+    "content_rating",
+    "launch_commands",
+    "launch_review_flagged",
+    "installed",
+    "requires_install",
+    "environment_item_id",
+    "profile_item_id",
+    "last_launched_at",
+    "launch_count",
     "platform_confirmed",
 }
 _LEAF_COLUMNS = {
-    "file_path", "executable_path", "cover_art_path", "file_type",
-    "folder_path", "detection_reason", "file_size_bytes", "original_name",
-    "folder_owned", "verification_status", "verification_similarity", "sha1",
+    "file_path",
+    "executable_path",
+    "cover_art_path",
+    "file_type",
+    "folder_path",
+    "detection_reason",
+    "file_size_bytes",
+    "original_name",
+    "folder_owned",
+    "verification_status",
+    "verification_similarity",
+    "sha1",
 }
 
 
 class _ItemAlreadyExists(Exception):
     """Raised by _prepare_item when the media path is already tracked."""
+
     def __init__(self, collection: GameItemBundle | None):
         self.collection = collection
 
 
 class _SlugCollision(Exception):
     """Raised when a concurrent insert claimed the same slug between generation and commit."""
+
     def __init__(self, message: str | None = None):
         super().__init__(message or "Import collided with a concurrent change, please retry.")
 
@@ -90,9 +121,7 @@ def _folder_is_db_tracked(folder: Path, db: Session) -> bool:
     return db.query(GameItem).filter(GameItem.file_path.like(path_str + "/%")).first() is not None
 
 
-def _reconcile_folder_to_slug(
-    folder: Path, slug: str, db: Session, *, undo_stack: list | None = None
-) -> Path:
+def _reconcile_folder_to_slug(folder: Path, slug: str, db: Session, *, undo_stack: list | None = None) -> Path:
     """Rename *folder* so its basename is literally *slug*, in the same parent.
 
     Every ingest path that owns a dedicated on-disk directory must call this
@@ -135,8 +164,9 @@ def _reconcile_folder_to_slug(
             )
         slug = unique_slug(
             slug,
-            lambda s: s != folder.name
-            and ((folder.parent / s).exists() or _folder_is_db_tracked(folder.parent / s, db)),
+            lambda s: (
+                s != folder.name and ((folder.parent / s).exists() or _folder_is_db_tracked(folder.parent / s, db))
+            ),
         )
         try:
             target = resolve_under(folder.parent, slug)
@@ -165,7 +195,11 @@ def _reconcile_folder_to_slug(
 
 
 def _rewrite_paths_after_folder_rename(
-    row: dict, fields: tuple[str, ...], old_root: Path, new_root: Path, log,
+    row: dict,
+    fields: tuple[str, ...],
+    old_root: Path,
+    new_root: Path,
+    log,
 ) -> None:
     """Rewrite every path in *row* that lived under *old_root* to the same
     relative location under *new_root*, after a folder rename. Never raises —
@@ -184,7 +218,11 @@ def _rewrite_paths_after_folder_rename(
             log.warning(
                 "Could not rewrite '%s' after folder rename (%s -> %s): %s. "
                 "Field will keep its stale pre-rename value: %s",
-                field, old_root, new_root, exc, val,
+                field,
+                old_root,
+                new_root,
+                exc,
+                val,
             )
 
 
@@ -201,6 +239,7 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     # launch target (mirrors rpcs3.launch()'s own is_dir() handling), so this
     # must run before the xex/generic-extension resolution below can apply.
     from backend.service.utils.detection import resolve_ps3_target, resolve_xex_target
+
     ps3_target = resolve_ps3_target(folder)
     if ps3_target is not None:
         return ps3_target.launch_path
@@ -213,12 +252,14 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     if xex_target is not None:
         return xex_target.launch_path
     from backend.service.utils.file_types import all_supported_extensions
+
     all_exts = _MEDIA_SUFFIXES | all_supported_extensions()
     folder_name = folder.name
     try:
         hit = next(
             (
-                f for f in folder.iterdir()
+                f
+                for f in folder.iterdir()
                 if f.is_file() and f.suffix.lower() in all_exts and not is_drive_image(f, folder_name)
             ),
             None,
@@ -259,6 +300,7 @@ def _collection_for_leaf(leaf: GameItem | None, db: Session) -> GameItemBundle |
 class _SourceRef:
     """A validated ingest source: an existing, normalised path that is either a
     directory or a file, and is not an OS environment image."""
+
     path: Path
     is_dir: bool
 
@@ -285,6 +327,7 @@ class _Detection:
         single-file source. None when a folder holds no recognizable launch
         file.
     """
+
     scan: MediaDetection
     detect_path: Path
     media_path: Path
@@ -314,9 +357,7 @@ def _validate_source(media_path: str, db: Session) -> _SourceRef:
 
     incoming_norm = media_src.as_posix()
 
-    for base_path, working_path in db.query(
-        EnvironmentItem.base_image_path, EnvironmentItem.working_image_path
-    ).all():
+    for base_path, working_path in db.query(EnvironmentItem.base_image_path, EnvironmentItem.working_image_path).all():
         if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
             working_path and Path(working_path).resolve().as_posix() == incoming_norm
         ):
@@ -350,6 +391,7 @@ def _guard_directory_source(folder: Path, db: Session, games_root_str: str) -> N
     """
     if games_root_str:
         from backend.service.utils.path_utils import library_domain_root
+
         media_root = library_domain_root("games")
         if not (folder == media_root or folder.is_relative_to(media_root)):
             raise HTTPException(
@@ -380,10 +422,7 @@ def _pick_folder_executable(folder: Path) -> Path | None:
 
     folder_name = folder.name
     try:
-        candidates = [
-            f for f in folder.iterdir()
-            if f.is_file() and not is_drive_image(f, folder_name)
-        ]
+        candidates = [f for f in folder.iterdir() if f.is_file() and not is_drive_image(f, folder_name)]
     except OSError:
         candidates = []
     for ext in _EXECUTABLE_PRIORITY:
@@ -462,9 +501,7 @@ def _detect_directory_source(
                     scan = narrowed
                     detect_path = resolved_media
                 elif narrowed.warnings:
-                    log.warning(
-                        "Media detection warnings for '%s': %s", resolved_media, narrowed.warnings
-                    )
+                    log.warning("Media detection warnings for '%s': %s", resolved_media, narrowed.warnings)
         except ValueError as exc:
             if resolve_platform == "ps3":
                 # ps3's supported_media is .iso only (config/platforms.yaml), so
@@ -485,7 +522,10 @@ def _detect_directory_source(
                 log.warning("Could not resolve media file in '%s': %s", folder, exc)
 
     return _Detection(
-        scan=scan, detect_path=detect_path, media_path=media_path, executable_path=executable,
+        scan=scan,
+        detect_path=detect_path,
+        media_path=media_path,
+        executable_path=executable,
     )
 
 
@@ -506,7 +546,10 @@ def _detect_file_source(media_file: Path, log) -> _Detection:
     if scan.platform is None and scan.warnings:
         log.warning("Media detection warnings for '%s': %s", media_file, scan.warnings)
     return _Detection(
-        scan=scan, detect_path=media_file, media_path=media_file, executable_path=media_file,
+        scan=scan,
+        detect_path=media_file,
+        media_path=media_file,
+        executable_path=media_file,
     )
 
 
@@ -529,9 +572,7 @@ def _stage_directory_source(row: dict, folder: Path, detection: _Detection) -> P
     row["folder_path"] = str(folder)
     row["folder_owned"] = True
     row["file_path"] = str(detection.media_path)
-    row["executable_path"] = (
-        str(detection.executable_path) if detection.executable_path is not None else None
-    )
+    row["executable_path"] = str(detection.executable_path) if detection.executable_path is not None else None
 
     cover = _find_cover(folder)
     if cover:
@@ -587,10 +628,7 @@ def _refuse_tracked_folder(folder: Path, db: Session) -> None:
     if _folder_is_db_tracked(folder, db):
         raise HTTPException(
             status_code=409,
-            detail=(
-                f"Folder '{folder}' is already tracked by a library item "
-                f"(contains: {_describe_entries(folder)})."
-            ),
+            detail=(f"Folder '{folder}' is already tracked by a library item (contains: {_describe_entries(folder)})."),
         )
 
 
@@ -601,7 +639,11 @@ def _already_at_destination(media_src: Path, dest: Path, dest_folder: Path) -> b
 
 
 def _adopt_in_place(
-    row: dict, media_src: Path, dest_folder: Path, games_root: Path, db: Session,
+    row: dict,
+    media_src: Path,
+    dest_folder: Path,
+    games_root: Path,
+    db: Session,
 ) -> None:
     """Index a library file where it already lives: fills *row* only, touches
     no file. The folder's other contents are left alone and never inspected.
@@ -618,7 +660,10 @@ def _adopt_in_place(
 
 
 def _claim_dest_folder(
-    media_src: Path, dest_folder: Path, games_root: Path, db: Session,
+    media_src: Path,
+    dest_folder: Path,
+    games_root: Path,
+    db: Session,
 ) -> Path:
     """Return a folder this ingest can stage *media_src* into without writing
     into anyone else's files.
@@ -639,16 +684,19 @@ def _claim_dest_folder(
         return dest_folder
     free = games_root / unique_slug(
         media_src.stem,
-        lambda s: (games_root / s).exists()
-        or (games_root / s).is_symlink()
-        or _folder_is_db_tracked(games_root / s, db),
+        lambda s: (
+            (games_root / s).exists() or (games_root / s).is_symlink() or _folder_is_db_tracked(games_root / s, db)
+        ),
     )
     _require_direct_child(free, games_root)
     return free
 
 
 def _move_into_folder(
-    media_src: Path, dest_folder: Path, dest: Path, undo_stack: list | None,
+    media_src: Path,
+    dest_folder: Path,
+    dest: Path,
+    undo_stack: list | None,
 ) -> None:
     """Create dest_folder if needed and move *media_src* to *dest*, registering
     an undo for each step this call performed. The folder is only removed on
@@ -663,7 +711,12 @@ def _move_into_folder(
 
 
 def _stage_file_source(
-    row: dict, media_src: Path, db: Session, *, games_root_str: str, undo_stack: list | None,
+    row: dict,
+    media_src: Path,
+    db: Session,
+    *,
+    games_root_str: str,
+    undo_stack: list | None,
 ) -> Path | None:
     """Staging stage for a single-file source: move or rename the file into its
     canonical per-item folder under the games library, or adopt it in place when
@@ -681,9 +734,7 @@ def _stage_file_source(
     from backend.service.utils.profile_builder import _find_cover
 
     if not games_root_str:
-        existing_leaf = db.query(GameItem).filter(
-            GameItem.file_path == str(media_src)
-        ).first()
+        existing_leaf = db.query(GameItem).filter(GameItem.file_path == str(media_src)).first()
         if existing_leaf:
             raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
         # No SOFTWARE_PATH configured: there is no dedicated per-item directory
@@ -697,6 +748,7 @@ def _stage_file_source(
         return None
 
     from backend.service.utils.path_utils import library_domain_root
+
     _games_root = library_domain_root("games")
     _src_parent = media_src.parent
 
@@ -713,9 +765,7 @@ def _stage_file_source(
     # Duplicate check, source side: file_path is always written as
     # str(Path(...).resolve()) by this same pipeline, so an exact match
     # against media_src itself means this literal path is already tracked.
-    existing_leaf = db.query(GameItem).filter(
-        GameItem.file_path == str(media_src)
-    ).first()
+    existing_leaf = db.query(GameItem).filter(GameItem.file_path == str(media_src)).first()
     if existing_leaf:
         raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
 
@@ -729,15 +779,11 @@ def _stage_file_source(
     # hash-backed lookup find_existing_duplicate/media_dup_index already
     # use for "is this content already in the library", instead of a
     # second, independent duplicate check.
-    dest_leaf = db.query(GameItem).filter(
-        GameItem.file_path == str(dest)
-    ).first()
+    dest_leaf = db.query(GameItem).filter(GameItem.file_path == str(dest)).first()
     if dest_leaf is not None:
         from backend.service.utils.upload_utils import find_existing_duplicate
 
-        duplicate = find_existing_duplicate(
-            _games_root, media_src, media_src.stat().st_size
-        )
+        duplicate = find_existing_duplicate(_games_root, media_src, media_src.stat().st_size)
         if duplicate is not None:
             # Genuinely the same content, reuse behavior applies.
             raise _ItemAlreadyExists(_collection_for_leaf(dest_leaf, db))
@@ -746,10 +792,11 @@ def _stage_file_source(
         # instead of raising or overwriting dest_leaf's file.
         dest_folder = _games_root / unique_slug(
             media_src.stem,
-            lambda s: (_games_root / s).exists()
-            or db.query(GameItem).filter(
-                GameItem.file_path == str(_games_root / s / media_src.name)
-            ).first() is not None,
+            lambda s: (
+                (_games_root / s).exists()
+                or db.query(GameItem).filter(GameItem.file_path == str(_games_root / s / media_src.name)).first()
+                is not None
+            ),
         )
         dest = dest_folder / media_src.name
 
@@ -805,8 +852,11 @@ def _reconcile_owned_folder(
     collection_fields["slug"] = slug_folder.name
     if slug_folder != owned_root:
         _rewrite_paths_after_folder_rename(
-            leaf_fields, ("folder_path", "file_path", "executable_path", "cover_art_path"),
-            owned_root, slug_folder, log,
+            leaf_fields,
+            ("folder_path", "file_path", "executable_path", "cover_art_path"),
+            owned_root,
+            slug_folder,
+            log,
         )
 
 
@@ -921,14 +971,16 @@ def _finalize_row_fields(
     leaf_fields: list[dict] = []
     for target in target_paths:
         _classify_result = classify_media(target, title, _classify_platform)
-        leaf_fields.append({
-            "file_type": file_type_from_path(target),
-            "file_size_bytes": _target_size(target),
-            "detection_reason": detection_reason,
-            "verification_status": _classify_result.status,
-            "verification_similarity": _classify_result.similarity,
-            "sha1": _classify_result.computed_sha1,
-        })
+        leaf_fields.append(
+            {
+                "file_type": file_type_from_path(target),
+                "file_size_bytes": _target_size(target),
+                "detection_reason": detection_reason,
+                "verification_status": _classify_result.status,
+                "verification_similarity": _classify_result.similarity,
+                "sha1": _classify_result.computed_sha1,
+            }
+        )
 
     return collection_fields, leaf_fields
 
@@ -1050,7 +1102,11 @@ def _prepare_item(
         # up tracked, not against the source bytes. A directory source has no
         # equivalent case, which is why it is the branch that detects first.
         _owned_folder_root = _stage_file_source(
-            leaf_fields, media_src, db, games_root_str=games_root_str, undo_stack=_undo_stack,
+            leaf_fields,
+            media_src,
+            db,
+            games_root_str=games_root_str,
+            undo_stack=_undo_stack,
         )
         detection = _detect_file_source(Path(leaf_fields["file_path"]), log)
         leaf_fields["executable_path"] = str(detection.executable_path)
@@ -1161,7 +1217,9 @@ def _ingest_media_entry(
     undo_ops: list = []
     with _ingest_transaction(db, undo_ops):
         collection_fields, leaf_rows = _prepare_item(
-            media_path, title, db,
+            media_path,
+            title,
+            db,
             override_profile_item_id=override_profile_item_id,
             _undo_stack=undo_ops,
         )
@@ -1291,8 +1349,7 @@ def _prepare_multi_disc(
         slug = staged_dir.name
         if staged_dir != staging_dir:
             disc_files = [
-                staged_dir / f.relative_to(staging_dir) if f.is_relative_to(staging_dir) else f
-                for f in disc_files
+                staged_dir / f.relative_to(staging_dir) if f.is_relative_to(staging_dir) else f for f in disc_files
             ]
     cover = _find_cover(staged_dir if staged_dir is not None else disc_files[0].parent)
 
@@ -1303,26 +1360,26 @@ def _prepare_multi_disc(
 
     leaf_rows: list[dict] = []
     for disc_number, (disc_file, fields) in enumerate(zip(disc_files, leaf_fields), start=1):
-        leaf_rows.append({
-            **fields,
-            "file_path": str(disc_file),
-            "executable_path": str(disc_file),
-            "original_name": disc_file.name,
-            "folder_path": str(disc_file.parent),
-            "cover_art_path": str(cover) if disc_number == 1 and cover else None,
-            # All disc files of a "set" upload are written together into one
-            # unique-slugged staging directory dedicated to this collection
-            # (see service.uploads.software_games.finalize_reassembled), safe
-            # to rmtree.
-            "folder_owned": True,
-        })
+        leaf_rows.append(
+            {
+                **fields,
+                "file_path": str(disc_file),
+                "executable_path": str(disc_file),
+                "original_name": disc_file.name,
+                "folder_path": str(disc_file.parent),
+                "cover_art_path": str(cover) if disc_number == 1 and cover else None,
+                # All disc files of a "set" upload are written together into one
+                # unique-slugged staging directory dedicated to this collection
+                # (see service.uploads.software_games.finalize_reassembled), safe
+                # to rmtree.
+                "folder_owned": True,
+            }
+        )
 
     return collection_fields, leaf_rows
 
 
-def _persist_multi_disc_collection(
-    collection_fields: dict, leaf_rows: list[dict], db: Session
-) -> GameItemBundle:
+def _persist_multi_disc_collection(collection_fields: dict, leaf_rows: list[dict], db: Session) -> GameItemBundle:
     """Create a GameItemBundle plus one GameItem leaf per disc from prepared
     rows. Shared by every ingest shape, including the collection-of-one case
     (called with a single-element leaf_rows list).
@@ -1331,9 +1388,7 @@ def _persist_multi_disc_collection(
     disc 1. Does NOT commit: the caller owns the transaction (and any undo of
     filesystem side effects on failure).
     """
-    collection = GameItemBundle(
-        **{k: v for k, v in collection_fields.items() if k in _COLLECTION_COLUMNS}
-    )
+    collection = GameItemBundle(**{k: v for k, v in collection_fields.items() if k in _COLLECTION_COLUMNS})
     _enforce_environment_binding(collection)
     db.add(collection)
     db.flush()
@@ -1359,19 +1414,14 @@ def multi_disc_slug_collision_detail(title: str, disc_files: list[Path]) -> str:
     """Message for a slug race during a multi-disc ingest, shared by both call
     sites so the two report the collision identically."""
     anchor = disc_files[0].name if disc_files else "unknown"
-    return (
-        f"Import collided with a concurrent change while adding '{title}' "
-        f"(disc file '{anchor}'). Please retry."
-    )
+    return f"Import collided with a concurrent change while adding '{title}' (disc file '{anchor}'). Please retry."
 
 
 def create_library_collection(body: GameItemBundleCreate, db: Session) -> tuple[GameItemBundle, bool]:
     """Backward-compat wrapper. Returns (collection, already_existed)."""
     try:
         return (
-            _ingest_media_entry(
-                body.file_path, body.title, db, override_profile_item_id=body.profile_item_id
-            ),
+            _ingest_media_entry(body.file_path, body.title, db, override_profile_item_id=body.profile_item_id),
             False,
         )
     except _ItemAlreadyExists as e:
@@ -1411,8 +1461,7 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
     media_root_str = svc.get("SOFTWARE_PATH", "") or ""
     if not media_root_str:
         log.error(
-            "Media deletion is enabled for collection %s but SOFTWARE_PATH is unset; "
-            "refusing to delete media folders.",
+            "Media deletion is enabled for collection %s but SOFTWARE_PATH is unset; refusing to delete media folders.",
             collection.id,
         )
         return
@@ -1434,7 +1483,9 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
                 log.error(
                     "Refusing to delete media folder '%s' for library item %s: "
                     "it does not resolve under the game library root ('%s').",
-                    folder, leaf.id, media_root,
+                    folder,
+                    leaf.id,
+                    media_root,
                 )
                 continue
             try:
@@ -1455,7 +1506,9 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
                 log.error(
                     "Refusing to delete media file '%s' for library item %s: "
                     "it does not resolve under the game library root ('%s').",
-                    file_path, leaf.id, media_root,
+                    file_path,
+                    leaf.id,
+                    media_root,
                 )
                 continue
             try:
@@ -1472,11 +1525,16 @@ def _should_delete_media(collection: GameItemBundle) -> bool:
     if collection.delete_media_override is not None:
         return collection.delete_media_override
     from backend.core.settings import get_settings
+
     return bool(get_settings().get("delete_media_on_removal", False))
 
 
 def delete_library_collection(
-    collection_id: int, token: str, db: Session, *, delete_media: bool | None = None,
+    collection_id: int,
+    token: str,
+    db: Session,
+    *,
+    delete_media: bool | None = None,
 ) -> None:
     """Delete one collection after consuming its confirmation token.
 
@@ -1492,6 +1550,7 @@ def delete_library_collection(
     # deleting the collection, so the image file is never orphaned (the FK cascade
     # only drops the DB row, not the file). No-op for collections without a drive.
     from backend.service.utils.drive_utils import delete_drive_for_collection
+
     delete_drive_for_collection(collection, db)
 
     if delete_media if delete_media is not None else _should_delete_media(collection):
@@ -1503,6 +1562,7 @@ def delete_library_collection(
     # explicitly or a stale link row could resurface as a wrong deeplink if
     # this id is ever reused.
     from backend.models.media import delete_links_for
+
     delete_links_for("game_item_bundle", collection_id, db)
 
     leaf_covers = [(leaf.id, leaf.cover_art_path) for leaf in collection.items]
@@ -1512,6 +1572,7 @@ def delete_library_collection(
     # Legacy app-owned disc covers only (MEDIA_PATH/_game_covers), so a
     # reused leaf id never inherits a stale file.
     from backend.service.games.leaf_covers import remove_app_owned_leaf_covers
+
     remove_app_owned_leaf_covers(leaf_covers, db)
 
 
@@ -1556,9 +1617,7 @@ def _apply_platform_change(collection: GameItemBundle, fields: dict, db: Session
         return
     from backend.service.utils.platform_defaults import rebind_for_platform_change
 
-    rebind_for_platform_change(
-        collection.profile_item_id, collection.environment_item_id, fields, new_platform, db
-    )
+    rebind_for_platform_change(collection.profile_item_id, collection.environment_item_id, fields, new_platform, db)
     _mark_leaves_platform_user_selected(collection)
     fields["platform_confirmed"] = new_platform != "unknown"
 
@@ -1583,14 +1642,13 @@ def update_library_collection(
     for disk_field in ("display_disk_id", "launch_disk_id"):
         if fields.get(disk_field) is not None:
             leaf_ids = set(
-                db.execute(
-                    _select(GameItem.id).where(GameItem.game_item_bundle_id == collection_id)
-                ).scalars().all()
+                db.execute(_select(GameItem.id).where(GameItem.game_item_bundle_id == collection_id)).scalars().all()
             )
             if fields[disk_field] not in leaf_ids:
                 raise HTTPException(status_code=422, detail="disc does not belong to this collection.")
     if "content_rating" in fields:
         from backend.core.dependencies import normalize_content_rating, rating_change_requires_confirmation
+
         new_rating = normalize_content_rating(fields["content_rating"])
         # The visibility filter treats "" as unrated, same as None.
         old_rating = collection.content_rating or None
@@ -1605,10 +1663,12 @@ def update_library_collection(
                     ),
                 )
             from backend.core.logger import get_logger
+
             get_logger(__name__).warning(
-                "content_rating lowered/cleared on game_item_bundle id=%s: %r -> %r "
-                "(confirmed by caller)",
-                collection_id, old_rating, new_rating,
+                "content_rating lowered/cleared on game_item_bundle id=%s: %r -> %r (confirmed by caller)",
+                collection_id,
+                old_rating,
+                new_rating,
             )
         fields["content_rating"] = new_rating
     _validate_platform_confirmation(collection, fields)
@@ -1641,6 +1701,7 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, 
         raise HTTPException(status_code=404, detail="Software item not found.")
     fields = body.model_dump(exclude_unset=True)
     from backend.core.logger import get_logger
+
     log = get_logger(__name__)
     for key in _PATH_FIELDS & fields.keys():
         if fields[key] is None:
@@ -1655,12 +1716,15 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, 
             raise HTTPException(status_code=400, detail=f"{key} is not a valid path.") from None
         if key == "cover_art_path":
             from backend.service.games.leaf_covers import require_cover_in_library
+
             require_cover_in_library(resolved, fields[key])
         if key in _CONTAINMENT_FIELDS:
             from backend.core.settings import get_settings
+
             games_root_str = get_settings().get("SOFTWARE_PATH", "") or ""
             if games_root_str:
                 from backend.service.utils.path_utils import library_domain_root
+
                 media_root = library_domain_root("games")
                 if not (resolved == media_root or resolved.is_relative_to(media_root)):
                     log.warning("Rejected %s %r: outside the games library", key, fields[key])
@@ -1719,11 +1783,10 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
             ps3_target = None
             if platform == "ps3":
                 from backend.service.utils.detection import resolve_ps3_target
+
                 ps3_target = resolve_ps3_target(path)
             if ps3_target is None:
-                raise HTTPException(
-                    status_code=400, detail=f"Media file not found on disk: {leaf.file_path}"
-                ) from exc
+                raise HTTPException(status_code=400, detail=f"Media file not found on disk: {leaf.file_path}") from exc
             path = ps3_target.detect_path
     elif not path.is_file():
         raise HTTPException(status_code=400, detail=f"Media file not found on disk: {leaf.file_path}")
@@ -1785,9 +1848,7 @@ def reverify_library_collection(collection_id: int, db: Session) -> GameItemBund
     return collection
 
 
-def reorder_library_items(
-    collection_id: int, body: GameItemReorder, db: Session
-) -> GameItemBundle:
+def reorder_library_items(collection_id: int, body: GameItemReorder, db: Session) -> GameItemBundle:
     """Persist a staged disc reorder in one transaction.
 
     ``body.disc_order`` must be exactly the collection's current leaf ids,

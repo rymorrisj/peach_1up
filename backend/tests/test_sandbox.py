@@ -21,33 +21,39 @@ requires_windows = pytest.mark.skipif(not WINDOWS, reason="Windows only")
 # _load_platform_limits
 # ---------------------------------------------------------------------------
 
+
 class TestLoadPlatformLimits:
     def test_reads_dos_values_from_real_platforms_yaml(self):
         from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+
         memory_mb, cpu_pct = _load_platform_limits("dos")
         assert memory_mb == 512
         assert cpu_pct == 50
 
     def test_reads_win95_values_from_real_platforms_yaml(self):
         from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+
         memory_mb, cpu_pct = _load_platform_limits("win95")
         assert memory_mb == 2048
         assert cpu_pct == 75
 
     def test_reads_winxp_values_from_real_platforms_yaml(self):
         from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+
         memory_mb, cpu_pct = _load_platform_limits("winxp")
         assert memory_mb == 3072
         assert cpu_pct == 80
 
     def test_unknown_platform_raises_runtime_error(self):
         from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+
         with pytest.raises(RuntimeError, match="not found in platforms.yaml"):
             _load_platform_limits("nonexistent_platform_xyz")
 
     def test_missing_file_raises_file_not_found(self, monkeypatch, tmp_path):
         import backend.service.utils.platforms_config as platforms_config_mod
         import backend.service.utils.host_os.windows.process.launcher as jo
+
         monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_CACHE", None)
         monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_PATH", tmp_path / "missing.yaml")
 
@@ -57,6 +63,7 @@ class TestLoadPlatformLimits:
     def test_missing_memory_field_raises_runtime_error(self, monkeypatch):
         import backend.service.utils.platforms_config as platforms_config_mod
         import backend.service.utils.host_os.windows.process.launcher as jo
+
         monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_CACHE", {"dos": {"cpu_limit_percent": 50}})
         with pytest.raises(RuntimeError, match="memory_limit_mb not defined"):
             jo._load_platform_limits("dos")
@@ -64,12 +71,14 @@ class TestLoadPlatformLimits:
     def test_missing_cpu_field_raises_runtime_error(self, monkeypatch):
         import backend.service.utils.platforms_config as platforms_config_mod
         import backend.service.utils.host_os.windows.process.launcher as jo
+
         monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_CACHE", {"dos": {"memory_limit_mb": 256}})
         with pytest.raises(RuntimeError, match="cpu_limit_percent not defined"):
             jo._load_platform_limits("dos")
 
     def test_returns_integers_not_strings(self):
         from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+
         memory_mb, cpu_pct = _load_platform_limits("dos")
         assert isinstance(memory_mb, int)
         assert isinstance(cpu_pct, int)
@@ -79,9 +88,11 @@ class TestLoadPlatformLimits:
 # WindowsJobObject, pre-create error guards (no Win32 calls, any OS)
 # ---------------------------------------------------------------------------
 
+
 class TestWindowsJobObjectPreCreate:
     def test_init_stores_attributes(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("test_job", 512, 75)
         assert job.name == "test_job"
         assert job.memory_limit_mb == 512
@@ -91,17 +102,20 @@ class TestWindowsJobObjectPreCreate:
 
     def test_handle_is_open_before_create_returns_false(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("test_job", 256, 50)
         assert job.handle_is_open() is False
 
     def test_set_memory_limit_before_create_raises(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("test_job", 256, 50)
         with pytest.raises(RuntimeError, match="Job object not created"):
             job.set_memory_limit(256)
 
     def test_set_cpu_limit_before_create_raises(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("test_job", 256, 50)
         with pytest.raises(RuntimeError, match="Job object not created"):
             job.set_cpu_limit(50)
@@ -109,6 +123,7 @@ class TestWindowsJobObjectPreCreate:
     def test_add_process_before_create_raises(self):
         from wincage import WindowsJobObject
         from wincage import SandboxProcess
+
         job = WindowsJobObject("test_job", 256, 50)
         proc = SandboxProcess(pid=1234, process_handle=None, thread_handle=None, args=["x.exe"])
         with pytest.raises(RuntimeError, match="Job object not created"):
@@ -119,10 +134,12 @@ class TestWindowsJobObjectPreCreate:
 # WindowsJobObject, Win32 lifecycle (Windows-only, no admin required)
 # ---------------------------------------------------------------------------
 
+
 class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_create_succeeds_and_handle_is_set(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("PeachTest_Create", 256, 50)
         job.create()
         try:
@@ -133,6 +150,7 @@ class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_handle_is_open_returns_true_after_create(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("PeachTest_IsActive", 256, 50)
         job.create()
         try:
@@ -143,6 +161,7 @@ class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_memory_limit_reapplied_without_error(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("PeachTest_MemLimit", 512, 50)
         job.create()
         try:
@@ -153,6 +172,7 @@ class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_cpu_limit_reapplied_without_error(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("PeachTest_CpuLimit", 256, 75)
         job.create()
         try:
@@ -163,6 +183,7 @@ class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_teardown_sets_handle_to_none(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("PeachTest_Terminate", 256, 50)
         job.create()
         job.teardown()
@@ -171,6 +192,7 @@ class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_handle_is_open_returns_false_after_terminate(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("PeachTest_PostTerminate", 256, 50)
         job.create()
         job.teardown()
@@ -179,6 +201,7 @@ class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_teardown_is_idempotent(self):
         from wincage import WindowsJobObject
+
         job = WindowsJobObject("PeachTest_Idempotent", 256, 50)
         job.create()
         job.teardown()
@@ -189,6 +212,7 @@ class TestWindowsJobObjectLifecycle:
         """End-to-end: limits from platforms.yaml are applied to a real Job Object."""
         from wincage import WindowsJobObject
         from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+
         memory_mb, cpu_pct = _load_platform_limits("dos")
         job = WindowsJobObject("PeachTest_PlatformLimits", memory_mb, cpu_pct)
         job.create()
@@ -204,9 +228,11 @@ class TestWindowsJobObjectLifecycle:
 # SandboxProcess, pure Python paths, no Win32 calls (any OS)
 # ---------------------------------------------------------------------------
 
+
 class TestSandboxProcess:
     def test_init_stores_attributes(self):
         from wincage import SandboxProcess
+
         proc = SandboxProcess(
             pid=9999,
             process_handle=None,
@@ -221,17 +247,20 @@ class TestSandboxProcess:
 
     def test_poll_with_closed_handle_returns_stored_returncode(self):
         from wincage import SandboxProcess
+
         proc = SandboxProcess(pid=1, process_handle=None, thread_handle=None, args=["x.exe"])
         proc.returncode = 0
         assert proc.poll() == 0
 
     def test_poll_with_closed_handle_returns_none_when_returncode_unset(self):
         from wincage import SandboxProcess
+
         proc = SandboxProcess(pid=1, process_handle=None, thread_handle=None, args=["x.exe"])
         assert proc.poll() is None
 
     def test_poll_is_idempotent_after_handle_closed(self):
         from wincage import SandboxProcess
+
         proc = SandboxProcess(pid=1, process_handle=None, thread_handle=None, args=["x.exe"])
         proc.returncode = 1
         assert proc.poll() == 1
@@ -239,12 +268,14 @@ class TestSandboxProcess:
 
     def test_resume_raises_when_thread_handle_is_none(self):
         from wincage import SandboxProcess
+
         proc = SandboxProcess(pid=1234, process_handle=None, thread_handle=None, args=["x.exe"])
         with pytest.raises(RuntimeError, match="Thread handle is not open"):
             proc.resume()
 
     def test_returncode_is_none_on_fresh_instance(self):
         from wincage import SandboxProcess
+
         proc = SandboxProcess(pid=42, process_handle=None, thread_handle=None, args=[])
         assert proc.returncode is None
 
@@ -252,6 +283,7 @@ class TestSandboxProcess:
 # ---------------------------------------------------------------------------
 # Manual verification test, cannot run in automated CI
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skip(
     reason=(

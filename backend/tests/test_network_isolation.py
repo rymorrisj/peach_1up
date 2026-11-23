@@ -66,9 +66,11 @@ def _parse(cfg: Path) -> configparser.RawConfigParser:
 # just wrote none into. Needs a real launch (the gate and the patch_ini call
 # live inside it), asserting the on-disk value for both flag states.
 
+
 class TestBox86NetworkIsolation:
     def _run(self, tmp_path: Path, monkeypatch) -> Path:
         import backend.service.backends.box86 as box86_mod
+
         monkeypatch.setattr(box86_mod, "get_86box_profile", lambda _: _FAKE_86BOX_PROFILE)
 
         img = tmp_path / "disk.vhd"
@@ -115,9 +117,11 @@ class TestBox86NetworkIsolation:
 # only when spec.enable_networking is false. Same for flycast.py below
 # ([network] Enable/GGPO). Needs a real launch to reach the gate.
 
+
 class TestPcsx2NetworkIsolation:
     def test_eth_enable_false_written_to_dev9_eth_section(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "PCSX2.ini"
         set_ini_key(ini_path, "DEV9/Eth", "EthEnable", "false")
         parser = _parse(ini_path)
@@ -125,6 +129,7 @@ class TestPcsx2NetworkIsolation:
 
     def test_preexisting_unrelated_key_in_same_section_is_untouched(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "PCSX2.ini"
         ini_path.write_text("[DEV9/Eth]\nEthApi = PCAP\n", encoding="utf-8")
 
@@ -142,9 +147,11 @@ class TestPcsx2NetworkIsolation:
 # Same shape as PCSX2 above: two inline set_ini_key(...) calls behind the
 # same gate, exercised here with flycast.py's exact literals.
 
+
 class TestFlycastNetworkIsolation:
     def test_enable_and_ggpo_written_no(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "emu.cfg"
         set_ini_key(ini_path, "network", "Enable", "no")
         set_ini_key(ini_path, "network", "GGPO", "no")
@@ -155,6 +162,7 @@ class TestFlycastNetworkIsolation:
 
     def test_preexisting_unrelated_key_in_same_section_is_untouched(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "emu.cfg"
         ini_path.write_text("[network]\nActAsServer = no\n", encoding="utf-8")
 

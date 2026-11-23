@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session
 
 from backend.core import rate_limit
 from backend.core.database import get_db
-from backend.core.identity import clear_session, extend_session, generate_identity_secret, issue_session, parse_session_cookie, validate_session
+from backend.core.identity import (
+    clear_session,
+    extend_session,
+    generate_identity_secret,
+    issue_session,
+    parse_session_cookie,
+    validate_session,
+)
 from backend.core.logger import get_logger
 from backend.models.user import UserItem, UserItemRead
 
@@ -71,6 +78,7 @@ def _to_session_user(user: UserItem, request: Request) -> SessionUserRead:
 
 def _cookies_secure() -> bool:
     from backend.core.settings import get_settings
+
     return bool(get_settings().get("ALLOW_NETWORK_ACCESS", False))
 
 
@@ -126,6 +134,7 @@ def _record_failed_pin_attempt(db: Session, user: UserItem) -> None:
 
 def _verify_pin(pin: str, pin_hash: str) -> bool:
     from backend.service.utils.pin_hashing import verify_pin
+
     return verify_pin(pin, pin_hash)
 
 
@@ -152,9 +161,7 @@ def _get_session_user(request: Request, db: Session) -> tuple[UserItem, str]:
 
 
 @router.post("/setup-owner", response_model=UserResponse)
-def setup_owner(
-    body: SetupOwnerRequest, request: Request, response: Response, db: Session = Depends(get_db)
-):
+def setup_owner(body: SetupOwnerRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     # Fast-path / friendly-error only. This SELECT COUNT is NOT the real guard:
     # two concurrent requests can both read count==0 here and both fall through
     # to the INSERT before either commits (TOCTOU). The idx_single_owner partial
@@ -172,6 +179,7 @@ def setup_owner(
         raise HTTPException(status_code=400, detail="PINs do not match.")
 
     from backend.service.utils.pin_hashing import hash_pin
+
     pin_hash = hash_pin(body.pin)
 
     owner = UserItem(

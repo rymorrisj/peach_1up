@@ -34,17 +34,21 @@ def _reset_media_dup_index():
 # safe_basename / resolve_under, unit level
 # ---------------------------------------------------------------------------
 
+
 class TestSafeBasename:
     def test_strips_posix_directory_components(self):
         from backend.service.utils.path_utils import safe_basename
+
         assert safe_basename("../../etc/passwd") == "passwd"
 
     def test_strips_backslash_traversal(self):
         from backend.service.utils.path_utils import safe_basename
+
         assert safe_basename("..\\..\\evil.iso") == "evil.iso"
 
     def test_strips_embedded_separators(self):
         from backend.service.utils.path_utils import safe_basename
+
         assert "/" not in safe_basename("a/b/c.iso")
         assert "\\" not in safe_basename("a\\b\\c.iso")
 
@@ -54,19 +58,22 @@ class TestSafeBasename:
         # for why a content-derived filename (PS3 .rap license files) can't
         # be lowercased without breaking RPCS3's own filename matching.
         from backend.service.utils.path_utils import safe_basename
+
         assert safe_basename("Doom.iso") == "Doom.iso"
 
     def test_preserves_underscores(self):
         from backend.service.utils.path_utils import safe_basename
-        assert safe_basename("UP0177-NPUB30724_00-00BAYONETTAHDDUS.rap") == \
-            "UP0177-NPUB30724_00-00BAYONETTAHDDUS.rap"
+
+        assert safe_basename("UP0177-NPUB30724_00-00BAYONETTAHDDUS.rap") == "UP0177-NPUB30724_00-00BAYONETTAHDDUS.rap"
 
     def test_empty_stem_falls_back(self):
         from backend.service.utils.path_utils import safe_basename
+
         assert safe_basename("../../") == "upload"
 
     def test_extension_is_alnum_only(self):
         from backend.service.utils.path_utils import safe_basename
+
         result = safe_basename("game.is/o")
         assert "/" not in result
 
@@ -74,16 +81,19 @@ class TestSafeBasename:
 class TestResolveUnder:
     def test_safe_join_returns_resolved_path(self, tmp_path):
         from backend.service.utils.path_utils import resolve_under
+
         result = resolve_under(tmp_path, "sub", "file.iso")
         assert result == (tmp_path / "sub" / "file.iso").resolve()
 
     def test_escaping_path_raises(self, tmp_path):
         from backend.service.utils.path_utils import resolve_under
+
         with pytest.raises(ValueError):
             resolve_under(tmp_path, "../../etc/passwd")
 
     def test_base_itself_is_allowed(self, tmp_path):
         from backend.service.utils.path_utils import resolve_under
+
         assert resolve_under(tmp_path) == tmp_path.resolve()
 
 
@@ -91,15 +101,18 @@ class TestResolveUnder:
 # begin_upload, collision-free destination allocation
 # ---------------------------------------------------------------------------
 
+
 class TestBeginUpload:
     def test_dest_path_is_under_base_dir_even_for_malicious_filename(self, tmp_path):
         from backend.service.utils.upload_utils import begin_upload
+
         dest_dir, dest_path = begin_upload(tmp_path, "../../../etc/passwd")
         assert dest_dir.is_relative_to(tmp_path.resolve())
         assert dest_path.is_relative_to(tmp_path.resolve())
 
     def test_repeated_filename_gets_distinct_dirs(self, tmp_path):
         from backend.service.utils.upload_utils import begin_upload
+
         dest_dir1, _ = begin_upload(tmp_path, "doom.iso")
         dest_dir2, _ = begin_upload(tmp_path, "doom.iso")
         assert dest_dir1 != dest_dir2
@@ -115,7 +128,9 @@ class TestBeginUpload:
         real = upload_utils.unique_slug
         picks = iter(["doom"])
         monkeypatch.setattr(
-            upload_utils, "unique_slug", lambda name, query_fn, **kw: next(picks, None) or real(name, query_fn, **kw),
+            upload_utils,
+            "unique_slug",
+            lambda name, query_fn, **kw: next(picks, None) or real(name, query_fn, **kw),
         )
 
         dest_dir, dest_path = upload_utils.begin_upload(tmp_path, "doom.iso")
@@ -141,6 +156,7 @@ class TestBeginUpload:
 # ---------------------------------------------------------------------------
 # Route-level tests, shared fixture plumbing
 # ---------------------------------------------------------------------------
+
 
 class _FakeSettings:
     def __init__(self, env: dict, extra: dict | None = None):
@@ -174,12 +190,14 @@ def mem_db_session():
 
 def _owner_user():
     from backend.models.user import UserItem
+
     return UserItem(id=1, name="Owner", is_owner=True)
 
 
 # ---------------------------------------------------------------------------
 # Chunked upload flow: POST /init → PUT /chunks → POST /complete → DELETE (abort)
 # ---------------------------------------------------------------------------
+
 
 class TestSoftwareUploadRoute:
     @pytest.fixture(autouse=True)
@@ -212,6 +230,7 @@ class TestSoftwareUploadRoute:
         media_path.mkdir()
 
         import backend.core.settings as settings_mod
+
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
@@ -234,6 +253,7 @@ class TestSoftwareUploadRoute:
         # follow-up route call (e.g. confirm-delete) 404s. Point it at the
         # same StaticPool-backed engine mem_db_session is bound to.
         import backend.core.database as database_mod
+
         monkeypatch.setattr(database_mod, "get_engine", mem_db_session.get_bind)
 
         # This app is bare with no lifespan attached, so the real startup
@@ -352,6 +372,7 @@ class TestSoftwareUploadRoute:
     def test_oversized_file_rejected_and_cleaned_up(self, client):
         c, media_path = client
         from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
+
         resp = c.post(
             "/api/v1/uploads/software-games/init",
             json={
@@ -482,6 +503,7 @@ class TestSoftwareUploadRoute:
 # with the returned path does that; see media.py's module comment).
 # ---------------------------------------------------------------------------
 
+
 class TestMediaArchiveUploadRoute:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
@@ -494,6 +516,7 @@ class TestMediaArchiveUploadRoute:
         media_path.mkdir()
 
         import backend.core.settings as settings_mod
+
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
@@ -541,17 +564,20 @@ class TestMediaArchiveUploadRoute:
         result_path = Path(resp.json()["path"]).resolve()
         assert result_path.is_relative_to(media_path.resolve())
 
-    @pytest.mark.parametrize("filename", [
-        "../../../etc/passwd",   # no extension survives
-        "page.html",
-        "page.htm",
-        "art.svg",
-        "page.xhtml",
-        "script.js",
-        "tool.exe",
-        "evil.ht ml",            # sanitised to .html on disk
-        "cover.png.html",
-    ])
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "../../../etc/passwd",  # no extension survives
+            "page.html",
+            "page.htm",
+            "art.svg",
+            "page.xhtml",
+            "script.js",
+            "tool.exe",
+            "evil.ht ml",  # sanitised to .html on disk
+            "cover.png.html",
+        ],
+    )
     def test_disallowed_extension_is_422_and_nothing_is_staged(self, client, filename):
         c, media_path = client
         resp = c.post(
@@ -561,14 +587,17 @@ class TestMediaArchiveUploadRoute:
         assert resp.status_code == 422, resp.text
         assert list(media_path.iterdir()) == []
 
-    @pytest.mark.parametrize("media_kind,filename,status", [
-        ("audio", "track.mp3", 200),
-        ("audio", "cover.png", 422),
-        ("image", "cover.png", 200),
-        ("image", "track.mp3", 422),
-        ("text", "manual.pdf", 200),
-        ("video", "notes.txt", 422),
-    ])
+    @pytest.mark.parametrize(
+        "media_kind,filename,status",
+        [
+            ("audio", "track.mp3", 200),
+            ("audio", "cover.png", 422),
+            ("image", "cover.png", 200),
+            ("image", "track.mp3", 422),
+            ("text", "manual.pdf", 200),
+            ("video", "notes.txt", 422),
+        ],
+    )
     def test_media_kind_narrows_the_allowlist(self, client, media_kind, filename, status):
         c, _ = client
         resp = c.post(
@@ -589,8 +618,12 @@ class TestMediaArchiveUploadRoute:
         c, _ = client
         from backend.core.dependencies import get_active_user
         from backend.models.user import UserItem
+
         c.app.dependency_overrides[get_active_user] = lambda: UserItem(
-            id=2, name="Guest", is_owner=False, can_manage_media=False,
+            id=2,
+            name="Guest",
+            is_owner=False,
+            can_manage_media=False,
         )
         resp = c.post(
             "/api/v1/media-items/upload",
@@ -606,6 +639,7 @@ class TestMediaArchiveUploadRoute:
 # form input), gated on can_manage_environment, PC-platform validated.
 # ---------------------------------------------------------------------------
 
+
 class TestEnvironmentInstallMediaRoute:
     @pytest.fixture
     def client(self, tmp_path, mem_db_session, monkeypatch):
@@ -619,6 +653,7 @@ class TestEnvironmentInstallMediaRoute:
         os_path.mkdir()
 
         import backend.core.settings as settings_mod
+
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
@@ -636,6 +671,7 @@ class TestEnvironmentInstallMediaRoute:
     @staticmethod
     def _make_environment(db, **overrides):
         from backend.models.environment import EnvironmentItem
+
         kwargs = dict(name="Win98 Box", platform="win98", emulator_slug="86box", slug="win98-box")
         kwargs.update(overrides)
         environment = EnvironmentItem(**kwargs)
@@ -701,8 +737,12 @@ class TestEnvironmentInstallMediaRoute:
         self._make_environment(db)
         from backend.core.dependencies import get_active_user
         from backend.models.user import UserItem
+
         c.app.dependency_overrides[get_active_user] = lambda: UserItem(
-            id=2, name="Guest", is_owner=False, can_manage_environment=False,
+            id=2,
+            name="Guest",
+            is_owner=False,
+            can_manage_environment=False,
         )
         resp = c.post(
             "/api/v1/environment-items/win98-box/install-media",
@@ -711,12 +751,12 @@ class TestEnvironmentInstallMediaRoute:
         assert resp.status_code == 403
 
 
-
 # ---------------------------------------------------------------------------
 # /api/v1/uploads/software-media/init, chunked Media upload extension
 # allowlist (MED-11). Same set as the single-shot route above, enforced
 # before an upload session is created.
 # ---------------------------------------------------------------------------
+
 
 class TestChunkedMediaUploadExtensionAllowlist:
     @pytest.fixture
@@ -733,6 +773,7 @@ class TestChunkedMediaUploadExtensionAllowlist:
         media_path.mkdir()
 
         import backend.core.settings as settings_mod
+
         monkeypatch.setattr(
             settings_mod,
             "get_settings",

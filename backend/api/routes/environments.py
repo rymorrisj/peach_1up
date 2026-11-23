@@ -8,13 +8,19 @@ from backend.constants import PC_PLATFORMS
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, reject_old_era_query_param, require_permission
 from backend.core.logger import get_logger
-from backend.models.environment import EnvironmentItem, EnvironmentItemCreate, EnvironmentItemRead, EnvironmentItemUpdate
+from backend.models.environment import (
+    EnvironmentItem,
+    EnvironmentItemCreate,
+    EnvironmentItemRead,
+    EnvironmentItemUpdate,
+)
 from backend.models.user import UserItem
 from backend.service.environments import environments as plat_svc
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 from backend.service.utils.platform_defaults import (
-    CANDIDATE_EVAL_PROFILE_SENTINEL, evaluate_launch_readiness,
+    CANDIDATE_EVAL_PROFILE_SENTINEL,
+    evaluate_launch_readiness,
 )
 
 router = APIRouter(prefix="/api/v1/environment-items", tags=["environments"], redirect_slashes=False)
@@ -70,7 +76,11 @@ def list_environment_items(
 
 
 @router.post("", response_model=EnvironmentItemRead, status_code=201)
-def create_environment_item(body: EnvironmentItemCreate, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
+def create_environment_item(
+    body: EnvironmentItemCreate,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("can_manage_environment"),
+):
     return plat_svc.create_environment_item(body, db)
 
 
@@ -87,15 +97,25 @@ def get_environment_item(id: int, db: Session = Depends(get_db), _: UserItem = D
 
 
 @router.patch("/{id}", response_model=EnvironmentItemRead)
-def update_environment_item(id: int, body: EnvironmentItemUpdate, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
+def update_environment_item(
+    id: int,
+    body: EnvironmentItemUpdate,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("can_manage_environment"),
+):
     return plat_svc.update_environment_item(id, body, db)
 
 
 @router.post("/{id}/confirm-delete")
-def issue_delete_token(id: int, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
+def issue_delete_token(
+    id: int, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")
+):
     if not db.get(EnvironmentItem, id):
         raise HTTPException(status_code=404, detail="Environment not found.")
-    return {"confirmation_token": confirmation_tokens.issue("environment_item", id, "delete"), "expires_in_seconds": TOKEN_TTL}
+    return {
+        "confirmation_token": confirmation_tokens.issue("environment_item", id, "delete"),
+        "expires_in_seconds": TOKEN_TTL,
+    }
 
 
 @router.delete("/{id}", status_code=204)
@@ -109,7 +129,9 @@ def delete_environment_item(
 
 
 @router.post("/{id}/health")
-def environment_item_health(id: int, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
+def environment_item_health(
+    id: int, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")
+):
     environment = db.get(EnvironmentItem, id)
     if not environment:
         raise HTTPException(status_code=404, detail="Environment not found.")

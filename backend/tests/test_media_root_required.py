@@ -37,6 +37,7 @@ def media_settings(monkeypatch):
 
     def _set(value, library_path=""):
         monkeypatch.setattr(core_settings, "get_settings", lambda: _FakeSettings(value, library_path))
+
     return _set
 
 
@@ -163,7 +164,9 @@ class TestAcceptAllMediaRoot:
         import backend.models  # noqa: F401, registers all table models
 
         engine = create_engine(
-            "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
         )
         SQLModel.metadata.create_all(engine)
         with Session(engine) as session:
@@ -180,7 +183,12 @@ class TestAcceptAllMediaRoot:
 
     @pytest.mark.parametrize("value", _UNSET)
     def test_unset_media_path_is_503_before_any_download_or_write(
-        self, media_settings, value, db, tmp_path, monkeypatch,
+        self,
+        media_settings,
+        value,
+        db,
+        tmp_path,
+        monkeypatch,
     ):
         from fastapi import HTTPException
 

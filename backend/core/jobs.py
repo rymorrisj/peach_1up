@@ -8,6 +8,7 @@ rate_limit, the goal is live progress for the current session, not a durable
 history. Thread-safe: background tasks mutate jobs from a worker thread while the
 `GET /api/v1/jobs` poll reads them from the event loop.
 """
+
 from __future__ import annotations
 
 import threading
@@ -89,7 +90,10 @@ def cancel(job_id: str, message: str | None = None) -> None:
 
 
 def update(
-    job_id: str, *, progress: float | None = None, message: str | None = None,
+    job_id: str,
+    *,
+    progress: float | None = None,
+    message: str | None = None,
     meta: dict[str, Any] | None = None,
 ) -> None:
     """Update progress (clamped 0..1), the human-readable message and/or merge
@@ -115,8 +119,9 @@ def fail(job_id: str, error: str) -> None:
     _finish(job_id, "error", error=error, message=error)
 
 
-def _finish(job_id: str, status: JobStatus, *, result: Any = None,
-            error: str | None = None, message: str | None = None) -> None:
+def _finish(
+    job_id: str, status: JobStatus, *, result: Any = None, error: str | None = None, message: str | None = None
+) -> None:
     with _lock:
         job = _jobs.get(job_id)
         if job is None:
@@ -146,11 +151,7 @@ def list_recent() -> list[dict[str, Any]]:
 
 
 def _sweep_locked(now: float) -> None:
-    stale = [
-        jid
-        for jid, j in _jobs.items()
-        if j["status"] != "processing" and now - j["updated_at"] > _RETAIN_SECONDS
-    ]
+    stale = [jid for jid, j in _jobs.items() if j["status"] != "processing" and now - j["updated_at"] > _RETAIN_SECONDS]
     for jid in stale:
         _jobs.pop(jid, None)
         _cancel_events.pop(jid, None)

@@ -109,6 +109,7 @@ def _configured_unc_roots() -> list[PureWindowsPath]:
     disk. Empty when settings are not initialised (tests, early startup)."""
     try:
         from backend.service.utils import settings as _s
+
         values = [_s.get(key, "") or "" for key in _ROOT_SETTING_KEYS]
     except RuntimeError:
         return []
@@ -248,6 +249,7 @@ def library_root() -> Path:
     staging, so that staging area is not nested inside any one domain's root.
     """
     from backend.core.settings import get_settings
+
     return Path(get_settings().get_env_var("LIBRARY_PATH")).resolve()
 
 
@@ -261,6 +263,7 @@ def media_root() -> Path:
         ValueError: If MEDIA_PATH is unset or blank.
     """
     from backend.core.settings import get_settings
+
     try:
         raw = get_settings().get_env_var("MEDIA_PATH")
     except KeyError:
@@ -312,9 +315,8 @@ def library_domain_root(domain: str) -> Path:
         ValueError: if domain is not one of "games", "apps".
     """
     if domain not in _LIBRARY_DOMAINS:
-        raise ValueError(
-            f"Unknown library domain '{domain}'. Valid domains: {', '.join(sorted(_LIBRARY_DOMAINS))}"
-        )
+        raise ValueError(f"Unknown library domain '{domain}'. Valid domains: {', '.join(sorted(_LIBRARY_DOMAINS))}")
     from backend.core.settings import get_settings
+
     software_path = get_settings().get_env_var("SOFTWARE_PATH")
     return Path(software_path).resolve() / domain

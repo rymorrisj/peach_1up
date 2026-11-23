@@ -17,6 +17,7 @@ class EntityTag(SQLModel, table=True):
     FK one column to multiple target tables. Integrity is enforced at the
     application layer; callers must always supply the correct entity_type.
     """
+
     __tablename__ = "entity_tags"
     __table_args__ = (UniqueConstraint("tag_id", "entity_type", "entity_id"),)
 
@@ -55,18 +56,21 @@ class TagRead(SQLModel):
 
 def get_tags_for_entity(entity_type: str, entity_id: int, db: "Session") -> list[TagRead]:
     from sqlalchemy import select as _select
-    rows = db.execute(
-        _select(Tag)
-        .join(EntityTag, EntityTag.tag_id == Tag.id)
-        .where(EntityTag.entity_type == entity_type, EntityTag.entity_id == entity_id)
-        .order_by(Tag.name)
-    ).scalars().all()
+
+    rows = (
+        db.execute(
+            _select(Tag)
+            .join(EntityTag, EntityTag.tag_id == Tag.id)
+            .where(EntityTag.entity_type == entity_type, EntityTag.entity_id == entity_id)
+            .order_by(Tag.name)
+        )
+        .scalars()
+        .all()
+    )
     return [TagRead.model_validate(t) for t in rows]
 
 
-def get_tags_for_entities(
-    entity_type: str, entity_ids: list[int], db: "Session"
-) -> dict[int, list[TagRead]]:
+def get_tags_for_entities(entity_type: str, entity_ids: list[int], db: "Session") -> dict[int, list[TagRead]]:
     """Bulk variant of get_tags_for_entity: one query for many entity ids.
 
     Returns ``{entity_id: [tags sorted by name]}``. Entity ids with no tags are
@@ -76,6 +80,7 @@ def get_tags_for_entities(
     if not entity_ids:
         return {}
     from sqlalchemy import select as _select
+
     rows = db.execute(
         _select(EntityTag.entity_id, Tag)
         .join(EntityTag, EntityTag.tag_id == Tag.id)

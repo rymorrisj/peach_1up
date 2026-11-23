@@ -58,7 +58,7 @@ def path_keys(raw: str | None) -> set[str]:
     if not is_untrusted_remote_path(raw):
         try:
             keys.add(lexical_key(str(Path(raw).resolve())))
-        except (OSError, ValueError):
+        except OSError, ValueError:
             pass
     return keys
 
@@ -87,14 +87,14 @@ def _owned_path(raw: str, root: Path) -> Path | None:
         return None
     try:
         resolved = Path(raw).resolve()
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return None
     prefix = lexical_key(str(root)).rstrip(os.sep) + os.sep
     key = lexical_key(str(resolved))
     if not key.startswith(prefix) or len(key) == len(prefix):
         return None
     internal = {os.path.normcase(name) for name in APP_INTERNAL_MEDIA_DIRNAMES}
-    if key[len(prefix):].split(os.sep, 1)[0] in internal:
+    if key[len(prefix) :].split(os.sep, 1)[0] in internal:
         return None
     return resolved if resolved.is_file() else None
 
@@ -118,7 +118,9 @@ def _referenced_keys(excluded_item_ids: set[int], db: "Session") -> set[str]:
 
 
 def removable_media_files(
-    file_paths: Iterable[str], excluded_item_ids: set[int], db: "Session",
+    file_paths: Iterable[str],
+    excluded_item_ids: set[int],
+    db: "Session",
 ) -> list[str]:
     """The subset of *file_paths* safe to unlink once the MediaItem rows in
     *excluded_item_ids* are gone. Returns the stored strings, deduplicated
@@ -167,7 +169,7 @@ def clear_cover_references(file_paths: Iterable[str], db: "Session") -> int:
         for start in range(0, len(ids), _CHUNK):
             cleared += (
                 db.query(model)
-                .filter(model.id.in_(ids[start:start + _CHUNK]))
+                .filter(model.id.in_(ids[start : start + _CHUNK]))
                 .update({model.cover_art_path: None}, synchronize_session="fetch")
             )
     return cleared

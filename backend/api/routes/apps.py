@@ -3,12 +3,23 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_app_item, get_filtered_app_items, get_filtered_entity, reject_old_era_query_param,
+    get_active_user,
+    get_filtered_app_item,
+    get_filtered_app_items,
+    get_filtered_entity,
+    reject_old_era_query_param,
     require_permission,
 )
 from backend.models.app import (
-    AppItemBundle, AppItemBundleCreate, AppItemBundleRead, AppItemBundleUpdate,
-    AppItem, AppItemRead, AppItemUpdate, app_item_bundle_to_read, app_item_bundles_to_read_bulk,
+    AppItemBundle,
+    AppItemBundleCreate,
+    AppItemBundleRead,
+    AppItemBundleUpdate,
+    AppItem,
+    AppItemRead,
+    AppItemUpdate,
+    app_item_bundle_to_read,
+    app_item_bundles_to_read_bulk,
 )
 from backend.models.pagination import Page
 from backend.models.user import UserItem
@@ -51,6 +62,7 @@ def list_apps(
         q = q.filter(AppItemBundle.profile_item_id.is_(None))
     if tag:
         from backend.models.tag import EntityTag, Tag
+
         subq = (
             db.query(EntityTag.entity_id)
             .join(Tag, EntityTag.tag_id == Tag.id)
@@ -60,7 +72,9 @@ def list_apps(
         q = q.filter(AppItemBundle.id.in_(subq))
     total = q.count()
     rows = apply_bundle_sort(q, AppItemBundle, sort).offset(offset).limit(limit).all()
-    return Page(items=app_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
+    return Page(
+        items=app_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset
+    )
 
 
 @router.post("/app-items", response_model=AppItemBundleRead, status_code=201)
@@ -98,7 +112,9 @@ def update_app_item_bundle(
     # nor confirmed to exist.
     get_filtered_app_item(collection_id, active_user, db)
     return app_item_bundle_to_read(
-        app_svc.update_app_item_bundle(collection_id, body, db), db, viewer=active_user,
+        app_svc.update_app_item_bundle(collection_id, body, db),
+        db,
+        viewer=active_user,
     )
 
 

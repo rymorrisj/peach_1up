@@ -16,6 +16,7 @@ class Genre(SQLModel, table=True):
     by exact name match only, no fuzzy matching, instead of duplicated when
     a second provider later resolves the same concept under a different ID.
     """
+
     __tablename__ = "genres"
     __table_args__ = (UniqueConstraint("provider", "external_id"),)
 
@@ -28,6 +29,7 @@ class Genre(SQLModel, table=True):
 class GameItemBundleGenre(SQLModel, table=True):
     """Join row: one per (bundle, genre) pair. Real FK, not polymorphic —
     genre only ever applies to GameItemBundle, unlike EntityTag's tags."""
+
     __tablename__ = "game_item_bundle_genres"
     __table_args__ = (UniqueConstraint("game_item_bundle_id", "genre_id"),)
 
@@ -44,6 +46,7 @@ class Developer(SQLModel, table=True):
     """Provider ID -> name cache, used internally by a provider's resolver
     only. Never joined onto GameItemBundle, the resolved name is written
     into GameItemBundle.developer as a plain string, same as publisher."""
+
     __tablename__ = "developers"
     __table_args__ = (UniqueConstraint("provider", "external_id"),)
 
@@ -55,6 +58,7 @@ class Developer(SQLModel, table=True):
 
 class Publisher(SQLModel, table=True):
     """Same shape and purpose as Developer, for publisher names."""
+
     __tablename__ = "publishers"
     __table_args__ = (UniqueConstraint("provider", "external_id"),)
 
@@ -76,9 +80,7 @@ def get_or_create_genre(
     providers or call sites.
     """
     if provider is not None and external_id is not None:
-        existing = db.query(Genre).filter(
-            Genre.provider == provider, Genre.external_id == external_id
-        ).first()
+        existing = db.query(Genre).filter(Genre.provider == provider, Genre.external_id == external_id).first()
         if existing:
             return existing
 
@@ -93,9 +95,7 @@ def get_or_create_genre(
 
 
 def get_or_create_developer(db: "Session", provider: str, external_id: int, name: str) -> Developer:
-    existing = db.query(Developer).filter(
-        Developer.provider == provider, Developer.external_id == external_id
-    ).first()
+    existing = db.query(Developer).filter(Developer.provider == provider, Developer.external_id == external_id).first()
     if existing:
         return existing
     developer = Developer(provider=provider, external_id=external_id, name=name)
@@ -105,9 +105,7 @@ def get_or_create_developer(db: "Session", provider: str, external_id: int, name
 
 
 def get_or_create_publisher(db: "Session", provider: str, external_id: int, name: str) -> Publisher:
-    existing = db.query(Publisher).filter(
-        Publisher.provider == provider, Publisher.external_id == external_id
-    ).first()
+    existing = db.query(Publisher).filter(Publisher.provider == provider, Publisher.external_id == external_id).first()
     if existing:
         return existing
     publisher = Publisher(provider=provider, external_id=external_id, name=name)
@@ -119,12 +117,16 @@ def get_or_create_publisher(db: "Session", provider: str, external_id: int, name
 def get_genres_for_game_item_bundle(bundle_id: int, db: "Session") -> list[str]:
     from sqlalchemy import select as _select
 
-    rows = db.execute(
-        _select(Genre.name)
-        .join(GameItemBundleGenre, GameItemBundleGenre.genre_id == Genre.id)
-        .where(GameItemBundleGenre.game_item_bundle_id == bundle_id)
-        .order_by(Genre.name)
-    ).scalars().all()
+    rows = (
+        db.execute(
+            _select(Genre.name)
+            .join(GameItemBundleGenre, GameItemBundleGenre.genre_id == Genre.id)
+            .where(GameItemBundleGenre.game_item_bundle_id == bundle_id)
+            .order_by(Genre.name)
+        )
+        .scalars()
+        .all()
+    )
     return list(rows)
 
 
@@ -146,13 +148,13 @@ def get_genres_for_game_item_bundles(bundle_ids: list[int], db: "Session") -> di
     return result
 
 
-def set_genres_for_game_item_bundle(db: "Session", bundle_id: int, names: list[str], *, provider: Optional[str] = None) -> None:
+def set_genres_for_game_item_bundle(
+    db: "Session", bundle_id: int, names: list[str], *, provider: Optional[str] = None
+) -> None:
     """Replace-all write: delete this bundle's existing genre links, then
     re-link to (get-or-create) a Genre row for each name. Matches how every
     other enrich_game_bundle() field is a full overwrite, not a merge."""
-    db.query(GameItemBundleGenre).filter(
-        GameItemBundleGenre.game_item_bundle_id == bundle_id
-    ).delete()
+    db.query(GameItemBundleGenre).filter(GameItemBundleGenre.game_item_bundle_id == bundle_id).delete()
     for name in names:
         genre = get_or_create_genre(db, name, provider=provider)
         db.add(GameItemBundleGenre(game_item_bundle_id=bundle_id, genre_id=genre.id))

@@ -52,11 +52,13 @@ def _manifest_shaped_entry(**overrides) -> dict:
 # _safe_extract_zip
 # ---------------------------------------------------------------------------
 
+
 class TestSafeExtractZip:
     def test_path_traversal_member_raises_before_writing_anything(self, tmp_path):
         """Zip-slip guard: a member escaping dest_dir via '..' must raise
         before any file lands on disk."""
         from backend.service.utils.github_release_installer import _safe_extract_zip
+
         zip_path = _build_zip(tmp_path, {"../../evil.exe": b"payload"})
         dest_dir = tmp_path / "dest"
         dest_dir.mkdir()
@@ -70,6 +72,7 @@ class TestSafeExtractZip:
         """Only the repo's own root .git is allowed, an extracted member must
         never carry one."""
         from backend.service.utils.github_release_installer import _safe_extract_zip
+
         zip_path = _build_zip(tmp_path, {"sub/.git/config": b"data"})
         dest_dir = tmp_path / "dest"
         dest_dir.mkdir()
@@ -82,10 +85,14 @@ class TestSafeExtractZip:
     def test_normal_member_extracts_successfully(self, tmp_path):
         """The guards must not be so broad that nested content stops extracting."""
         from backend.service.utils.github_release_installer import _safe_extract_zip
-        zip_path = _build_zip(tmp_path, {
-            "bin/app.exe": b"binary-content",
-            "readme.txt": b"hello",
-        })
+
+        zip_path = _build_zip(
+            tmp_path,
+            {
+                "bin/app.exe": b"binary-content",
+                "readme.txt": b"hello",
+            },
+        )
         dest_dir = tmp_path / "dest"
         dest_dir.mkdir()
 
@@ -99,14 +106,17 @@ class TestSafeExtractZip:
 # _verify_digest
 # ---------------------------------------------------------------------------
 
+
 class TestVerifyDigest:
     def test_case_differing_but_unequal_digest_raises(self):
         from backend.service.utils.github_release_installer import _verify_digest
+
         with pytest.raises(RuntimeError, match="SHA256 mismatch"):
             _verify_digest("ABCDEF0123456789", "abcdef0123456780", "asset.zip")
 
     def test_case_differing_but_equal_digest_passes(self):
         from backend.service.utils.github_release_installer import _verify_digest
+
         _verify_digest("ABCDEF0123456789", "abcdef0123456789", "asset.zip")
 
 
@@ -114,9 +124,11 @@ class TestVerifyDigest:
 # _manifest_entry
 # ---------------------------------------------------------------------------
 
+
 class TestManifestEntry:
     def test_missing_sha256_field_raises_naming_it(self):
         from backend.service.utils.github_release_installer import _manifest_entry
+
         manifest = {"flycast": {"version": "1.0", "tag": "v1.0", "asset": "flycast.zip"}}
 
         with pytest.raises(RuntimeError, match="sha256"):
@@ -124,12 +136,14 @@ class TestManifestEntry:
 
     def test_slug_absent_from_manifest_raises(self):
         from backend.service.utils.github_release_installer import _manifest_entry
+
         with pytest.raises(RuntimeError, match="No manifest entry for 'flycast'"):
             _manifest_entry({"pcsx2": {}}, "flycast")
 
     @pytest.mark.parametrize("field", ["tag", "asset", "sha256"])
     def test_missing_required_field_raises_naming_it(self, field):
         from backend.service.utils.github_release_installer import _manifest_entry
+
         entry = _manifest_shaped_entry()
         del entry[field]
 
@@ -138,12 +152,14 @@ class TestManifestEntry:
 
     def test_entry_with_version_is_returned_unchanged(self):
         from backend.service.utils.github_release_installer import _manifest_entry
+
         entry = _manifest_shaped_entry(version="0.0.41")
 
         assert _manifest_entry({"rpcs3": entry}, "rpcs3") == entry
 
     def test_absent_version_defaults_to_latest(self):
         from backend.service.utils.github_release_installer import _manifest_entry
+
         entry = _manifest_shaped_entry()
         assert "version" not in entry
 
@@ -157,6 +173,7 @@ class TestManifestEntry:
     @pytest.mark.parametrize("empty_version", [None, ""])
     def test_null_or_empty_version_defaults_to_latest(self, empty_version):
         from backend.service.utils.github_release_installer import _manifest_entry
+
         entry = _manifest_shaped_entry(version=empty_version)
 
         result = _manifest_entry({"xenia": entry}, "xenia")
@@ -165,6 +182,7 @@ class TestManifestEntry:
 
     def test_default_does_not_mutate_the_fetched_manifest(self):
         from backend.service.utils.github_release_installer import _manifest_entry
+
         manifest = {"duckstation": _manifest_shaped_entry()}
 
         _manifest_entry(manifest, "duckstation")
@@ -175,6 +193,7 @@ class TestManifestEntry:
 # ---------------------------------------------------------------------------
 # install_from_github_release: version handling, network and catalog stubbed
 # ---------------------------------------------------------------------------
+
 
 def _patch_install_flow(monkeypatch, installer, tmp_path, manifest, zip_bytes):
     """Stub every external dependency of install_from_github_release so the
@@ -207,7 +226,11 @@ class TestInstallVersionHandling:
         entry = _manifest_shaped_entry(sha256=digest)
         assert "version" not in entry
         requested = _patch_install_flow(
-            monkeypatch, installer, tmp_path, {"duckstation": entry}, zip_bytes,
+            monkeypatch,
+            installer,
+            tmp_path,
+            {"duckstation": entry},
+            zip_bytes,
         )
 
         result = installer.install_from_github_release("duckstation")
@@ -223,7 +246,8 @@ class TestInstallVersionHandling:
 
         zip_bytes = _build_zip(tmp_path, {"app.exe": b"binary"}).read_bytes()
         entry = _manifest_shaped_entry(
-            version="0.0.41", sha256=hashlib.sha256(zip_bytes).hexdigest(),
+            version="0.0.41",
+            sha256=hashlib.sha256(zip_bytes).hexdigest(),
         )
         _patch_install_flow(monkeypatch, installer, tmp_path, {"rpcs3": entry}, zip_bytes)
 
@@ -248,6 +272,7 @@ class TestInstallVersionHandling:
 # _safe_extract_7z: same guards as the zip path, plus the size cap
 # ---------------------------------------------------------------------------
 
+
 def _patch_7z_listing(monkeypatch, installer, entries):
     """Return the list _run_7za calls are recorded into, so a test can assert
     a guard fired before extraction rather than after. The stub returns a
@@ -270,7 +295,9 @@ class TestSafeExtract7zGuards:
         from backend.service.utils import github_release_installer as installer
 
         run_calls = _patch_7z_listing(
-            monkeypatch, installer, [{"Path": r"..\..\evil.exe", "Size": "10", "Attributes": "A"}],
+            monkeypatch,
+            installer,
+            [{"Path": r"..\..\evil.exe", "Size": "10", "Attributes": "A"}],
         )
         dest_dir = tmp_path / "dest"
         dest_dir.mkdir()
@@ -287,7 +314,9 @@ class TestSafeExtract7zGuards:
         from backend.service.utils import github_release_installer as installer
 
         run_calls = _patch_7z_listing(
-            monkeypatch, installer, [{"Path": r"sub\.git\config", "Size": "10", "Attributes": "A"}],
+            monkeypatch,
+            installer,
+            [{"Path": r"sub\.git\config", "Size": "10", "Attributes": "A"}],
         )
         dest_dir = tmp_path / "dest"
         dest_dir.mkdir()

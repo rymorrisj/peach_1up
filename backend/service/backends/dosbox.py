@@ -97,11 +97,7 @@ def _strip_autoexec(conf_text: str) -> str:
             end = i + 1
             while end < len(lines):
                 stripped = lines[end].strip()
-                if (
-                    stripped.startswith("[")
-                    and stripped.endswith("]")
-                    and stripped.lower() != "[autoexec]"
-                ):
+                if stripped.startswith("[") and stripped.endswith("]") and stripped.lower() != "[autoexec]":
                     break
                 end += 1
             lines = lines[:i] + lines[end:]
@@ -133,8 +129,7 @@ def _validate_game_executable(game_executable: str, expected_drive: str) -> None
 
     if game_executable[0] in ("[", "@"):
         raise ValueError(
-            f"game_executable must not start with '[' or '@' (DOSBox-X meta-characters); "
-            f"got '{game_executable[0]}'"
+            f"game_executable must not start with '[' or '@' (DOSBox-X meta-characters); got '{game_executable[0]}'"
         )
 
     # If game_executable specifies an absolute drive path (e.g. C:\GAME.EXE),
@@ -171,10 +166,7 @@ def _build_multi_iso_mount_line(disc_paths: list[Path]) -> str:
     library_path = get_base_path() / "library"
     for dp in disc_paths:
         if not dp.resolve().is_relative_to(library_path.resolve()):
-            raise ValueError(
-                f"Disc path escaped library: {dp}. "
-                "This indicates a data integrity problem."
-            )
+            raise ValueError(f"Disc path escaped library: {dp}. This indicates a data integrity problem.")
     all_hosts = " ".join(_dosbox_cmd_path(p) for p in disc_paths)
     return f"imgmount D {all_hosts} -t iso -ro"
 
@@ -192,10 +184,7 @@ def _build_multi_floppy_mount_line(disc_paths: list[Path]) -> str:
     library_path = get_base_path() / "library"
     for dp in disc_paths:
         if not dp.resolve().is_relative_to(library_path.resolve()):
-            raise ValueError(
-                f"Disc path escaped library: {dp}. "
-                "This indicates a data integrity problem."
-            )
+            raise ValueError(f"Disc path escaped library: {dp}. This indicates a data integrity problem.")
     all_hosts = " ".join(_dosbox_cmd_path(p) for p in disc_paths)
     return f"imgmount A {all_hosts} -t floppy -ro"
 
@@ -233,8 +222,7 @@ def _build_drive_mount_lines(
         library_path = get_base_path() / "library"
         if not drive_image_path.resolve().is_relative_to(library_path.resolve()):
             raise ValueError(
-                f"Drive image path escaped library: {drive_image_path}. "
-                "This indicates a data integrity problem."
+                f"Drive image path escaped library: {drive_image_path}. This indicates a data integrity problem."
             )
         drive_cmd_path = _dosbox_cmd_path(drive_image_path)
         if not drive_image_path.exists():
@@ -242,8 +230,8 @@ def _build_drive_mount_lines(
             drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
         elif _is_bare_fat_superfloppy(drive_image_path):
             geo = _read_geometry(drive_image_path)
-            spt = 63        # standard sectors per track for CHS geometry
-            hpc = 255       # standard heads per cylinder
+            spt = 63  # standard sectors per track for CHS geometry
+            hpc = 255  # standard heads per cylinder
             # Round up so the CHS triple covers at least the BPB's total_sectors;
             # floor division under-declared capacity and truncated the mounted drive.
             cyl = math.ceil(geo["total_sectors"] / (spt * hpc))
@@ -260,7 +248,6 @@ def _build_drive_mount_lines(
             # BPB at sector 0, where the partition table actually lives, and
             # mismount the drive.
             drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
-
 
         if run_from_c:
             # Hydrated loose-file item: files already live on the writable C:
@@ -295,14 +282,10 @@ def _build_drive_mount_lines(
             drive_line = "C:"
             media_drive = "D:"
         else:
-            raise ValueError(
-                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
-            )
+            raise ValueError(f"Unhandled media suffix '{suffix}'. This indicates a programming error.")
     else:
         if media_path.is_dir():
-            raise ValueError(
-                "Directory media requires a persistent drive. This indicates a misconfiguration."
-            )
+            raise ValueError("Directory media requires a persistent drive. This indicates a misconfiguration.")
         elif suffix == ".img":
             if disc_paths and len(disc_paths) > 1:
                 # Multi-floppy set with no persistent drive: swappable A: floppies.
@@ -326,9 +309,7 @@ def _build_drive_mount_lines(
             drive_line = "D:"
             media_drive = "D:"
         else:
-            raise ValueError(
-                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
-            )
+            raise ValueError(f"Unhandled media suffix '{suffix}'. This indicates a programming error.")
 
     return drive_setup_lines, mount_line, drive_line, media_drive
 
@@ -356,18 +337,14 @@ def _media_read_grants(spec: "LaunchSpec", has_persistent_drive: bool) -> list[B
 
     disc_paths = spec.disc_paths or []
     if disc_paths and len(disc_paths) > 1:
-        return [
-            BrokerFile(path=str(normalise_path(str(dp))), access="r", mode="secure")
-            for dp in disc_paths
-        ]
+        return [BrokerFile(path=str(normalise_path(str(dp))), access="r", mode="secure") for dp in disc_paths]
 
     suffix = media_path.suffix.lower()
     if suffix in {".exe", ".bat"}:
         # MOUNT exposes the whole parent directory as a drive (see the
         # ".exe"/".bat" branches of _build_drive_mount_lines above); the DOS
         # program can reference sibling files in it by relative path.
-        return [BrokerFile(
-            path=str(normalise_path(str(media_path.parent))), access="r", mode="grant")]
+        return [BrokerFile(path=str(normalise_path(str(media_path.parent))), access="r", mode="grant")]
 
     return [BrokerFile(path=str(normalise_path(str(media_path))), access="r", mode="secure")]
 
@@ -430,7 +407,10 @@ def write_launch_conf(
     media_path = spec.media_path
 
     drive_setup_lines, mount_line, drive_line, media_drive = _build_drive_mount_lines(
-        spec.drive_image_path, spec.drive_size_mb, spec.use_drive, media_path,
+        spec.drive_image_path,
+        spec.drive_size_mb,
+        spec.use_drive,
+        media_path,
         disc_paths=spec.disc_paths or [],
         run_from_c=spec.run_from_c,
     )
@@ -475,9 +455,7 @@ def write_launch_conf(
     if not (profile_cmds + item_cmds):
         drive_line = media_drive
 
-    autoexec = _build_autoexec(
-        drive_setup_lines, mount_line, drive_line, media_drive, profile_cmds, item_cmds
-    )
+    autoexec = _build_autoexec(drive_setup_lines, mount_line, drive_line, media_drive, profile_cmds, item_cmds)
 
     base_conf = get_base_path() / "library" / "system" / "templates" / "dosbox-x" / "base.conf"
     if not base_conf.exists():
@@ -691,9 +669,9 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     if container_enabled:
         from backend.service.utils.host_os.windows.app_container import get_container_config as _build_cfg
+
         sandbox_config = _build_cfg("dosbox-x", spec.executable_path, user_item_id=spec.user_item_id)
-        sandbox_config.broker_files.append(
-            BrokerFile(path=str(tmpdir), access="r", mode="grant"))
+        sandbox_config.broker_files.append(BrokerFile(path=str(tmpdir), access="r", mode="grant"))
         has_persistent_drive = spec.drive_image_path is not None and spec.use_drive
         if is_environment_launch and spec.working_image_path is not None:
             # Environment launches have no per-item drive_image_path. The
@@ -730,13 +708,15 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     path=str(env_image.parent),
                     access="x",
                     mode="secure",
-                ))
+                )
+            )
             sandbox_config.broker_files.append(
                 BrokerFile(
                     path=str(env_image),
                     access="rw",
                     mode="secure",
-                ))
+                )
+            )
         elif has_persistent_drive:
             # Per-item drives genuinely need directory-level write access: when
             # the image does not exist yet, _build_drive_mount_lines emits an
@@ -751,7 +731,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     path=str(drive_image.parent),
                     access="rw",
                     mode="grant",
-                ))
+                )
+            )
             # A pre-existing .img does not inherit the parent-dir grant, so apply
             # an explicit ACE to the file itself or the AppContainer SID cannot
             # write it (drive changes would silently fail).
@@ -760,7 +741,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     path=str(drive_image),
                     access="rw",
                     mode="secure",
-                ))
+                )
+            )
 
         if not is_environment_launch:
             # media_path (and any disc_paths) live somewhere under library/,
@@ -768,8 +750,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             # other's -- see _media_read_grants for why each is granted
             # individually instead of recursively granting the whole library
             # tree, which no DOSBox-X operation here actually needs.
-            sandbox_config.broker_files.extend(
-                _media_read_grants(spec, has_persistent_drive))
+            sandbox_config.broker_files.extend(_media_read_grants(spec, has_persistent_drive))
     else:
         sandbox_config = None
 

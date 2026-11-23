@@ -19,17 +19,44 @@ LINK_TYPES = frozenset({"official", "store", "wiki", "social", "trailer", "other
 # IGDB Website.category enum value to its site name. The name (or the
 # Website.type name when IGDB returns one) is what _SITE_LINK_TYPES keys on.
 _IGDB_CATEGORY_SITES = {
-    1: "official", 2: "wikia", 3: "wikipedia", 4: "facebook", 5: "twitter", 6: "twitch",
-    8: "instagram", 9: "youtube", 10: "iphone", 11: "ipad", 12: "android", 13: "steam",
-    14: "reddit", 15: "itch", 16: "epicgames", 17: "gog", 18: "discord", 19: "bluesky",
+    1: "official",
+    2: "wikia",
+    3: "wikipedia",
+    4: "facebook",
+    5: "twitter",
+    6: "twitch",
+    8: "instagram",
+    9: "youtube",
+    10: "iphone",
+    11: "ipad",
+    12: "android",
+    13: "steam",
+    14: "reddit",
+    15: "itch",
+    16: "epicgames",
+    17: "gog",
+    18: "discord",
+    19: "bluesky",
 }
 _SITE_LINK_TYPES = {
     "official": "official",
-    "wikia": "wiki", "wikipedia": "wiki",
-    "facebook": "social", "twitter": "social", "twitch": "social", "instagram": "social",
-    "youtube": "social", "reddit": "social", "discord": "social", "bluesky": "social",
-    "iphone": "store", "ipad": "store", "android": "store", "steam": "store",
-    "itch": "store", "epicgames": "store", "gog": "store",
+    "wikia": "wiki",
+    "wikipedia": "wiki",
+    "facebook": "social",
+    "twitter": "social",
+    "twitch": "social",
+    "instagram": "social",
+    "youtube": "social",
+    "reddit": "social",
+    "discord": "social",
+    "bluesky": "social",
+    "iphone": "store",
+    "ipad": "store",
+    "android": "store",
+    "steam": "store",
+    "itch": "store",
+    "epicgames": "store",
+    "gog": "store",
 }
 
 
@@ -53,10 +80,7 @@ def _is_web_url(url: object) -> bool:
     except ValueError:
         return False
     return (
-        parts.scheme in ("http", "https")
-        and bool(parts.hostname)
-        and parts.username is None
-        and parts.password is None
+        parts.scheme in ("http", "https") and bool(parts.hostname) and parts.username is None and parts.password is None
     )
 
 
@@ -73,11 +97,13 @@ def clean_provider_links(raw: Optional[Iterable[object]]) -> list[dict]:
             continue
         seen.add(url)
         link_type = entry.get("type")
-        out.append({
-            "type": link_type if link_type in LINK_TYPES else "other",
-            "url": url,
-            "source": PROVIDER_SOURCE,
-        })
+        out.append(
+            {
+                "type": link_type if link_type in LINK_TYPES else "other",
+                "url": url,
+                "source": PROVIDER_SOURCE,
+            }
+        )
         if len(out) == PROVIDER_LINK_CAP:
             break
     return out
@@ -93,7 +119,8 @@ def replace_provider_links(existing: Optional[list[dict]], fetched: list[dict]) 
     marker existed) are kept, except one repeating a fetched URL."""
     fetched_urls = {link["url"] for link in fetched}
     kept = [
-        link for link in existing or []
+        link
+        for link in existing or []
         if not (isinstance(link, dict) and link.get("source") == PROVIDER_SOURCE)
         and not (isinstance(link, dict) and link.get("url") in fetched_urls)
     ]

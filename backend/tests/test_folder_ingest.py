@@ -28,9 +28,11 @@ from backend.tests.scan_factory import make_scan
 # _pick_folder_launch_file
 # ---------------------------------------------------------------------------
 
+
 class TestPickFolderLaunchFile:
     def _call(self, *names: str, base: Path | None = None) -> Path:
         from backend.service.games.folder_ingest import pick_folder_launch_file
+
         if base is None:
             paths = [Path(n) for n in names]
         else:
@@ -55,6 +57,7 @@ class TestPickFolderLaunchFile:
 
     def test_no_launch_file_raises_422(self):
         from backend.service.games.folder_ingest import pick_folder_launch_file
+
         with pytest.raises(HTTPException) as exc_info:
             pick_folder_launch_file([Path("readme.txt"), Path("cover.jpg")])
         assert exc_info.value.status_code == 422
@@ -69,9 +72,11 @@ class TestPickFolderLaunchFile:
 # _detect_disc_files
 # ---------------------------------------------------------------------------
 
+
 class TestDetectDiscFiles:
     def _call(self, *names: str) -> list[Path]:
         from backend.service.games.folder_ingest import detect_disc_files
+
         return detect_disc_files([Path(n) for n in names])
 
     def test_zero_disc_files_returns_empty(self):
@@ -113,6 +118,7 @@ class TestDetectDiscFiles:
 # ---------------------------------------------------------------------------
 # Multi-disc ingest stages: DB integration
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mem_session():
@@ -165,11 +171,13 @@ class TestCreateMultiDiscSet:
     @pytest.fixture(autouse=True)
     def _patch_detect(self, monkeypatch):
         import formatscout as smd
+
         monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
 
     @pytest.fixture(autouse=True)
     def _patch_platform_defaults(self, monkeypatch):
         import backend.service.utils.platform_defaults as ead
+
         # Return (None, None) to skip the profile lookup, not under test here.
         monkeypatch.setattr(ead, "defaults_for_platform", lambda platform: (None, None))
 
@@ -191,9 +199,7 @@ class TestCreateMultiDiscSet:
         assert len(sets) == 1
         assert sets[0].title == "Sonic Adventure"
 
-        items = mem_session.exec(
-            select(GameItem).where(GameItem.game_item_bundle_id == sets[0].id)
-        ).all()
+        items = mem_session.exec(select(GameItem).where(GameItem.game_item_bundle_id == sets[0].id)).all()
         assert len(items) == 2
 
     def test_launch_disk_id_points_to_first_disc(self, tmp_path, mem_session):
@@ -203,9 +209,7 @@ class TestCreateMultiDiscSet:
         library_set = _create_multi_disc_collection(disc_files, "Test Game", mem_session)
 
         items = mem_session.exec(
-            select(GameItem)
-            .where(GameItem.game_item_bundle_id == library_set.id)
-            .order_by(GameItem.disc_number)
+            select(GameItem).where(GameItem.game_item_bundle_id == library_set.id).order_by(GameItem.disc_number)
         ).all()
         assert library_set.launch_disk_id == items[0].id
 
@@ -216,9 +220,7 @@ class TestCreateMultiDiscSet:
         library_set = _create_multi_disc_collection(disc_files, "Dreamcast Game", mem_session)
 
         items = mem_session.exec(
-            select(GameItem)
-            .where(GameItem.game_item_bundle_id == library_set.id)
-            .order_by(GameItem.disc_number)
+            select(GameItem).where(GameItem.game_item_bundle_id == library_set.id).order_by(GameItem.disc_number)
         ).all()
         for idx, item in enumerate(items):
             assert item.executable_path == str(disc_files[idx])
@@ -232,9 +234,7 @@ class TestCreateMultiDiscSet:
         library_set = _create_multi_disc_collection(disc_files, "Triple-Disc Game", mem_session)
 
         items = mem_session.exec(
-            select(GameItem)
-            .where(GameItem.game_item_bundle_id == library_set.id)
-            .order_by(GameItem.disc_number)
+            select(GameItem).where(GameItem.game_item_bundle_id == library_set.id).order_by(GameItem.disc_number)
         ).all()
         assert [i.disc_number for i in items] == [1, 2, 3]
 
@@ -269,9 +269,7 @@ class TestCreateMultiDiscSet:
         library_set = _create_multi_disc_collection(disc_files, "Cover Game", mem_session)
 
         items = mem_session.exec(
-            select(GameItem)
-            .where(GameItem.game_item_bundle_id == library_set.id)
-            .order_by(GameItem.disc_number)
+            select(GameItem).where(GameItem.game_item_bundle_id == library_set.id).order_by(GameItem.disc_number)
         ).all()
         assert items[0].cover_art_path == str(tmp_path / "cover.jpg")
         assert items[1].cover_art_path is None
@@ -281,15 +279,18 @@ class TestCreateMultiDiscSet:
 # dedup_disc_anchor, content-hash dedup for multi-disc disc-1 anchors
 # ---------------------------------------------------------------------------
 
+
 class TestDedupDiscAnchor:
     @pytest.fixture(autouse=True)
     def _patch_detect(self, monkeypatch):
         import formatscout as smd
+
         monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
 
     @pytest.fixture(autouse=True)
     def _patch_platform_defaults(self, monkeypatch):
         import backend.service.utils.platform_defaults as ead
+
         monkeypatch.setattr(ead, "defaults_for_platform", lambda platform: (None, None))
 
     def test_does_not_repoint_to_a_match_in_an_untracked_folder(self, tmp_path, mem_session):
@@ -333,12 +334,14 @@ class TestDedupDiscAnchor:
         collection = GameItemBundle(title="Tracked Game", platform="dreamcast", slug="tracked-game")
         mem_session.add(collection)
         mem_session.flush()
-        mem_session.add(GameItem(
-            game_item_bundle_id=collection.id,
-            disc_number=1,
-            file_path=str(tracked_dir / "main.gdi"),
-            folder_path=str(tracked_dir.resolve()),
-        ))
+        mem_session.add(
+            GameItem(
+                game_item_bundle_id=collection.id,
+                disc_number=1,
+                file_path=str(tracked_dir / "main.gdi"),
+                folder_path=str(tracked_dir.resolve()),
+            )
+        )
         mem_session.commit()
 
         incoming_dir = media_root / "incoming"
@@ -428,7 +431,8 @@ def library(tmp_path, monkeypatch) -> Path:
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings(str(media_root)))
     monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
     monkeypatch.setattr(
-        smd, "classify",
+        smd,
+        "classify",
         lambda *a, **k: SimpleNamespace(status="unchecked", similarity=None, computed_sha1=None),
     )
     monkeypatch.setattr(ead, "defaults_for_platform", lambda platform: (None, None))
@@ -469,20 +473,22 @@ def _track(db, folder: Path, file_name: str) -> None:
     bundle = GameItemBundle(title="Tracked Game", platform="dreamcast", slug="tracked-game")
     db.add(bundle)
     db.flush()
-    db.add(GameItem(
-        game_item_bundle_id=bundle.id,
-        disc_number=1,
-        file_path=str(folder / file_name),
-        folder_path=str(folder),
-        folder_owned=True,
-    ))
+    db.add(
+        GameItem(
+            game_item_bundle_id=bundle.id,
+            disc_number=1,
+            file_path=str(folder / file_name),
+            folder_path=str(folder),
+            folder_owned=True,
+        )
+    )
     db.commit()
 
 
 def _symlink_or_skip(link: Path, target: Path) -> None:
     try:
         link.symlink_to(target, target_is_directory=target.is_dir())
-    except (OSError, NotImplementedError):
+    except OSError, NotImplementedError:
         pytest.skip("symlinks are not available in this environment")
 
 
@@ -557,12 +563,14 @@ class TestFolderUploadAdoptsLeftover:
     # (d) multi disc, every disc in one untracked leftover
     def test_multi_disc_all_discs_in_one_leftover_adopts_it(self, library, mem_session):
         leftover = _write_folder(
-            library, "armored-core-usa",
+            library,
+            "armored-core-usa",
             {"disc1.chd": _DISC1, "disc2.chd": _DISC2, "cover.png": b"leftover cover"},
         )
         before = _snapshot(leftover)
         staged, paths = _upload(
-            library, "armored-core-usa-2",
+            library,
+            "armored-core-usa-2",
             {"disc1.chd": _DISC1, "disc2.chd": _DISC2, "cover.png": b"upload cover"},
         )
 
@@ -667,7 +675,8 @@ class TestFolderUploadAdoptsLeftover:
         leftover = _write_folder(library, "armored-core-usa", {"game.chd": _DISC1, "cover.png": b"leftover cover"})
         before = _snapshot(leftover)
         staged, paths = _upload(
-            library, "armored-core-usa-2",
+            library,
+            "armored-core-usa-2",
             {"game.chd": _DISC1, "cover.png": b"UPLOAD COVER", "notes.nfo": b"nfo", "game.sav": b"sav"},
         )
 
@@ -680,7 +689,8 @@ class TestFolderUploadAdoptsLeftover:
         leftover = _write_folder(library, "armored-core-usa", {"disc1.chd": _DISC1, "disc2.chd": _DISC2})
         before = _snapshot(leftover)
         staged, paths = _upload(
-            library, "armored-core-usa-2",
+            library,
+            "armored-core-usa-2",
             {"disc1.chd": _DISC1, "disc2.chd": _DISC2, "cover.png": b"UPLOAD COVER", "notes.nfo": b"nfo"},
         )
 

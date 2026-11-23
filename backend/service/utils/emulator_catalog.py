@@ -48,9 +48,7 @@ def _load_raw_catalog() -> dict:
                     )
                 descriptor = EmulatorDescriptor.model_validate(raw)
             except (ValidationError, ValueError) as exc:
-                _logger.error(
-                    "Skipping invalid emulator descriptor %s: %s", path.name, exc
-                )
+                _logger.error("Skipping invalid emulator descriptor %s: %s", path.name, exc)
                 continue
             # model_dump(exclude_none=True) keeps every existing consumer's
             # bare-dict .get()/[...] contract intact: unset Optional fields
@@ -63,24 +61,25 @@ def _load_raw_catalog() -> dict:
                 bios_path = dep.get("bios_path", "")
                 if not bios_path:
                     continue
-                bios_requirements.append({
-                    "slug": dep["name"],
-                    "name": dep.get("display_name", dep["name"]),
-                    "bios_group": dep.get("bios_group", ""),
-                    "bios_path": bios_path,
-                    "guidance_text": dep.get("guidance_text", ""),
-                    "guidance_url": dep.get("guidance_url", ""),
-                    "required": dep.get("required", True),
-                    "required_files": dep.get("required_files"),
-                    "required_glob": dep.get("required_glob"),
-                    "required_glob_excludes": dep.get("required_glob_excludes"),
-                })
+                bios_requirements.append(
+                    {
+                        "slug": dep["name"],
+                        "name": dep.get("display_name", dep["name"]),
+                        "bios_group": dep.get("bios_group", ""),
+                        "bios_path": bios_path,
+                        "guidance_text": dep.get("guidance_text", ""),
+                        "guidance_url": dep.get("guidance_url", ""),
+                        "required": dep.get("required", True),
+                        "required_files": dep.get("required_files"),
+                        "required_glob": dep.get("required_glob"),
+                        "required_glob_excludes": dep.get("required_glob_excludes"),
+                    }
+                )
         _catalog_cache = {
             "emulators": emulators,
             "bios_requirements": bios_requirements,
         }
     return _catalog_cache
-
 
 
 def _get_platforms_config() -> Dict[str, Any]:
@@ -138,10 +137,7 @@ def get_86box_profile(slug: str) -> dict:
         data = tomllib.loads(_PROFILES_PATH.read_text(encoding="utf-8"))
         profiles = data.get("profiles", [])
     elif _PROFILES_DIR.is_dir():
-        profiles = [
-            tomllib.loads(f.read_text(encoding="utf-8"))
-            for f in sorted(_PROFILES_DIR.glob("*.toml"))
-        ]
+        profiles = [tomllib.loads(f.read_text(encoding="utf-8")) for f in sorted(_PROFILES_DIR.glob("*.toml"))]
     else:
         raise FileNotFoundError(
             f"86Box profiles not found, expected {_PROFILES_PATH} or {_PROFILES_DIR}. "
@@ -151,8 +147,7 @@ def get_86box_profile(slug: str) -> dict:
         if profile.get("slug") == slug:
             return profile
     raise ValueError(
-        f"Unknown 86Box hardware profile: {slug!r}. "
-        "Available profiles are defined in library/system/templates/86box/."
+        f"Unknown 86Box hardware profile: {slug!r}. Available profiles are defined in library/system/templates/86box/."
     )
 
 
@@ -167,6 +162,7 @@ def get_86box_rom_path(box86_binary: Path) -> Path:
         FileNotFoundError: If no ROM directory can be resolved.
     """
     from backend.service.backends.box86 import resolve_rom_path
+
     return resolve_rom_path(box86_binary)
 
 
@@ -299,7 +295,10 @@ def _resolve_skip_flag(slug: str, field: str) -> bool:
             "Settings requested %s=True for '%s', but the descriptor enforces this "
             "limit (%s = false in config/emulators/%s.toml). Ignoring the override; "
             "the Job Object cap stays applied.",
-            field, slug, field, slug,
+            field,
+            slug,
+            field,
+            slug,
         )
         return False
 
@@ -343,6 +342,7 @@ def get_container_config(slug: str, exe_path: str, user_item_id: int | None = No
     from backend.service.utils.host_os.windows.app_container import (
         get_container_config as _build_config,
     )
+
     return _build_config(slug, exe_path, user_item_id=user_item_id)
 
 
@@ -410,11 +410,10 @@ def build_media_broker_config(
     if not container_enabled:
         return None
     from wincage import BrokerFile
+
     sandbox_config = get_container_config(slug, exe_path, user_item_id=user_item_id)
-    sandbox_config.broker_files.append(
-        BrokerFile(path=str(media_path.parent), access="r", mode="grant"))
-    sandbox_config.broker_files.append(
-        BrokerFile(path=str(media_path), access="r", mode="inherit"))
+    sandbox_config.broker_files.append(BrokerFile(path=str(media_path.parent), access="r", mode="grant"))
+    sandbox_config.broker_files.append(BrokerFile(path=str(media_path), access="r", mode="inherit"))
     return sandbox_config
 
 
@@ -518,8 +517,7 @@ def validate_bios_from_descriptor(slug: str) -> None:
         if not resolved.exists() or not resolved.is_dir():
             if required:
                 raise FileNotFoundError(
-                    f"{display_name} directory not found: {resolved}. "
-                    "Place your BIOS files there before launching."
+                    f"{display_name} directory not found: {resolved}. Place your BIOS files there before launching."
                 )
             continue
         missing = _missing_required_files(

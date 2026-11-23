@@ -1,5 +1,5 @@
-"""Tests for backend.api.middleware.security: SecurityMiddleware and CSRFMiddleware.
-"""
+"""Tests for backend.api.middleware.security: SecurityMiddleware and CSRFMiddleware."""
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 # client IPs without forking a real socket. Must wrap the fully-built app
 # (after middleware is added) so the injected host is visible to SecurityMiddleware.
 # ---------------------------------------------------------------------------
+
 
 def _with_client_ip(app, host: str):
     """Return a lightweight ASGI wrapper that spoofs the client host."""

@@ -80,15 +80,8 @@ def resolve_launchable(
         raise ValueError(f"GameItemBundle {collection_id} has no launch disc configured")
     launch_leaf = db.get(GameItem, c.launch_disk_id)
     if launch_leaf is None:
-        raise ValueError(
-            f"GameItemBundle {collection_id}: launch disc leaf {c.launch_disk_id} not found"
-        )
-    all_leaves = (
-        db.query(GameItem)
-        .filter(GameItem.game_item_bundle_id == c.id)
-        .order_by(GameItem.disc_number)
-        .all()
-    )
+        raise ValueError(f"GameItemBundle {collection_id}: launch disc leaf {c.launch_disk_id} not found")
+    all_leaves = db.query(GameItem).filter(GameItem.game_item_bundle_id == c.id).order_by(GameItem.disc_number).all()
 
     return LaunchableEntity(
         collection_id=c.id,
@@ -138,15 +131,8 @@ def resolve_launchable_app(
         raise ValueError(f"AppItemBundle {app_item_bundle_id} has no launch item configured")
     launch_item = db.get(AppItem, c.launch_disk_id)
     if launch_item is None:
-        raise ValueError(
-            f"AppItemBundle {app_item_bundle_id}: launch item {c.launch_disk_id} not found"
-        )
-    all_items = (
-        db.query(AppItem)
-        .filter(AppItem.app_item_bundle_id == c.id)
-        .order_by(AppItem.id)
-        .all()
-    )
+        raise ValueError(f"AppItemBundle {app_item_bundle_id}: launch item {c.launch_disk_id} not found")
+    all_items = db.query(AppItem).filter(AppItem.app_item_bundle_id == c.id).order_by(AppItem.id).all()
 
     return LaunchableEntity(
         collection_id=c.id,

@@ -9,11 +9,13 @@ import pytest
 
 def _owner_user():
     from backend.models.user import UserItem
+
     return UserItem(id=1, name="Owner", is_owner=True)
 
 
 def _no_permission_user():
     from backend.models.user import UserItem
+
     return UserItem(id=2, name="Guest", is_owner=False, can_manage_media=False)
 
 
@@ -21,6 +23,7 @@ def _media_only_user():
     """can_manage_media but NOT can_manage_game, used to prove link creation
     needs authorization on BOTH entities, not just the one named in the URL."""
     from backend.models.user import UserItem
+
     return UserItem(id=3, name="Archivist", is_owner=False, can_manage_media=True, can_manage_game=False)
 
 
@@ -70,7 +73,9 @@ def client(mem_db_session, tmp_path, monkeypatch):
     import backend.core.settings as core_settings
 
     monkeypatch.setattr(
-        core_settings, "get_settings", lambda: _FakeMediaSettings(str(Path("/library/media").resolve())),
+        core_settings,
+        "get_settings",
+        lambda: _FakeMediaSettings(str(Path("/library/media").resolve())),
     )
 
     app = FastAPI()
@@ -139,6 +144,7 @@ class TestMediaItemCrud:
         assert del_resp.status_code == 204
 
         from backend.models.media import MediaItem
+
         assert db.get(MediaItem, item_id) is None
 
     def test_get_unknown_id_is_404(self, client):
@@ -180,6 +186,7 @@ class TestMediaItemBundleCrud:
         assert del_resp.status_code == 204
 
         from backend.models.media import MediaItemBundle
+
         assert db.get(MediaItemBundle, collection_id) is None
 
     def test_get_unknown_id_is_404(self, client):
@@ -248,6 +255,7 @@ class TestPermissionSplit:
         db.refresh(collection)
 
         from backend.core.dependencies import get_active_user
+
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
         assert c.get("/api/v1/media-items").status_code == 200
@@ -264,6 +272,7 @@ class TestPermissionSplit:
     def test_create_routes_require_can_manage_media(self, client, method, path, json):
         c, _ = client
         from backend.core.dependencies import get_active_user
+
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
         resp = getattr(c, method)(path, json=json)
@@ -279,6 +288,7 @@ class TestPermissionSplit:
         db.refresh(item)
 
         from backend.core.dependencies import get_active_user
+
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
         assert c.patch(f"/api/v1/media-item/{item.id}", json={"title": "Y"}).status_code == 403
@@ -449,6 +459,7 @@ class TestLinkUnlink:
         collection = _make_software_collection(db)
 
         from backend.core.dependencies import get_active_user
+
         c.app.dependency_overrides[get_active_user] = _media_only_user
 
         resp = c.post(
@@ -481,7 +492,10 @@ class TestMakeEntityLink:
         backward = make_entity_link("game_item_bundle", 2, "media_item", 5)
 
         assert (forward.entity_a_type, forward.entity_a_id, forward.entity_b_type, forward.entity_b_id) == (
-            backward.entity_a_type, backward.entity_a_id, backward.entity_b_type, backward.entity_b_id,
+            backward.entity_a_type,
+            backward.entity_a_id,
+            backward.entity_b_type,
+            backward.entity_b_id,
         )
         assert forward.entity_a_type == "game_item_bundle"
         assert forward.entity_a_id == 2
@@ -562,15 +576,15 @@ def media_env(client, tmp_path, monkeypatch):
 
 def _hostile_cover_paths(media_root, outside) -> list[str]:
     return [
-        "../outside.png",                                     # relative traversal
-        str(outside),                                         # absolute, outside MEDIA_PATH
-        str(media_root / ".." / ".." / "outside.png"),        # absolute with traversal
-        "\\\\attacker\\share\\cover.png",                     # UNC
-        "\\\\?\\C:\\Windows\\cover.png",                      # device path
-        "C:cover.png",                                        # drive-relative
-        str(media_root / "doom" / "cover.png\x00.txt"),       # null byte
-        str(media_root / "doom" / "notes.txt"),               # inside, but not an image
-        str(media_root / "doom" / "missing.png"),             # inside, but does not exist
+        "../outside.png",  # relative traversal
+        str(outside),  # absolute, outside MEDIA_PATH
+        str(media_root / ".." / ".." / "outside.png"),  # absolute with traversal
+        "\\\\attacker\\share\\cover.png",  # UNC
+        "\\\\?\\C:\\Windows\\cover.png",  # device path
+        "C:cover.png",  # drive-relative
+        str(media_root / "doom" / "cover.png\x00.txt"),  # null byte
+        str(media_root / "doom" / "notes.txt"),  # inside, but not an image
+        str(media_root / "doom" / "missing.png"),  # inside, but does not exist
     ]
 
 
@@ -594,6 +608,7 @@ class TestMediaCoverArtPathValidation:
         assert resp.status_code == 201, resp.text
         assert resp.json()["cover_art_path"] == str(cover.resolve())
         from backend.models.media import MediaItemBundle
+
         bundle = db.get(MediaItemBundle, resp.json()["media_item_bundle_id"])
         assert bundle.cover_art_path == str(cover.resolve())  # implicit bundle gets the same canonical path
 
@@ -674,7 +689,8 @@ class TestMediaCoverArtPathValidation:
     def test_bundle_patch_valid_hostile_and_clear(self, media_env):
         c, _, media_root, cover, outside = media_env
         bundle_id = c.post(
-            "/api/v1/media-item-bundles", json={"title": "Doom Art", "media_kind": "image"},
+            "/api/v1/media-item-bundles",
+            json={"title": "Doom Art", "media_kind": "image"},
         ).json()["id"]
 
         for raw in _hostile_cover_paths(media_root, outside):
@@ -723,13 +739,13 @@ class TestMediaItemFilePathValidation:
         from backend.models.media import MediaItem, MediaItemBundle
 
         hostile = [
-            "../outside.mp3",                                     # relative traversal
-            str(media_root.parent / "outside.mp3"),               # absolute, outside MEDIA_PATH
-            str(media_root / ".." / ".." / "outside.mp3"),        # absolute with traversal
-            "\\\\attacker\\share\\track.mp3",                     # UNC
-            "\\\\?\\C:\\Windows\\track.mp3",                      # device path
-            "C:track.mp3",                                        # drive-relative
-            str(media_root / "doom" / "a\x00b.mp3"),              # null byte
+            "../outside.mp3",  # relative traversal
+            str(media_root.parent / "outside.mp3"),  # absolute, outside MEDIA_PATH
+            str(media_root / ".." / ".." / "outside.mp3"),  # absolute with traversal
+            "\\\\attacker\\share\\track.mp3",  # UNC
+            "\\\\?\\C:\\Windows\\track.mp3",  # device path
+            "C:track.mp3",  # drive-relative
+            str(media_root / "doom" / "a\x00b.mp3"),  # null byte
         ]
         for raw in hostile:
             resp = self._create(c, raw)
@@ -773,13 +789,16 @@ class TestMediaItemFilePathValidation:
 
 
 class TestMediaItemFileKindExtension:
-    @pytest.mark.parametrize("kind,file_path", [
-        ("audio", "/library/media/x.png"),
-        ("image", "/library/media/x.mp3"),
-        ("text", "/library/media/x.html"),
-        ("image", "/library/media/x.svg"),
-        ("video", "/library/media/x"),
-    ])
+    @pytest.mark.parametrize(
+        "kind,file_path",
+        [
+            ("audio", "/library/media/x.png"),
+            ("image", "/library/media/x.mp3"),
+            ("text", "/library/media/x.html"),
+            ("image", "/library/media/x.svg"),
+            ("video", "/library/media/x"),
+        ],
+    )
     def test_mismatched_or_disallowed_extension_is_422(self, client, kind, file_path):
         c, db = client
         from backend.models.media import MediaItem
@@ -789,17 +808,22 @@ class TestMediaItemFileKindExtension:
         assert resp.status_code == 422, resp.text
         assert db.query(MediaItem).count() == 0
 
-    @pytest.mark.parametrize("kind,file_path", [
-        ("audio", "/library/media/x.FLAC"),
-        ("image", "/library/media/x.webp"),
-        ("text", "/library/media/x.pdf"),
-        ("video", "/library/media/x.mkv"),
-        ("audio", "/library/media/soundtrack.zip"),
-    ])
+    @pytest.mark.parametrize(
+        "kind,file_path",
+        [
+            ("audio", "/library/media/x.FLAC"),
+            ("image", "/library/media/x.webp"),
+            ("text", "/library/media/x.pdf"),
+            ("video", "/library/media/x.mkv"),
+            ("audio", "/library/media/soundtrack.zip"),
+        ],
+    )
     def test_matching_extension_is_accepted(self, client, kind, file_path):
         c, _ = client
 
-        resp = c.post("/api/v1/media-items", json={"title": f"X {kind} {file_path}", "media_kind": kind, "file_path": file_path})
+        resp = c.post(
+            "/api/v1/media-items", json={"title": f"X {kind} {file_path}", "media_kind": kind, "file_path": file_path}
+        )
 
         assert resp.status_code == 201, resp.text
 
@@ -817,8 +841,12 @@ def _file(path, body=b"\xff\xd8\xffdata"):
 def _media_bundle(db, title, files, cover=None):
     from backend.models.media import MediaItem, MediaItemBundle
 
-    bundle = MediaItemBundle(title=title, media_kind="image", slug=title.lower().replace(" ", "-"),
-                             cover_art_path=str(cover) if cover else None)
+    bundle = MediaItemBundle(
+        title=title,
+        media_kind="image",
+        slug=title.lower().replace(" ", "-"),
+        cover_art_path=str(cover) if cover else None,
+    )
     db.add(bundle)
     db.flush()
     for i, f in enumerate(files):
@@ -832,8 +860,11 @@ def _game_with_disc(db, slug, cover_path):
     from backend.models.game import GameItem
 
     game = _make_software_collection(db, slug=slug, title=slug)
-    disc = GameItem(game_item_bundle_id=game.id, file_path=f"/library/games/{slug}.img",
-                    cover_art_path=str(cover_path) if cover_path else None)
+    disc = GameItem(
+        game_item_bundle_id=game.id,
+        file_path=f"/library/games/{slug}.img",
+        cover_art_path=str(cover_path) if cover_path else None,
+    )
     db.add(disc)
     db.commit()
     db.refresh(disc)
@@ -1022,7 +1053,10 @@ class TestMediaDeleteFiles:
 
         assert resp.status_code == 200, resp.text
         assert resp.json() == {
-            "file_count": 2, "removable_file_count": 1, "game_cover_count": 1, "app_cover_count": 0,
+            "file_count": 2,
+            "removable_file_count": 1,
+            "game_cover_count": 1,
+            "app_cover_count": 0,
             "media_cover_count": 1,
         }
 

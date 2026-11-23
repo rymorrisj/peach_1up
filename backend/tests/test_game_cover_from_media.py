@@ -33,7 +33,9 @@ def env(mem_db_session, tmp_path, monkeypatch):
     import backend.service.utils.settings as settings_mod
 
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
     )
     app = FastAPI()
     app.include_router(game_item_bundles.router)

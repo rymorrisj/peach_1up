@@ -49,21 +49,25 @@ def _register_upload_domains() -> None:
 async def lifespan(app: FastAPI):
     init_settings()
     from backend.core.logger import setup_logging, configure_uvicorn_logging
+
     setup_logging()
     # Must run here, not before Server.serve(), uvicorn's own config.load()
     # (dictConfig on the "uvicorn"/"uvicorn.error"/"uvicorn.access" loggers)
     # runs before lifespan startup and would otherwise overwrite this.
     configure_uvicorn_logging()
     from backend.service.utils.platforms_config import remove_stale_eras_config
+
     remove_stale_eras_config()
     _register_upload_domains()
     _ensure_default_paths()
     from backend.service.utils.settings import validate_configured_paths, get_path_warnings
+
     validate_configured_paths()
     app.state.path_warnings = get_path_warnings()
     # reset_db is a dev-only destructive flag in settings. Never true in production.
     # Cleared immediately after use so it cannot accidentally persist across restarts.
     from backend.service.utils import settings as _settings
+
     if _settings.get("reset_db", False):
         db_path = get_base_path() / "database" / "data" / "peach1up.db"
         if db_path.exists():
@@ -81,6 +85,7 @@ async def lifespan(app: FastAPI):
 
     from backend.core.database import get_engine
     from sqlalchemy.orm import sessionmaker
+
     session_factory = sessionmaker(bind=get_engine())
     with session_factory() as db:
         _sync_first_run_from_db(db)
@@ -94,21 +99,23 @@ async def lifespan(app: FastAPI):
 
     app.state.seed_warnings = not (_profiles_seeded and _dosbox_envs_seeded and _tags_seeded)
     if not _profiles_seeded or not _dosbox_envs_seeded or not _tags_seeded:
-        raise RuntimeError(
-            "Startup aborted: required seed data could not be created, see logs above."
-        )
+        raise RuntimeError("Startup aborted: required seed data could not be created, see logs above.")
 
     _heal_interrupted_rom_pack_clones()
     _sweep_upload_tmp()
     _scan_installed_emulators()
     _sync_detected_emulator_paths()
 
-    from backend.service.utils.host_os.windows.app_container import validate_descriptor_grant_surface as _validate_grants
+    from backend.service.utils.host_os.windows.app_container import (
+        validate_descriptor_grant_surface as _validate_grants,
+    )
+
     _validate_grants()
     logger.info("Startup: descriptor grant surface validated, all path_keys resolvable")
 
     try:
         from backend.service.utils.emulator_catalog import _get_platforms_config as _warm_platforms
+
         _warm_platforms()
     except Exception as exc:
         logger.warning("Failed to preload platforms.yaml at startup: %s", exc)
@@ -116,6 +123,7 @@ async def lifespan(app: FastAPI):
     _tray_stop_fn = None
     try:
         from backend.tray import start as _tray_start, stop as _tray_stop_fn
+
         _tray_start()
     except Exception as exc:
         logger.warning("Tray icon not started: %s", exc)

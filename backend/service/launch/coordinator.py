@@ -115,7 +115,8 @@ def _finalize_launch(
             except Exception as kill_exc:
                 logger.error(
                     "Failed to kill process %s after registration failure: %s",
-                    getattr(proc, "pid", "?"), kill_exc,
+                    getattr(proc, "pid", "?"),
+                    kill_exc,
                 )
             history.error_message = "Launch failed during process registration; process was terminated."
             history.ended_at = datetime.now(timezone.utc)
@@ -161,7 +162,9 @@ def _resolve_profile_for_item(entity_profile_id: int | None, profile_item_id: in
     return profile
 
 
-def _resolve_profile_for_environment(environment: EnvironmentItem, profile_item_id: int | None, db: Session) -> ProfileItem:
+def _resolve_profile_for_environment(
+    environment: EnvironmentItem, profile_item_id: int | None, db: Session
+) -> ProfileItem:
     profile: ProfileItem | None = None
     if profile_item_id:
         profile = db.get(ProfileItem, profile_item_id)
@@ -170,10 +173,14 @@ def _resolve_profile_for_environment(environment: EnvironmentItem, profile_item_
     if profile is None and environment.profile_item_id:
         profile = db.get(ProfileItem, environment.profile_item_id)
     if profile is None:
-        profile = db.query(ProfileItem).filter(
-            ProfileItem.platform == environment.platform,
-            ProfileItem.is_bundled.is_(True),
-        ).first()
+        profile = (
+            db.query(ProfileItem)
+            .filter(
+                ProfileItem.platform == environment.platform,
+                ProfileItem.is_bundled.is_(True),
+            )
+            .first()
+        )
     if profile is None:
         raise HTTPException(status_code=422, detail="No profile found for this environment's platform.")
     return profile
@@ -281,9 +288,7 @@ def _build_spec_for_entity(
                 rel = Path(Path(exe_src).name)
             raw_cmd = str(rel).replace("/", "\\")
             try:
-                c_run_command = "\\".join(
-                    _to_83_str(part) for part in raw_cmd.split("\\")
-                )
+                c_run_command = "\\".join(_to_83_str(part) for part in raw_cmd.split("\\"))
             except ValueError as exc:
                 raise HTTPException(
                     status_code=422,
@@ -446,11 +451,11 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             history.ended_at = datetime.now(timezone.utc)
             history.exit_code = -1
             db.commit()
-            raise HTTPException(status_code=500, detail="Launch timed out. The emulator did not start within 30 seconds.")
-        except XboxDvdRipDetected as exc:
-            logger.info(
-                "Launch blocked: raw Xbox DVD rip detected for collection_id=%s", spec.collection_id
+            raise HTTPException(
+                status_code=500, detail="Launch timed out. The emulator did not start within 30 seconds."
             )
+        except XboxDvdRipDetected as exc:
+            logger.info("Launch blocked: raw Xbox DVD rip detected for collection_id=%s", spec.collection_id)
             history.error_message = str(exc)
             history.ended_at = datetime.now(timezone.utc)
             history.exit_code = -1
@@ -474,7 +479,9 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
 
         proc = result[0] if isinstance(result, tuple) else result
         _finalize_launch(
-            history, result, db,
+            history,
+            result,
+            db,
             network_blocked=network_blocked,
             collection_id=spec.collection_id if not is_app else None,
             app_collection_id=spec.collection_id if is_app else None,
@@ -489,12 +496,12 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             if exit_code is not None and exit_code != 0:
                 logger.error(
                     "Launch for collection_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
-                    spec.collection_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
+                    spec.collection_id,
+                    exit_code,
+                    _INLINE_CRASH_CHECK_TIMEOUT,
                 )
                 process_registry.terminate(proc.pid)
-                history.error_message = (
-                    f"Process exited immediately after launch (exit code {exit_code})."
-                )
+                history.error_message = f"Process exited immediately after launch (exit code {exit_code})."
                 history.ended_at = datetime.now(timezone.utc)
                 history.exit_code = exit_code
                 db.commit()
@@ -545,6 +552,7 @@ def _verify_media_path_containment(path_str: str, source_type: str) -> None:
     resolved = Path(path_str).resolve()
     if source_type == "app":
         from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots
+
         if not is_within_roots(resolved, allowed_browse_roots()):
             raise HTTPException(
                 status_code=422,
@@ -552,10 +560,12 @@ def _verify_media_path_containment(path_str: str, source_type: str) -> None:
             )
         return
     from backend.core.settings import get_settings
+
     games_root_str = get_settings().get("SOFTWARE_PATH", "") or ""
     if not games_root_str:
         return
     from backend.service.utils.path_utils import library_domain_root
+
     media_root = library_domain_root("games")
     if not (resolved == media_root or resolved.is_relative_to(media_root)):
         raise HTTPException(
@@ -639,9 +649,7 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
     effective_media_path = entity.executable_path if entity.executable_path else entity.media_path
     if Path(effective_media_path).is_dir() and drive is None:
         try:
-            effective_media_path = str(
-                _resolve_media_file_from_directory(Path(effective_media_path), entity.platform)
-            )
+            effective_media_path = str(_resolve_media_file_from_directory(Path(effective_media_path), entity.platform))
         except ValueError as exc:
             if entity.platform != "ps3":
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -656,7 +664,11 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
     _verify_media_path_containment(effective_media_path, entity.source_type)
 
     spec = _build_spec_for_entity(
-        entity, profile, environment_record, drive, effective_media_path,
+        entity,
+        profile,
+        environment_record,
+        drive,
+        effective_media_path,
         resolved_install_path=resolved_install_path,
         resolved_rom_path=resolved_rom_path,
     )
@@ -670,6 +682,7 @@ async def launch_collection(collection_id: int, profile_item_id: int | None, db:
         await asyncio.to_thread(write_session_ends, exited)
 
     from backend.service.launch.launchable_resolver import resolve_launchable
+
     try:
         entity = resolve_launchable(collection_id, db=db)
     except ValueError as exc:
@@ -691,6 +704,7 @@ async def launch_app_collection(app_collection_id: int, profile_item_id: int | N
         await asyncio.to_thread(write_session_ends, exited)
 
     from backend.service.launch.launchable_resolver import resolve_launchable_app
+
     try:
         entity = resolve_launchable_app(app_collection_id, db=db)
     except ValueError as exc:
@@ -698,9 +712,7 @@ async def launch_app_collection(app_collection_id: int, profile_item_id: int | N
     return await _launch_entity(entity, profile_item_id, db)
 
 
-async def _ensure_environment_provisioned(
-    environment: EnvironmentItem, db: Session
-) -> tuple[str | None, str | None]:
+async def _ensure_environment_provisioned(environment: EnvironmentItem, db: Session) -> tuple[str | None, str | None]:
     """Auto-provision environment's working image if missing, then guarantee one exists.
 
     Extracted from launch_environment's former inline block so launch_collection
@@ -721,6 +733,7 @@ async def _ensure_environment_provisioned(
     if environment.working_image_path is None and environment.platform in PROVISIONABLE_PLATFORMS:
         try:
             from backend.service.utils.vm import provision_environment
+
             (
                 _iso_path,
                 working_path,
@@ -758,7 +771,12 @@ async def _ensure_environment_provisioned(
 
 
 async def launch_environment(environment: EnvironmentItem, profile_item_id: int | None, db: Session) -> LaunchResult:
-    logger.info("launch_environment entry: environment_id=%d platform=%s profile_item_id=%s", environment.id, environment.platform, profile_item_id)
+    logger.info(
+        "launch_environment entry: environment_id=%d platform=%s profile_item_id=%s",
+        environment.id,
+        environment.platform,
+        profile_item_id,
+    )
     exited = process_registry.cleanup_exited()
     if exited:
         await asyncio.to_thread(write_session_ends, exited)
@@ -782,14 +800,17 @@ async def launch_environment(environment: EnvironmentItem, profile_item_id: int 
 
     try:
         spec = _build_spec_for_environment(
-            environment, profile,
+            environment,
+            profile,
             resolved_install_path=resolved_install_path,
             resolved_rom_path=resolved_rom_path,
         )
     except Exception:
         logger.exception(
             "launch_environment failed to build LaunchSpec: environment_id=%d platform=%s config_path=%r",
-            environment.id, environment.platform, environment.config_path,
+            environment.id,
+            environment.platform,
+            environment.config_path,
         )
         raise
     return await launch(spec, db)
@@ -803,6 +824,7 @@ def stop_launch(history_id: int, active_user, db: Session) -> dict:
     if not active_user.is_owner and not active_user.is_admin:
         if record.profile_item_id is not None:
             from backend.models.profile import ProfileItem as _ProfileItem
+
             prof = db.get(_ProfileItem, record.profile_item_id)
             if prof is not None and prof.user_item_id is not None and prof.user_item_id != active_user.id:
                 raise HTTPException(
@@ -814,12 +836,10 @@ def stop_launch(history_id: int, active_user, db: Session) -> dict:
     for pid, entry in process_registry.get_all().items():
         by_history = entry.launch_history_id == history_id
         by_collection = (
-            record.game_item_bundle_id is not None
-            and entry.software_collection_id == record.game_item_bundle_id
+            record.game_item_bundle_id is not None and entry.software_collection_id == record.game_item_bundle_id
         )
         by_app_collection = (
-            record.app_item_bundle_id is not None
-            and entry.app_collection_id == record.app_item_bundle_id
+            record.app_item_bundle_id is not None and entry.app_collection_id == record.app_item_bundle_id
         )
         if by_history or by_collection or by_app_collection:
             process_registry.terminate(pid)

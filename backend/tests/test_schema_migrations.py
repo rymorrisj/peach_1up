@@ -19,6 +19,7 @@ def test_migrations_idempotent_against_already_migrated_db(tmp_path, monkeypatch
     SQLModel.metadata.create_all(engine)
 
     import backend.core.database as database_mod
+
     monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
 
     from backend.core.startup_migrations import _apply_schema_migrations
@@ -40,19 +41,22 @@ def test_migrations_add_missing_user_columns_to_legacy_db(tmp_path, monkeypatch)
     SQLModel.metadata.create_all(engine)
     with engine.connect() as conn:
         conn.execute(text("DROP TABLE user_items"))
-        conn.execute(text(
-            "CREATE TABLE user_items ("
-            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, is_owner BOOLEAN, "
-            "pin_required BOOLEAN, can_launch_media BOOLEAN, can_edit_platforms BOOLEAN, "
-            "can_edit_library BOOLEAN, can_manage_profiles BOOLEAN, can_edit_settings BOOLEAN, "
-            "is_admin BOOLEAN, max_content_rating TEXT, block_unrated_media BOOLEAN, "
-            "is_locked BOOLEAN, failed_pin_attempts INTEGER, pin_hash TEXT, "
-            "created_at DATETIME, updated_at DATETIME"
-            ")"
-        ))
+        conn.execute(
+            text(
+                "CREATE TABLE user_items ("
+                "id INTEGER PRIMARY KEY, name TEXT NOT NULL, is_owner BOOLEAN, "
+                "pin_required BOOLEAN, can_launch_media BOOLEAN, can_edit_platforms BOOLEAN, "
+                "can_edit_library BOOLEAN, can_manage_profiles BOOLEAN, can_edit_settings BOOLEAN, "
+                "is_admin BOOLEAN, max_content_rating TEXT, block_unrated_media BOOLEAN, "
+                "is_locked BOOLEAN, failed_pin_attempts INTEGER, pin_hash TEXT, "
+                "created_at DATETIME, updated_at DATETIME"
+                ")"
+            )
+        )
         conn.commit()
 
     import backend.core.database as database_mod
+
     monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
 
     from backend.core.startup_migrations import _apply_schema_migrations
@@ -84,6 +88,7 @@ def test_migrations_add_media_bundle_content_rating_and_its_index(tmp_path, monk
         conn.commit()
 
     import backend.core.database as database_mod
+
     monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
 
     from backend.core.startup_migrations import _apply_schema_migrations
@@ -98,10 +103,12 @@ def test_migrations_add_media_bundle_content_rating_and_its_index(tmp_path, monk
     index_names = {ix["name"] for ix in inspector.get_indexes("media_item_bundles")}
     assert "ix_media_item_bundles_content_rating" in index_names
     with engine.connect() as conn:
-        count = conn.execute(text(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
-            "AND name = 'ix_media_item_bundles_content_rating'"
-        )).scalar()
+        count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
+                "AND name = 'ix_media_item_bundles_content_rating'"
+            )
+        ).scalar()
     assert count == 1
 
 
@@ -117,10 +124,12 @@ def test_migrations_add_media_item_asset_columns_and_old_rows_stay_null(tmp_path
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE media_items DROP COLUMN asset_type"))
         conn.execute(text("ALTER TABLE media_items DROP COLUMN source_url"))
-        conn.execute(text(
-            "INSERT INTO media_items (id, title, media_kind, file_path, sort_index) "
-            "VALUES (1, 'Old', 'image', '/library/media/old.jpg', 0)"
-        ))
+        conn.execute(
+            text(
+                "INSERT INTO media_items (id, title, media_kind, file_path, sort_index) "
+                "VALUES (1, 'Old', 'image', '/library/media/old.jpg', 0)"
+            )
+        )
         conn.commit()
     other_tables_before = {
         t: [c["name"] for c in sa_inspect(engine).get_columns(t)]
@@ -128,6 +137,7 @@ def test_migrations_add_media_item_asset_columns_and_old_rows_stay_null(tmp_path
     }
 
     import backend.core.database as database_mod
+
     monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
 
     from backend.core.startup_migrations import _apply_schema_migrations

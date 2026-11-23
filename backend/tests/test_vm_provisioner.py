@@ -16,6 +16,7 @@ import pytest
 # _resolve_within
 # ---------------------------------------------------------------------------
 
+
 class TestResolveWithin:
     def test_escaping_path_raises_and_names_target_and_base(self, tmp_path):
         from backend.service.utils.vm.provisioner import _resolve_within
@@ -45,14 +46,17 @@ class TestResolveWithin:
 # _load_default_disk_size_mb
 # ---------------------------------------------------------------------------
 
+
 class TestLoadDefaultDiskSizeMb:
     def test_known_platform_returns_real_default_from_platforms_yaml(self):
         """Unpatched, against the shipped config/platforms.yaml."""
         from backend.service.utils.vm.provisioner import _load_default_disk_size_mb
+
         assert _load_default_disk_size_mb("win95") == 1024
 
     def test_unknown_platform_raises_file_not_found_naming_the_platform(self):
         from backend.service.utils.vm.provisioner import _load_default_disk_size_mb
+
         with pytest.raises(FileNotFoundError, match="nonexistent_platform_xyz"):
             _load_default_disk_size_mb("nonexistent_platform_xyz")
 
@@ -112,7 +116,10 @@ class TestProvision86BoxVmPathStructure:
         )
 
         iso_path, vhd_path_str, cfg_path_str = provisioner_mod.provision_86box_vm(
-            environment, box86_path="unused", rom_path=str(tmp_path / "roms"), hardware_profile="standard",
+            environment,
+            box86_path="unused",
+            rom_path=str(tmp_path / "roms"),
+            hardware_profile="standard",
         )
 
         expected_vm_dir = (tmp_path / "emulators" / "86box" / "vms" / "my-test-env").resolve()
@@ -140,7 +147,9 @@ class TestProvision86BoxVmPathStructure:
 
         with pytest.raises(ValueError, match="unsupported platform 'ps2'"):
             provisioner_mod.provision_86box_vm(
-                environment, box86_path="unused", rom_path=str(tmp_path / "roms"),
+                environment,
+                box86_path="unused",
+                rom_path=str(tmp_path / "roms"),
             )
 
         assert not (tmp_path / "emulators").exists()
@@ -149,6 +158,7 @@ class TestProvision86BoxVmPathStructure:
 # ---------------------------------------------------------------------------
 # provision_dosbox_drive preconditions
 # ---------------------------------------------------------------------------
+
 
 class TestProvisionDosboxDrive:
     def test_existing_working_image_is_returned_without_reformatting(self, tmp_path, monkeypatch):
@@ -164,10 +174,14 @@ class TestProvisionDosboxDrive:
 
         def _format_should_not_be_called(*a, **kw):
             raise AssertionError("format_fat16 must not touch an existing image")
+
         monkeypatch.setattr(fat_mod, "format_fat16", _format_should_not_be_called)
 
         environment = types.SimpleNamespace(
-            platform="dos", slug="my-dos-env", id=1, working_image_path=str(existing),
+            platform="dos",
+            slug="my-dos-env",
+            id=1,
+            working_image_path=str(existing),
         )
 
         result = provisioner_mod.provision_dosbox_drive(environment)
@@ -181,7 +195,10 @@ class TestProvisionDosboxDrive:
         import backend.service.utils.vm.provisioner as provisioner_mod
 
         environment = types.SimpleNamespace(
-            platform="dos", slug="my-dos-env", id=1, working_image_path=None,
+            platform="dos",
+            slug="my-dos-env",
+            id=1,
+            working_image_path=None,
         )
 
         with pytest.raises(RuntimeError, match="no.*working_image_path"):
@@ -191,7 +208,10 @@ class TestProvisionDosboxDrive:
         import backend.service.utils.vm.provisioner as provisioner_mod
 
         environment = types.SimpleNamespace(
-            platform="win95", slug="my-env", id=1, working_image_path=str(tmp_path / "c.img"),
+            platform="win95",
+            slug="my-env",
+            id=1,
+            working_image_path=str(tmp_path / "c.img"),
         )
 
         with pytest.raises(ValueError, match="unsupported platform 'win95'"):

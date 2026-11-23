@@ -53,6 +53,7 @@ class _FakeSettings:
 @pytest.fixture(autouse=True)
 def _patch_settings(monkeypatch):
     import backend.core.settings as settings_mod
+
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
 
 
@@ -97,13 +98,17 @@ def _make_job():
 
 def _patch_backend_router(monkeypatch, dispatch_fn, executable_path="/fake/exe"):
     import backend.service.utils.backend_router as router_mod
+
     monkeypatch.setattr(router_mod, "dispatch", dispatch_fn)
     monkeypatch.setattr(router_mod, "get_executable_path", lambda platform, slug=None: executable_path)
 
 
 def _make_profile(db, *, name, emulator_slug, user_item_id, platform="ps1"):
     from backend.models.profile import ProfileItem
-    profile = ProfileItem(name=name, slug=name.lower(), emulator_slug=emulator_slug, platform=platform, user_item_id=user_item_id)
+
+    profile = ProfileItem(
+        name=name, slug=name.lower(), emulator_slug=emulator_slug, platform=platform, user_item_id=user_item_id
+    )
     db.add(profile)
     db.commit()
     db.refresh(profile)
@@ -114,6 +119,7 @@ def _make_item(db, *, profile, platform="ps1"):
     # Build a collection-of-one (parent + single leaf) and return the collection,
     # the sole game launch target after the set/item consolidation.
     from backend.models.game import GameItemBundle, GameItem
+
     collection = GameItemBundle(
         title=f"Game-{profile.id}", platform=platform, slug=f"game-{profile.id}", profile_item_id=profile.id
     )
@@ -131,6 +137,7 @@ def _make_item(db, *, profile, platform="ps1"):
 
 def _make_environment(db, *, profile, platform="ps1"):
     from backend.models.environment import EnvironmentItem
+
     environment = EnvironmentItem(
         name=f"Plat-{profile.id}",
         platform=platform,
@@ -159,6 +166,7 @@ class TestResolveProfileForItem:
 # ---------------------------------------------------------------------------
 # 1. Same profile_id, second launch_collection request while first is still active
 # ---------------------------------------------------------------------------
+
 
 class TestSameProfileRejected:
     def test_second_launch_item_same_profile_rejected(self, mem_session, monkeypatch):
@@ -190,6 +198,7 @@ class TestSameProfileRejected:
 # ---------------------------------------------------------------------------
 # 2. Same (emulator_slug, user_id), different profile_id -> rejected
 # ---------------------------------------------------------------------------
+
 
 class TestSameEmulatorUserDifferentProfileRejected:
     def test_second_launch_environment_same_emulator_user_rejected(self, mem_session, monkeypatch):
@@ -223,6 +232,7 @@ class TestSameEmulatorUserDifferentProfileRejected:
 # 3. Different profile_id AND different (emulator_slug, user_id) -> succeeds
 # ---------------------------------------------------------------------------
 
+
 class TestDifferentKeysSucceed:
     def test_unrelated_launch_succeeds_while_another_is_active(self, mem_session, monkeypatch):
         from backend.service.launch.coordinator import launch_environment
@@ -253,6 +263,7 @@ class TestDifferentKeysSucceed:
 # 4. Reservation is released on immediate-exit failure, no phantom lock
 # ---------------------------------------------------------------------------
 
+
 class TestRollbackOnImmediateExit:
     def test_reservation_released_after_immediate_crash(self, mem_session, monkeypatch):
         from backend.service.launch.coordinator import launch_collection
@@ -261,7 +272,7 @@ class TestRollbackOnImmediateExit:
         item = _make_item(mem_session, profile=profile)
 
         dispatch_results = [
-            (_make_proc(poll_return=1), _make_job()),    # crashes immediately
+            (_make_proc(poll_return=1), _make_job()),  # crashes immediately
             (_make_proc(poll_return=None), _make_job()),  # runs fine
         ]
 
@@ -286,6 +297,7 @@ class TestRollbackOnImmediateExit:
 # 4b. A clean exit (code 0) within the inline window is not a crash, the
 #     launch must succeed, unlike a non-zero exit in the same window.
 # ---------------------------------------------------------------------------
+
 
 class TestCleanExitZeroNotTreatedAsCrash:
     def test_immediate_clean_exit_does_not_raise(self, mem_session, monkeypatch):
@@ -325,6 +337,7 @@ class TestCleanExitZeroNotTreatedAsCrash:
 # 5. Back-to-back reservation calls close the TOCTOU race, not just narrow it
 # ---------------------------------------------------------------------------
 
+
 class TestReservationRaceClosed:
     def test_second_reservation_for_same_profile_fails_without_registration(self):
         from backend.core import process_registry
@@ -363,6 +376,7 @@ class TestReservationRaceClosed:
 #    surface a curated 500 (not the raw exception), and still release the
 #    reservation so a retry for the same key can proceed.
 # ---------------------------------------------------------------------------
+
 
 class TestRegistrationFailureKillsProcessAndReleasesReservation:
     def test_register_failure_kills_process_curates_error_and_releases_reservation(self, mem_session, monkeypatch):

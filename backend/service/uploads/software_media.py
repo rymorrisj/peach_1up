@@ -25,6 +25,7 @@ first, not a multi-disc collection concept like Game"), only kind="file" is
 accepted; init_upload rejects "folder"/"set" for this domain via the
 registry's allowed_kinds before a session is even created.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -133,7 +134,7 @@ def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
         jobs.update(job_id, progress=0.0, message="Reassembling upload…")
         reasm = cu.reassemble(upload_id, Path(media_root), job_id=job_id)
         result = finalize_reassembled(reasm, db)
-        jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'upload')}\".")
+        jobs.complete(job_id, result=result, message=f'Added "{result.get("title", "upload")}".')
     except Exception as exc:  # noqa: BLE001, background tasks must not propagate
         logger.exception("Background media upload finalize failed: upload_id=%s", upload_id)
         db.rollback()
@@ -151,6 +152,7 @@ def _root() -> Path:
     from fastapi import HTTPException
 
     from backend.service.utils.path_utils import media_root
+
     try:
         return media_root()
     except ValueError as exc:

@@ -67,7 +67,9 @@ def _configured_library_root(monkeypatch, root: str):
     import backend.service.utils.settings as settings_mod
 
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: root if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: root if key == "LIBRARY_PATH" else default,
     )
 
 
@@ -91,13 +93,16 @@ class TestNormalisePathRejections:
 
         monkeypatch.setattr(Path, "resolve", _guard)
 
-    @pytest.mark.parametrize("path", [
-        "\\\\attacker\\share\\x.png",
-        "//attacker/share/x.png",
-        "\\\\attacker.example.com\\c$\\Windows",
-        "\\/attacker/share/x.png",
-        "\\\\127.0.0.1\\share\\x",
-    ])
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "\\\\attacker\\share\\x.png",
+            "//attacker/share/x.png",
+            "\\\\attacker.example.com\\c$\\Windows",
+            "\\/attacker/share/x.png",
+            "\\\\127.0.0.1\\share\\x",
+        ],
+    )
     def test_unc_rejected(self, monkeypatch, path):
         from backend.service.utils.path_utils import normalise_path
 
@@ -105,14 +110,17 @@ class TestNormalisePathRejections:
         with pytest.raises(ValueError, match="UNC"):
             normalise_path(path)
 
-    @pytest.mark.parametrize("path", [
-        "\\\\?\\C:\\Windows\\System32",
-        "\\\\.\\PhysicalDrive0",
-        "//?/C:/Windows",
-        "//./COM1",
-        "\\??\\C:\\Windows",
-        "\\\\?\\UNC\\attacker\\share",
-    ])
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "\\\\?\\C:\\Windows\\System32",
+            "\\\\.\\PhysicalDrive0",
+            "//?/C:/Windows",
+            "//./COM1",
+            "\\??\\C:\\Windows",
+            "\\\\?\\UNC\\attacker\\share",
+        ],
+    )
     def test_device_paths_rejected(self, monkeypatch, path):
         from backend.service.utils.path_utils import normalise_path
 
@@ -202,13 +210,16 @@ class TestNormalisePathUncExemptions:
         _configured_library_root(monkeypatch, "\\\\nas\\share\\library")
         normalise_path("\\\\nas\\share\\library")
 
-    @pytest.mark.parametrize("path", [
-        "\\\\attacker\\share\\library\\x.png",            # different host
-        "\\\\nas\\other\\library\\x.png",                 # different share
-        "\\\\nas\\share\\library-evil\\x.png",            # prefix, not a child
-        "\\\\nas\\share\\library\\..\\..\\..\\x.png",     # climbs out lexically
-        "\\\\nas\\share\\library\\..\\secrets\\x.png",
-    ])
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "\\\\attacker\\share\\library\\x.png",  # different host
+            "\\\\nas\\other\\library\\x.png",  # different share
+            "\\\\nas\\share\\library-evil\\x.png",  # prefix, not a child
+            "\\\\nas\\share\\library\\..\\..\\..\\x.png",  # climbs out lexically
+            "\\\\nas\\share\\library\\..\\secrets\\x.png",
+        ],
+    )
     def test_unc_outside_configured_root_rejected(self, monkeypatch, path):
         from backend.service.utils.path_utils import normalise_path
 
@@ -237,10 +248,18 @@ class TestFilesystemAllowlist:
         library_path.mkdir()
 
         from backend.core import settings as settings_mod
+
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
-            lambda: {"LIBRARY_PATH": str(library_path), "SOFTWARE_PATH": "", "MEDIA_PATH": "", "OS_PATH": "", "ROMS_PATH": "", "PROFILES_PATH": ""},
+            lambda: {
+                "LIBRARY_PATH": str(library_path),
+                "SOFTWARE_PATH": "",
+                "MEDIA_PATH": "",
+                "OS_PATH": "",
+                "ROMS_PATH": "",
+                "PROFILES_PATH": "",
+            },
         )
 
         # allowed_browse_roots() additionally allowlists every existing drive

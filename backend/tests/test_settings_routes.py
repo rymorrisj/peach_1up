@@ -137,7 +137,8 @@ class TestSecretStatusGate:
 
         c, db, app = http_client
         monkeypatch.setattr(
-            env_secrets, "get_env_secret",
+            env_secrets,
+            "get_env_secret",
             lambda key: "client-id-value" if key == "IGDB_CLIENT_ID" else "",
         )
         _set_active_user(app, _make_user(db, is_owner=True))

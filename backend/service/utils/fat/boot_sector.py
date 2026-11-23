@@ -14,9 +14,9 @@ from backend.service.utils.fat.geometry import (
 
 def _build_boot_sector(geo: dict) -> bytes:
     sector = bytearray(512)
-    ts     = geo["total_sectors"]
+    ts = geo["total_sectors"]
 
-    sector[0:3]  = b"\xEB\x58\x90"
+    sector[0:3] = b"\xeb\x58\x90"
     sector[3:11] = b"PEACH1UP"
 
     struct.pack_into("<H", sector, 11, _BYTES_PER_SECTOR)
@@ -37,7 +37,7 @@ def _build_boot_sector(geo: dict) -> bytes:
     struct.pack_into("<I", sector, 39, 0x50454143)
     sector[43:54] = b"PEACH1UP   "
     sector[54:62] = b"FAT16   "
-    sector[510]   = 0x55
-    sector[511]   = 0xAA
+    sector[510] = 0x55
+    sector[511] = 0xAA
 
     return bytes(sector)

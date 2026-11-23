@@ -10,13 +10,13 @@ import re
 from pathlib import Path
 
 # PEGI before ESRB so the longer "PEGI NN" token is matched first.
-_PEGI_RE = re.compile(r'\bPEGI\s*(3|7|12|16|18)\b', re.IGNORECASE)
+_PEGI_RE = re.compile(r"\bPEGI\s*(3|7|12|16|18)\b", re.IGNORECASE)
 # E10+ before E/M so the longer token wins. AO before M for the same reason.
-_ESRB_RE = re.compile(r'\b(E10\+|EC|AO|M|T|E)\b')
+_ESRB_RE = re.compile(r"\b(E10\+|EC|AO|M|T|E)\b")
 
 # ESRB ratings that are single common letters, high false-positive risk in bare
 # filenames, so they are only matched when surrounded by brackets or parentheses.
-_ESRB_BRACKETED_RE = re.compile(r'[\(\[](E10\+|EC|AO|M|T|E)[\)\]]')
+_ESRB_BRACKETED_RE = re.compile(r"[\(\[](E10\+|EC|AO|M|T|E)[\)\]]")
 
 
 def _search(text: str, strict: bool = False) -> str | None:

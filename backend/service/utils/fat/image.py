@@ -37,9 +37,7 @@ from backend.service.utils.fat.geometry import (
 def format_fat16(img_path: Path, size_mb: int) -> None:
     """Create a blank FAT16 image file at img_path with a capacity of size_mb MiB."""
     if img_path.exists():
-        raise RuntimeError(
-            f"format_fat16: {img_path} already exists, refusing to overwrite"
-        )
+        raise RuntimeError(f"format_fat16: {img_path} already exists, refusing to overwrite")
     if not (FAT16_SIZE_MIN_MB <= size_mb <= FAT16_SIZE_MAX_MB):
         _reason = (
             f"below minimum of {FAT16_SIZE_MIN_MB} MB"
@@ -47,8 +45,7 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
             else f"exceeds maximum of {FAT16_SIZE_MAX_MB} MB"
         )
         raise RuntimeError(
-            f"format_fat16: size_mb={size_mb} is {_reason} "
-            f"(supported range: {FAT16_SIZE_MIN_MB}–{FAT16_SIZE_MAX_MB})"
+            f"format_fat16: size_mb={size_mb} is {_reason} (supported range: {FAT16_SIZE_MIN_MB}–{FAT16_SIZE_MAX_MB})"
         )
 
     geo = _calc_geometry(size_mb)
@@ -65,8 +62,8 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
     # cylinder-aligned disk. Rounding total_sectors itself up would instead push
     # boundary sizes (e.g. 512 MB) past the FAT16 65,524-cluster limit.
     cylinder_sectors = _SECTORS_PER_TRACK * _HEAD_COUNT
-    aligned_sectors  = math.ceil(geo["total_sectors"] / cylinder_sectors) * cylinder_sectors
-    total_bytes      = aligned_sectors * _BYTES_PER_SECTOR
+    aligned_sectors = math.ceil(geo["total_sectors"] / cylinder_sectors) * cylinder_sectors
+    total_bytes = aligned_sectors * _BYTES_PER_SECTOR
 
     with img_path.open("wb") as f:
         f.seek(total_bytes - 1)
@@ -94,19 +91,15 @@ def write_file_to_image(img_path: Path, dest_path: str, data: bytes) -> None:
 
     parts = [p for p in dest_path.replace("\\", "/").split("/") if p and p != "."]
     if not parts:
-        raise RuntimeError(
-            f"write_file_to_image: {img_path}: dest_path '{dest_path}' resolves to empty"
-        )
+        raise RuntimeError(f"write_file_to_image: {img_path}: dest_path '{dest_path}' resolves to empty")
 
-    filename  = parts[-1]
+    filename = parts[-1]
     dir_parts = parts[:-1]
 
     try:
         name83, ext83 = _to_83(filename)
     except Exception as exc:
-        raise RuntimeError(
-            f"write_file_to_image: {img_path}: cannot convert '{filename}' to 8.3, {exc}"
-        ) from exc
+        raise RuntimeError(f"write_file_to_image: {img_path}: cannot convert '{filename}' to 8.3, {exc}") from exc
 
     geo = _read_geometry(img_path)
     csz = _cluster_size_bytes(geo)
@@ -118,9 +111,7 @@ def write_file_to_image(img_path: Path, dest_path: str, data: bytes) -> None:
             raise RuntimeError(f"write_file_to_image: {img_path}: {exc}") from exc
 
         if _find_in_dir(f, geo, dir_cluster, name83, ext83) is not None:
-            raise RuntimeError(
-                f"write_file_to_image: {img_path}: '{dest_path}' already exists in the image"
-            )
+            raise RuntimeError(f"write_file_to_image: {img_path}: '{dest_path}' already exists in the image")
 
         clusters_needed = max(1, math.ceil(len(data) / csz))
         try:
@@ -169,11 +160,7 @@ def list_files_in_image(img_path: Path) -> list[tuple[str, bytes]]:
                 child_cluster = entry["first_cluster"] if entry["first_cluster"] != 0 else None
                 _walk(f, child_cluster, f"{path}/")
             else:
-                data = (
-                    _read_cluster_chain(f, geo, entry["first_cluster"])
-                    if entry["first_cluster"] != 0
-                    else b""
-                )
+                data = _read_cluster_chain(f, geo, entry["first_cluster"]) if entry["first_cluster"] != 0 else b""
                 results.append((path, data[: entry["file_size"]]))
 
     with img_path.open("rb") as f:
@@ -189,11 +176,9 @@ def read_file_from_image(img_path: Path, dest_path: str) -> bytes:
 
     parts = [p for p in dest_path.replace("\\", "/").split("/") if p and p != "."]
     if not parts:
-        raise RuntimeError(
-            f"read_file_from_image: {img_path}: dest_path '{dest_path}' resolves to empty"
-        )
+        raise RuntimeError(f"read_file_from_image: {img_path}: dest_path '{dest_path}' resolves to empty")
 
-    filename  = parts[-1]
+    filename = parts[-1]
     dir_parts = parts[:-1]
     name83, ext83 = _to_83(filename)
 
@@ -202,21 +187,14 @@ def read_file_from_image(img_path: Path, dest_path: str) -> bytes:
     with img_path.open("rb") as f:
         dir_cluster = _walk_path(f, geo, dir_parts, create=False)
         if dir_cluster is None and dir_parts:
-            raise RuntimeError(
-                f"read_file_from_image: {img_path}: directory not found: "
-                f"'{'/'.join(dir_parts)}'"
-            )
+            raise RuntimeError(f"read_file_from_image: {img_path}: directory not found: '{'/'.join(dir_parts)}'")
 
         entry = _find_in_dir(f, geo, dir_cluster, name83, ext83)
         if entry is None:
-            raise RuntimeError(
-                f"read_file_from_image: {img_path}: file not found: '{dest_path}'"
-            )
+            raise RuntimeError(f"read_file_from_image: {img_path}: file not found: '{dest_path}'")
 
         if entry["attr"] & _ATTR_DIR:
-            raise RuntimeError(
-                f"read_file_from_image: {img_path}: '{dest_path}' is a directory, not a file"
-            )
+            raise RuntimeError(f"read_file_from_image: {img_path}: '{dest_path}' is a directory, not a file")
 
         if entry["first_cluster"] == 0:
             return b""

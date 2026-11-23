@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_filtered_app_item, get_filtered_game_item_bundle, get_filtered_media_item_bundle, require_permission,
+    get_filtered_app_item,
+    get_filtered_game_item_bundle,
+    get_filtered_media_item_bundle,
+    require_permission,
 )
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import UserItem

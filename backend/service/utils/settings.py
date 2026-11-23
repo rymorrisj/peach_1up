@@ -36,6 +36,7 @@ from backend.models.settings import Settings
 
 def _get_project_root() -> Path:
     from backend.core.settings import get_base_path
+
     return get_base_path()
 
 
@@ -66,27 +67,29 @@ _DEFAULTS: dict = {
 }
 
 # Path keys whose values are resolved to absolute paths at load time.
-_PATH_KEYS: frozenset[str] = frozenset({
-    "LIBRARY_PATH",
-    "SOFTWARE_PATH",
-    "MEDIA_PATH",
-    "OS_PATH",
-    "ROMS_PATH",
-    "PROFILES_PATH",
-})
+_PATH_KEYS: frozenset[str] = frozenset(
+    {
+        "LIBRARY_PATH",
+        "SOFTWARE_PATH",
+        "MEDIA_PATH",
+        "OS_PATH",
+        "ROMS_PATH",
+        "PROFILES_PATH",
+    }
+)
 
 _PATH_DEFAULTS: dict[str, str] = {
-    "LIBRARY_PATH":       str((_PROJECT_ROOT / "library").resolve()),
+    "LIBRARY_PATH": str((_PROJECT_ROOT / "library").resolve()),
     # v2: library/software is the launchable-Software root (pre-v2 this was
     # library/media). MEDIA_PATH now roots at library/software/media, the
     # archival Media/Archive domain's folder, see backend/models/media.py and
     # api/routes/media.py. It previously lived at library/media, that decision
     # was reversed, see dev_docs/v2/01_rename_and_infra.md.
-    "SOFTWARE_PATH":      str((_PROJECT_ROOT / "library" / "software").resolve()),
-    "MEDIA_PATH":         str((_PROJECT_ROOT / "library" / "software" / "media").resolve()),
-    "OS_PATH":            str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
-    "ROMS_PATH":          str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
-    "PROFILES_PATH":      str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),
+    "SOFTWARE_PATH": str((_PROJECT_ROOT / "library" / "software").resolve()),
+    "MEDIA_PATH": str((_PROJECT_ROOT / "library" / "software" / "media").resolve()),
+    "OS_PATH": str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
+    "ROMS_PATH": str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
+    "PROFILES_PATH": str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),
 }
 
 # None until init() is called; dict thereafter
@@ -102,7 +105,7 @@ def _load_all_rows() -> dict:
             continue
         try:
             result[key] = json.loads(value)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             result[key] = value
     return result
 
@@ -129,10 +132,7 @@ def init() -> None:
     global _state
 
     if _state is not None:
-        raise RuntimeError(
-            "settings.init() has already been called. "
-            "It may only be called once per process."
-        )
+        raise RuntimeError("settings.init() has already been called. It may only be called once per process.")
 
     load_dotenv(_PROJECT_ROOT / ".env")
 
@@ -276,12 +276,10 @@ def set_path(key: str, value: str) -> None:
     """
     state = _require_init()
     if key not in _PATH_KEYS:
-        raise ValueError(
-            f"'{key}' is not a recognised path key. "
-            f"Valid path keys: {', '.join(sorted(_PATH_KEYS))}"
-        )
+        raise ValueError(f"'{key}' is not a recognised path key. Valid path keys: {', '.join(sorted(_PATH_KEYS))}")
     if value:
         from backend.service.utils.path_utils import normalise_path
+
         try:
             value = str(normalise_path(value))
         except ValueError as exc:
@@ -313,6 +311,7 @@ def reset_db_completed() -> None:
 def compute_setup_status() -> list[dict]:
     """Return availability status for every emulator in the catalog."""
     from backend.service.utils.emulator_catalog import load_catalog, get_install_path
+
     result = []
     for entry in load_catalog():
         if entry.get("install_type") == "rom_pack":
@@ -327,13 +326,15 @@ def compute_setup_status() -> list[dict]:
         except Exception:
             available = False
             path_str = None
-        result.append({
-            "slug": slug,
-            "name": name,
-            "required": required,
-            "available": available,
-            "path": path_str,
-        })
+        result.append(
+            {
+                "slug": slug,
+                "name": name,
+                "required": required,
+                "available": available,
+                "path": path_str,
+            }
+        )
     return result
 
 
@@ -345,6 +346,7 @@ def validate_configured_paths() -> None:
     false-positive warnings.
     """
     import logging as _logging
+
     _log = _logging.getLogger(__name__)
     state = _require_init()
     warnings: list[str] = []

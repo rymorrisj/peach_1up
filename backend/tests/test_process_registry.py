@@ -44,6 +44,7 @@ def clear_registry():
 # Registration
 # ---------------------------------------------------------------------------
 
+
 class TestRegistration:
     def test_successful_registration_stores_entry(self):
         entry = _make_entry()
@@ -54,6 +55,7 @@ class TestRegistration:
         class _BadDict(dict):
             def __setitem__(self, k, v):
                 raise RuntimeError("storage failure")
+
         monkeypatch.setattr(registry_mod, "_registry", _BadDict())
         with pytest.raises(RuntimeError, match="storage failure"):
             registry_mod.register(9, _make_entry())
@@ -62,6 +64,7 @@ class TestRegistration:
         class _BadDict(dict):
             def __setitem__(self, k, v):
                 raise RuntimeError("disk full")
+
         monkeypatch.setattr(registry_mod, "_registry", _BadDict())
         mock_logger = MagicMock()
         monkeypatch.setattr(registry_mod, "logger", mock_logger)
@@ -73,6 +76,7 @@ class TestRegistration:
 # ---------------------------------------------------------------------------
 # Deregistration (terminate)
 # ---------------------------------------------------------------------------
+
 
 class TestDeregistration:
     def test_terminate_failure_does_not_propagate(self):
@@ -103,6 +107,7 @@ class TestDeregistration:
 # ---------------------------------------------------------------------------
 # Cleanup (cleanup_exited)
 # ---------------------------------------------------------------------------
+
 
 class TestCleanupExited:
     def test_cleanup_poll_failure_on_one_entry_does_not_abort_others(self):

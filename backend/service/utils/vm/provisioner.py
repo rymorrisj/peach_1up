@@ -33,14 +33,10 @@ def _load_default_disk_size_mb(platform: str) -> int:
     except FileNotFoundError:
         raise FileNotFoundError(f"platforms.yaml not found at {platforms_yaml}")
     if not isinstance(platforms_config, dict) or platform not in platforms_config:
-        raise FileNotFoundError(
-            f"Platform '{platform}' not found in platforms.yaml, cannot determine disk size."
-        )
+        raise FileNotFoundError(f"Platform '{platform}' not found in platforms.yaml, cannot determine disk size.")
     size = platforms_config[platform].get("default_disk_size_mb")
     if size is None:
-        raise FileNotFoundError(
-            f"default_disk_size_mb not defined for platform '{platform}' in platforms.yaml."
-        )
+        raise FileNotFoundError(f"default_disk_size_mb not defined for platform '{platform}' in platforms.yaml.")
     return int(size)
 
 
@@ -50,9 +46,7 @@ def _resolve_within(base: Path, *parts: str) -> Path:
     try:
         target.relative_to(base_resolved)
     except ValueError:
-        raise ValueError(
-            f"Computed path {target} escapes permitted base {base_resolved}"
-        )
+        raise ValueError(f"Computed path {target} escapes permitted base {base_resolved}")
     return target
 
 
@@ -88,18 +82,15 @@ def provision_86box_vm(
     if environment.base_image_path:
         from backend.service.utils.path_utils import normalise_path
         from backend.service.utils.disk_utils import has_valid_mbr
+
         base_img = normalise_path(environment.base_image_path, allow_unc=True)
         if not base_img.exists():
             raise FileNotFoundError(
-                f"Base image not found: {base_img}. "
-                "Ensure base_image_path is set to a valid image before provisioning."
+                f"Base image not found: {base_img}. Ensure base_image_path is set to a valid image before provisioning."
             )
         try:
-            is_pre_installed = (
-                base_img.suffix.lower() not in {".iso", ".cue"}
-                and has_valid_mbr(base_img)
-            )
-        except (ValueError, OSError):
+            is_pre_installed = base_img.suffix.lower() not in {".iso", ".cue"} and has_valid_mbr(base_img)
+        except ValueError, OSError:
             is_pre_installed = False
     else:
         base_img = None
@@ -118,9 +109,7 @@ def provision_86box_vm(
         try:
             shutil.copy2(str(base_img), str(vhd_path))
         except OSError as exc:
-            raise OSError(
-                f"Failed to copy pre-installed image '{base_img}' to VM directory: {exc}"
-            ) from exc
+            raise OSError(f"Failed to copy pre-installed image '{base_img}' to VM directory: {exc}") from exc
     else:
         vhd_path = cfg_dir / "disk.vhd"
         usage = shutil.disk_usage(cfg_dir)
@@ -141,28 +130,28 @@ def provision_86box_vm(
     edits: dict[str, dict[str, str]] = {
         "General": {"boot_order": "cdrom_fdd_hdd"},
         "Machine": {
-            "machine":         machine,
-            "cpu_family":      profile["cpu_family"],
-            "cpu_speed":       str(profile["cpu_speed"]),
-            "cpu_multi":       str(profile["cpu_multi"]),
-            "mem_size":        str(profile["mem_size"]),
+            "machine": machine,
+            "cpu_family": profile["cpu_family"],
+            "cpu_speed": str(profile["cpu_speed"]),
+            "cpu_multi": str(profile["cpu_multi"]),
+            "mem_size": str(profile["mem_size"]),
             "cpu_use_dynarec": str(profile["cpu_use_dynarec"]),
-            "fpu_type":        profile["fpu_type"],
+            "fpu_type": profile["fpu_type"],
         },
         "Video": {
-            "gfxcard":      profile["gfxcard"],
+            "gfxcard": profile["gfxcard"],
             "vid_renderer": profile["vid_renderer"],
         },
         "Sound": {"sndcard": profile["sndcard"]},
         "Keyboard": {"keyboard_type": profile["keyboard_type"]},
-        "Mouse":    {"mouse_type":    profile["mouse_type"]},
+        "Mouse": {"mouse_type": profile["mouse_type"]},
         "Hard disks": {
-            "hdd_01_fn":         vhd_path.name,
+            "hdd_01_fn": vhd_path.name,
             "hdd_01_ide_channel": "0:0",
-            "hdd_01_parameters":  f"63, 16, {cylinders}, 0, ide",
-            "hdd_01_speed":       "ramdisk",
+            "hdd_01_parameters": f"63, 16, {cylinders}, 0, ide",
+            "hdd_01_speed": "ramdisk",
         },
-        "Paths":   {"rompath":    str(Path(rom_path)).replace("\\", "/")},
+        "Paths": {"rompath": str(Path(rom_path)).replace("\\", "/")},
         "Network": {"net_01_link": "0"},
     }
 
@@ -173,14 +162,13 @@ def provision_86box_vm(
         iso_fwd = effective_iso_path.resolve().as_posix()
         edits["Floppy and CD-ROM drives"] = {
             "cdrom_02_image_path": iso_fwd,
-            "cdrom_02_parameters":  "1, atapi",
+            "cdrom_02_parameters": "1, atapi",
             "cdrom_02_ide_channel": "0:1",
         }
 
     patch_ini(cfg_path, edits)
 
     return str(effective_iso_path) if effective_iso_path else None, str(vhd_path), str(cfg_path)
-
 
 
 def provision_dosbox_drive(
@@ -257,8 +245,7 @@ def provision_environment(
         box86_path = str(_box86_install) if _box86_install and _box86_install.is_file() else ""
         if not box86_path:
             raise RuntimeError(
-                "86Box executable not found, cannot provision 86Box config. "
-                "Install it via the Emulators page."
+                "86Box executable not found, cannot provision 86Box config. Install it via the Emulators page."
             )
         rom_dir = get_86box_rom_path(Path(box86_path))
         hw_profile = getattr(environment, "hardware_profile", None) or "standard"

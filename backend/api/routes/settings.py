@@ -14,16 +14,20 @@ from backend.models.user import UserItem
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
 _ALL_PATH_KEYS = {
-    "LIBRARY_PATH", "SOFTWARE_PATH", "MEDIA_PATH", "OS_PATH",
-    "ROMS_PATH", "PROFILES_PATH",
+    "LIBRARY_PATH",
+    "SOFTWARE_PATH",
+    "MEDIA_PATH",
+    "OS_PATH",
+    "ROMS_PATH",
+    "PROFILES_PATH",
 }
 
 _LIBRARY_KEY_MAP: dict[str, str] = {
-    "library_path":  "LIBRARY_PATH",
+    "library_path": "LIBRARY_PATH",
     "software_path": "SOFTWARE_PATH",
-    "media_path":    "MEDIA_PATH",
-    "os_path":       "OS_PATH",
-    "roms_path":     "ROMS_PATH",
+    "media_path": "MEDIA_PATH",
+    "os_path": "OS_PATH",
+    "roms_path": "ROMS_PATH",
     "profiles_path": "PROFILES_PATH",
 }
 
@@ -46,6 +50,7 @@ class LibraryPathBody(BaseModel):
 
 def _check_traversal(path_str: str) -> Path:
     from backend.service.utils.path_utils import normalise_path
+
     return normalise_path(path_str)
 
 
@@ -54,8 +59,12 @@ def _check_traversal(path_str: str) -> Path:
 # env_secrets.py). Kept as a real filter (not dead code) as defense in depth
 # in case a future source ever merges into `state`.
 _SENSITIVE_KEYS = {
-    "AI_API_KEY", "IGDB_ACCESS_TOKEN", "IGDB_CLIENT_ID", "IGDB_CLIENT_SECRET",
-    "PIN_PEPPER", "THEGAMESDB_API_KEY",
+    "AI_API_KEY",
+    "IGDB_ACCESS_TOKEN",
+    "IGDB_CLIENT_ID",
+    "IGDB_CLIENT_SECRET",
+    "PIN_PEPPER",
+    "THEGAMESDB_API_KEY",
 }
 
 # Of the sensitive keys, these four route through .env via the generic PATCH
@@ -78,13 +87,18 @@ _OWNER_ONLY_BOOL_KEYS = {"metadata_fetch_enabled"}
 # write path below (set_path() / set_env_secret()) rather than written to
 # settings state raw. _OWNER_ONLY_BOOL_KEYS are allowlisted here and then
 # narrowed to the owner by _check_owner_only_bool_keys.
-_USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
-    "suppress_confirmations",
-    "delete_media_on_removal",
-    "delete_original_on_upload",
-    "metadata_provider",
-    "launch_history_retention",
-} | _OWNER_ONLY_BOOL_KEYS
+_USER_WRITABLE_KEYS = (
+    _ALL_PATH_KEYS
+    | _ENV_SECRET_KEYS
+    | {
+        "suppress_confirmations",
+        "delete_media_on_removal",
+        "delete_original_on_upload",
+        "metadata_provider",
+        "launch_history_retention",
+    }
+    | _OWNER_ONLY_BOOL_KEYS
+)
 
 
 def _check_owner_only_bool_keys(updates: dict, active_user: UserItem) -> None:
@@ -109,10 +123,7 @@ def _check_owner_only_bool_keys(updates: dict, active_user: UserItem) -> None:
 def get_all_settings(_: UserItem = require_permission("can_manage_settings")):
     svc = get_settings()
     state = svc._require_init()
-    return {
-        k: v for k, v in state.items()
-        if not k.startswith("_") and k.upper() not in _SENSITIVE_KEYS
-    }
+    return {k: v for k, v in state.items() if not k.startswith("_") and k.upper() not in _SENSITIVE_KEYS}
 
 
 class LibraryDefaultsResult(BaseModel):
@@ -155,6 +166,7 @@ def patch_settings(body: SettingsPatch, active_user: UserItem = require_permissi
     _check_owner_only_bool_keys(body.updates, active_user)
     if "launch_history_retention" in body.updates:
         from backend.models.settings import LAUNCH_HISTORY_RETENTION_VALUES
+
         value = body.updates["launch_history_retention"]
         if value not in LAUNCH_HISTORY_RETENTION_VALUES:
             raise HTTPException(
@@ -170,6 +182,7 @@ def patch_settings(body: SettingsPatch, active_user: UserItem = require_permissi
             svc.set_path(key, value or "")
         elif key in _ENV_SECRET_KEYS:
             from backend.service.utils.env_secrets import set_env_secret
+
             set_env_secret(key, value or "")
         else:
             svc.set_flag(key, value)
@@ -185,6 +198,7 @@ class PinPepperBody(BaseModel):
 def get_pin_pepper_status(_: UserItem = require_permission("is_owner")):
     """Whether a pepper is currently configured. Never returns the pepper value itself."""
     from backend.service.utils.env_secrets import get_env_secret
+
     return {"enabled": bool(get_env_secret("PIN_PEPPER"))}
 
 
@@ -192,6 +206,7 @@ def get_pin_pepper_status(_: UserItem = require_permission("is_owner")):
 def get_thegamesdb_api_key_status(_: UserItem = require_permission("is_owner")):
     """Whether a TheGamesDB API key is currently configured. Never returns the key value itself."""
     from backend.service.utils.env_secrets import get_env_secret
+
     return {"enabled": bool(get_env_secret("THEGAMESDB_API_KEY"))}
 
 
@@ -199,6 +214,7 @@ def get_thegamesdb_api_key_status(_: UserItem = require_permission("is_owner")):
 def get_igdb_status(_: UserItem = require_permission("is_owner")):
     """Whether both IGDB credentials are configured. Never returns their values."""
     from backend.service.utils.env_secrets import get_env_secret
+
     return {"enabled": bool(get_env_secret("IGDB_CLIENT_ID")) and bool(get_env_secret("IGDB_CLIENT_SECRET"))}
 
 
@@ -301,6 +317,7 @@ def validate_paths():
 @router.get("/first-run-status")
 def get_first_run_status(request: Request, db: Session = Depends(get_db)):
     from backend.models.settings import Settings as SettingsModel
+
     svc = get_settings()
     row = db.get(SettingsModel, "first_run_complete")
     first_run_complete = row is not None and row.value == "true"
@@ -311,11 +328,11 @@ def get_first_run_status(request: Request, db: Session = Depends(get_db)):
         "owner_exists": owner_exists,
         "emulators": svc.compute_setup_status(),
         "paths": {
-            "library_path":  svc.get("LIBRARY_PATH") or None,
+            "library_path": svc.get("LIBRARY_PATH") or None,
             "software_path": svc.get("SOFTWARE_PATH") or None,
-            "media_path":    svc.get("MEDIA_PATH") or None,
-            "os_path":       svc.get("OS_PATH") or None,
-            "roms_path":     svc.get("ROMS_PATH") or None,
+            "media_path": svc.get("MEDIA_PATH") or None,
+            "os_path": svc.get("OS_PATH") or None,
+            "roms_path": svc.get("ROMS_PATH") or None,
             "profiles_path": svc.get("PROFILES_PATH") or None,
         },
         "path_warnings": getattr(request.app.state, "path_warnings", []),
@@ -353,6 +370,7 @@ def set_library_path(body: LibraryPathBody, _: UserItem = require_permission("ca
 def complete_first_run(db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_settings")):
     from backend.api.middleware.security import set_first_run_complete
     from backend.models.settings import Settings as SettingsModel
+
     row = db.get(SettingsModel, "first_run_complete")
     if row:
         row.value = "true"

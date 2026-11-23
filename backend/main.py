@@ -5,6 +5,7 @@ from backend.service.utils.media_extensions import ARCHIVE_EXTENSIONS, INLINE_IM
 from backend.service.utils.path_utils import resolve_under, sanitize_relative_path
 
 from backend.core.settings import init_settings
+
 init_settings()
 
 # init_settings() above must run before any import below that reads settings
@@ -27,7 +28,14 @@ def resource_path(relative: str) -> Path:
         return Path(sys._MEIPASS) / relative
     return Path(__file__).resolve().parent.parent / relative
 
-from backend.api.middleware.security import CSRFMiddleware, FirstRunGuardMiddleware, SecurityMiddleware, _LOCALHOST_ORIGINS, configure_cors  # noqa: E402
+
+from backend.api.middleware.security import (  # noqa: E402
+    CSRFMiddleware,
+    FirstRunGuardMiddleware,
+    SecurityMiddleware,
+    _LOCALHOST_ORIGINS,
+    configure_cors,
+)
 from backend.api.middleware.request_logging import RequestLoggingMiddleware  # noqa: E402
 from backend.api.routes import ROUTERS  # noqa: E402
 from backend.core.lifespan import lifespan  # noqa: E402
@@ -58,7 +66,6 @@ for _router in ROUTERS:
     app.include_router(_router)
 
 
-
 def _is_under_media_root(svc, resolved: Path) -> bool:
     try:
         raw = svc.get_env_var("MEDIA_PATH")
@@ -72,6 +79,7 @@ def _is_under_media_root(svc, resolved: Path) -> bool:
 @app.get("/media/{file_path:path}", include_in_schema=False)
 async def serve_media(file_path: str, request: Request, _: UserItem = Depends(get_active_user)):
     from backend.core.settings import get_settings
+
     svc = get_settings()
     allow_network = svc.get("ALLOW_NETWORK_ACCESS", False)
     client_host = request.client.host if request.client else "unknown"
@@ -106,9 +114,10 @@ async def serve_media(file_path: str, request: Request, _: UserItem = Depends(ge
         return FileResponse(resolved, media_type=INLINE_IMAGE_TYPES[ext], headers=headers)
     return FileResponse(resolved, headers=headers, filename=resolved.name, content_disposition_type="attachment")
 
+
 frontend_dist = resource_path("frontend/dist")
-logger.debug("[PEACH] frozen=%s", getattr(sys, 'frozen', False))
-logger.debug("[PEACH] _MEIPASS=%s", getattr(sys, '_MEIPASS', 'N/A'))
+logger.debug("[PEACH] frozen=%s", getattr(sys, "frozen", False))
+logger.debug("[PEACH] _MEIPASS=%s", getattr(sys, "_MEIPASS", "N/A"))
 logger.debug("[PEACH] frontend_dist=%s", frontend_dist)
 logger.debug("[PEACH] exists=%s", frontend_dist.exists())
 
@@ -126,6 +135,7 @@ logger.debug("[PEACH] exists=%s", frontend_dist.exists())
 # share one host:port, distinguished by the "/docs" path prefix only.
 docs_dist = resource_path("docs/build")
 app.mount("/docs", app=StaticFiles(directory=str(docs_dist), html=True, check_dir=False))
+
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):

@@ -66,7 +66,8 @@ def enrich_game_bundle(
         values["metadata_source"] = _canonical_source(fields["metadata_source"])
     if "external_links" in fields:
         values["external_links"] = replace_provider_links(
-            entity.external_links, clean_provider_links(fields["external_links"]),
+            entity.external_links,
+            clean_provider_links(fields["external_links"]),
         )
     if "content_rating" in fields:
         # Normalise free-form ratings (e.g. TheGamesDB "M - Mature 17+") onto
@@ -95,9 +96,10 @@ def enrich_game_bundle(
                     },
                 )
             _log.warning(
-                "content_rating lowered/cleared on game_item_bundle id=%s: %r -> %r "
-                "(confirmed by caller)",
-                entity_id, old_rating, new_rating,
+                "content_rating lowered/cleared on game_item_bundle id=%s: %r -> %r (confirmed by caller)",
+                entity_id,
+                old_rating,
+                new_rating,
             )
         values["content_rating"] = new_rating
 
@@ -108,8 +110,10 @@ def enrich_game_bundle(
             changed = True
     if "genre" in fields:
         from backend.models.metadata_lookup import (
-            get_genres_for_game_item_bundle, set_genres_for_game_item_bundle,
+            get_genres_for_game_item_bundle,
+            set_genres_for_game_item_bundle,
         )
+
         names = list(dict.fromkeys(fields["genre"] or []))
         if sorted(get_genres_for_game_item_bundle(entity_id, db)) != sorted(names):
             # No provider hint here, metadata_source is a display string (e.g.

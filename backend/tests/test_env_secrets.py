@@ -32,22 +32,12 @@ def isolated_env(tmp_path, monkeypatch):
 class TestSetEnvSecretExistingKey:
     def test_rewrites_only_that_line(self, isolated_env):
         env_file, env_secrets_mod = isolated_env
-        original = (
-            "# a comment\n"
-            "PIN_PEPPER=old_pepper\n"
-            "\n"
-            "THEGAMESDB_API_KEY=abc123\n"
-        )
+        original = "# a comment\nPIN_PEPPER=old_pepper\n\nTHEGAMESDB_API_KEY=abc123\n"
         env_file.write_text(original, encoding="utf-8")
 
         env_secrets_mod.set_env_secret("PIN_PEPPER", "new_pepper")
 
-        expected = (
-            "# a comment\n"
-            "PIN_PEPPER=new_pepper\n"
-            "\n"
-            "THEGAMESDB_API_KEY=abc123\n"
-        )
+        expected = "# a comment\nPIN_PEPPER=new_pepper\n\nTHEGAMESDB_API_KEY=abc123\n"
         assert env_file.read_text(encoding="utf-8") == expected
 
 
@@ -87,12 +77,14 @@ class TestSetEnvSecretFailedWrite:
         """Fails the atomic-rename step itself (os.replace), the mechanism the
         docstring's "Atomic via temp file + rename" guarantee rests on."""
         import os as os_mod
+
         env_file, env_secrets_mod = isolated_env
         original = "PIN_PEPPER=old_pepper\n"
         env_file.write_text(original, encoding="utf-8")
 
         def _raise_replace(*args, **kwargs):
             raise OSError("simulated disk failure")
+
         monkeypatch.setattr(os_mod, "replace", _raise_replace)
 
         with pytest.raises(OSError, match="simulated disk failure"):
@@ -142,6 +134,7 @@ class TestSetEnvSecretUpdatesProcessEnvironment:
         """Documented: set_env_secret persists to .env *and* the current
         process environment, so a same-process reader sees it immediately."""
         import os
+
         _env_file, env_secrets_mod = isolated_env
 
         env_secrets_mod.set_env_secret("THEGAMESDB_API_KEY", "live-key")

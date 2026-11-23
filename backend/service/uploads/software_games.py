@@ -15,6 +15,7 @@ Unlike software_media, this domain's finalize creates the GameItemBundle row
 directly, Game ingest (platform detection, multi-disc handling, dedup) has always
 worked this way and doc 02 does not change that.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -84,16 +85,12 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, domain_root: Path, db: Ses
             with lib_svc._ingest_transaction(
                 db,
                 undo_ops,
-                slug_collision_detail=lib_svc.multi_disc_slug_collision_detail(
-                    reasm.title, disc_files
-                ),
+                slug_collision_detail=lib_svc.multi_disc_slug_collision_detail(reasm.title, disc_files),
             ):
                 collection_fields, leaf_rows = lib_svc._prepare_multi_disc(
                     disc_files, reasm.title, db, staging_dir=reasm.dest_dir, undo_stack=undo_ops
                 )
-                collection = lib_svc._persist_multi_disc_collection(
-                    collection_fields, leaf_rows, db
-                )
+                collection = lib_svc._persist_multi_disc_collection(collection_fields, leaf_rows, db)
                 db.commit()
             db.refresh(collection)
             return {
@@ -138,7 +135,7 @@ def finalize_background(upload_id: str, domain_root: str, job_id: str) -> None:
         jobs.update(job_id, progress=0.0, message="Reassembling upload…")
         reasm = cu.reassemble(upload_id, Path(domain_root), job_id=job_id)
         result = finalize_reassembled(reasm, Path(domain_root), db)
-        jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'upload')}\".")
+        jobs.complete(job_id, result=result, message=f'Added "{result.get("title", "upload")}".')
     except lib_svc._ItemAlreadyExists:
         # Matches the fixed message the old route-level 409 used for this
         # exception (it never set its own message, see the class docstring).
@@ -161,6 +158,7 @@ def finalize_background(upload_id: str, domain_root: str, job_id: str) -> None:
 
 def _root() -> Path:
     from backend.service.utils.path_utils import library_domain_root
+
     return library_domain_root("games")
 
 

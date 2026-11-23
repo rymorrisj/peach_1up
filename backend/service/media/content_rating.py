@@ -84,9 +84,7 @@ def media_rating_visible(entity_type: str, id_column, own_rating_column, active_
     """
     linked = _linked_games_select(entity_type, id_column)
     has_game = linked.exists()
-    has_failing_game = linked.where(
-        not_(content_rating_visible(GameItemBundle.content_rating, active_user))
-    ).exists()
+    has_failing_game = linked.where(not_(content_rating_visible(GameItemBundle.content_rating, active_user))).exists()
     return or_(
         and_(has_game, not_(has_failing_game)),
         and_(not_(has_game), content_rating_visible(own_rating_column, active_user)),
@@ -129,15 +127,12 @@ def linked_games_by_media(
     return result
 
 
-def linked_game_ratings(
-    entity_type: str, entity_ids: list[int], db: "Session"
-) -> dict[int, list[Optional[str]]]:
+def linked_game_ratings(entity_type: str, entity_ids: list[int], db: "Session") -> dict[int, list[Optional[str]]]:
     """Every linked game's content_rating per media id, in one query. Ids
     with no linked game are absent. Used for display only, never for the
     visibility decision, which stays in SQL (media_rating_visible)."""
     return {
-        media_id: list(games.values())
-        for media_id, games in linked_games_by_media(entity_type, entity_ids, db).items()
+        media_id: list(games.values()) for media_id, games in linked_games_by_media(entity_type, entity_ids, db).items()
     }
 
 
@@ -194,6 +189,8 @@ def checked_media_rating_change(
             )
         _log.warning(
             "content_rating lowered/cleared on media_item_bundle id=%s: %r -> %r (confirmed by caller)",
-            bundle.id, old_rating, new_rating,
+            bundle.id,
+            old_rating,
+            new_rating,
         )
     return new_rating

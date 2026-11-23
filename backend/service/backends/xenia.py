@@ -59,10 +59,11 @@ def _warn_if_risky_gpu(install_dir: Path) -> None:
     if gpu in _RISKY_GPU_VALUES:
         logger.warning(
             "xenia: gpu backend is '%s' in %s, which resolves to D3D12, confirmed to "
-            "trigger an AMD driver timeout during gameplay. Set gpu = \"vulkan\" to avoid "
+            'trigger an AMD driver timeout during gameplay. Set gpu = "vulkan" to avoid '
             "it (Xenia's own Vulkan FBO path is early/incomplete but has run titles "
             "successfully in testing). See xenia.toml's known_limitations.",
-            gpu, config_path,
+            gpu,
+            config_path,
         )
 
 
@@ -92,9 +93,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     install_path = get_install_path("xenia")
     if install_path is None or not install_path.is_file():
-        raise FileNotFoundError(
-            f"{display_name} executable not found. Install it via the Emulators page."
-        )
+        raise FileNotFoundError(f"{display_name} executable not found. Install it via the Emulators page.")
     install_dir = install_path.parent
 
     if spec.media_path is None:
@@ -135,7 +134,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     # silently failing on a directory (CreateFileW without
     # FILE_FLAG_BACKUP_SEMANTICS cannot open a directory handle).
     sandbox_config = build_media_broker_config(
-        "xenia", str(install_path), target_path, spec.user_item_id, container_enabled)
+        "xenia", str(install_path), target_path, spec.user_item_id, container_enabled
+    )
 
     logger.debug("xenia.launch: args=%s", args)
     return launch_under_job_object(

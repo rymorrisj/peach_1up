@@ -70,9 +70,11 @@ def run_job(plan: "ApplyPlan", job_id: str) -> None:
         db = Session(get_engine())
         jobs.update(job_id, meta={"started": True})
         bundle = media_link.run_apply(
-            plan, db,
+            plan,
+            db,
             progress=lambda done, total, label: jobs.update(
-                job_id, progress=done / total if total else 0.0,
+                job_id,
+                progress=done / total if total else 0.0,
                 meta={"done": done, "total": total, "label": label},
             ),
             should_cancel=lambda: jobs.cancel_requested(job_id),
@@ -149,7 +151,10 @@ def classify_error(exc: BaseException, provider: str) -> tuple[str, str]:
     if isinstance(exc, OSError):
         if exc.errno == errno.ENOSPC or getattr(exc, "winerror", None) == _WINDOWS_DISK_FULL:
             return "disk_full", "The disk is full. Nothing was added."
-        return "storage_error", f"A file operation failed ({errno.errorcode.get(exc.errno or 0, 'unknown')}). Nothing was added."
+        return (
+            "storage_error",
+            f"A file operation failed ({errno.errorcode.get(exc.errno or 0, 'unknown')}). Nothing was added.",
+        )
     return "internal_error", "Unexpected error. See the server log. Nothing was added."
 
 

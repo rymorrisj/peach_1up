@@ -41,11 +41,13 @@ def mem_session():
 
 def _patch_settings(monkeypatch, media_path: Path):
     import backend.core.settings as settings_mod
+
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings(str(media_path)))
 
 
 def _call_prepare(path: str, title: str, session) -> tuple[dict, dict]:
     from backend.service.games.items import _prepare_item
+
     collection_fields, leaf_rows = _prepare_item(path, title, session)
     return collection_fields, leaf_rows[0]
 
@@ -54,6 +56,7 @@ def _commit_row(collection_fields: dict, leaf_fields: dict, session):
     # Persist a collection-of-one (parent + leaf) so dedup queries against the
     # leaf's folder_path/media_path find it on re-import.
     from backend.service.games.items import _persist_multi_disc_collection
+
     collection = _persist_multi_disc_collection(collection_fields, [leaf_fields], session)
     session.commit()
     return collection
@@ -62,6 +65,7 @@ def _commit_row(collection_fields: dict, leaf_fields: dict, session):
 # ---------------------------------------------------------------------------
 # Rename-in-place fix
 # ---------------------------------------------------------------------------
+
 
 class TestPrepareFolderRename:
     """File in a direct subfolder of games_root with a non-canonical name should
@@ -179,6 +183,7 @@ class TestPrepareFolderRename:
 # Deduplication
 # ---------------------------------------------------------------------------
 
+
 class TestPrepareDuplication:
     """Re-importing the same path must raise _ItemAlreadyExists."""
 
@@ -283,7 +288,7 @@ def _snapshot(folder: Path) -> dict[str, bytes]:
 def _symlink_or_skip(link: Path, target: Path) -> None:
     try:
         link.symlink_to(target, target_is_directory=target.is_dir())
-    except (OSError, NotImplementedError):
+    except OSError, NotImplementedError:
         pytest.skip("symlinks are not available in this environment")
 
 
@@ -338,7 +343,11 @@ class TestAdoptLibraryFolderInPlace:
 
         monkeypatch.setattr(lib_svc, "_ingest_media_entry", _fake_ingest)
         reasm = cu.ReassembledUpload(
-            kind="file", title="Doom", dest_dir=staged, paths=[staged / "doom.exe"], total_bytes=len(b"same bytes"),
+            kind="file",
+            title="Doom",
+            dest_dir=staged,
+            paths=[staged / "doom.exe"],
+            total_bytes=len(b"same bytes"),
         )
         result = finalize_reassembled(reasm, games_root, mem_session)
 

@@ -27,6 +27,7 @@ class _FakeSettings:
 
 def _patch_library_path(monkeypatch, tmp_path):
     import backend.core.settings as settings_mod
+
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings({"LIBRARY_PATH": str(tmp_path)}))
 
 
@@ -35,6 +36,7 @@ def _reset_upload_sessions():
     """_sessions is module-level and shared across the whole test process;
     clear it either side so sessions never leak between tests."""
     from backend.service.uploads import core
+
     core._sessions.clear()
     yield
     core._sessions.clear()
@@ -44,12 +46,14 @@ def _reset_upload_sessions():
 # init_session: chunk-count bounds (the exhaustion-guard regression)
 # ---------------------------------------------------------------------------
 
+
 class TestInitSessionChunkCountBounds:
     def test_chunk_count_below_the_floor_is_rejected(self, tmp_path, monkeypatch):
         """Floor: fewer chunks than ceil(size / chunk_max_bytes) cannot carry
         the declared size, since no single chunk may exceed the cap."""
         import math
         from backend.service.uploads import core
+
         _patch_library_path(monkeypatch, tmp_path)
 
         chunk_max_bytes = 1024
@@ -59,7 +63,8 @@ class TestInitSessionChunkCountBounds:
 
         with pytest.raises(ValueError, match="too low to carry its declared size"):
             core.init_session(
-                "file", "Test",
+                "file",
+                "Test",
                 [{"name": "big.iso", "size": size, "chunks": min_required - 1}],
                 chunk_max_bytes,
             )
@@ -71,6 +76,7 @@ class TestInitSessionChunkCountBounds:
         constant the term under test."""
         from backend.service.uploads import core
         from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
+
         _patch_library_path(monkeypatch, tmp_path)
 
         assert core._MAX_CHUNKS_PER_FILE == 100_000
@@ -79,7 +85,8 @@ class TestInitSessionChunkCountBounds:
 
         with pytest.raises(ValueError, match=r"\(max 100000\)"):
             core.init_session(
-                "file", "Test",
+                "file",
+                "Test",
                 [{"name": "big.iso", "size": size, "chunks": core._MAX_CHUNKS_PER_FILE + 1}],
                 chunk_max_bytes,
             )
@@ -90,6 +97,7 @@ class TestInitSessionChunkCountBounds:
         (ceil(50 MB / 8 MB) = 7 vs the 20 declared), and with it every upload
         the bundled frontend produces over 8 MB."""
         from backend.service.uploads import core
+
         _patch_library_path(monkeypatch, tmp_path)
 
         size = 50 * 1024 * 1024
@@ -97,7 +105,10 @@ class TestInitSessionChunkCountBounds:
         chunks = 20  # ~2.5 MB per chunk
 
         upload_id = core.init_session(
-            "file", "Test", [{"name": "game.iso", "size": size, "chunks": chunks}], chunk_max_bytes,
+            "file",
+            "Test",
+            [{"name": "game.iso", "size": size, "chunks": chunks}],
+            chunk_max_bytes,
         )
 
         session = core.get_session(upload_id)
@@ -109,6 +120,7 @@ class TestInitSessionChunkCountBounds:
 # reassemble: disk-leak-on-failure prevention
 # ---------------------------------------------------------------------------
 
+
 class TestReassembleFailureCleanup:
     # init_session's plausibility check rules out a toy size like 20 bytes for
     # 2 chunks, so the declared size/chunk_max_bytes pair below lands exactly
@@ -116,9 +128,13 @@ class TestReassembleFailureCleanup:
     # failure paths are under test, not the byte content.
     def _start_session(self, tmp_path, monkeypatch, size: int, chunks: int, chunk_max_bytes: int):
         from backend.service.uploads import core
+
         _patch_library_path(monkeypatch, tmp_path)
         upload_id = core.init_session(
-            "file", "Test", [{"name": "game.iso", "size": size, "chunks": chunks}], chunk_max_bytes,
+            "file",
+            "Test",
+            [{"name": "game.iso", "size": size, "chunks": chunks}],
+            chunk_max_bytes,
         )
         session = core.get_session(upload_id)
         return core, upload_id, session["dir"]
@@ -127,9 +143,14 @@ class TestReassembleFailureCleanup:
         """A missing .part must abort reassembly and leave neither the partial
         dest_dir nor the staging dir behind."""
         from backend.service.uploads import core as core_mod
+
         size = 2 * core_mod._MIN_CHUNK_BYTES
         core, upload_id, session_dir = self._start_session(
-            tmp_path, monkeypatch, size=size, chunks=2, chunk_max_bytes=core_mod._MIN_CHUNK_BYTES,
+            tmp_path,
+            monkeypatch,
+            size=size,
+            chunks=2,
+            chunk_max_bytes=core_mod._MIN_CHUNK_BYTES,
         )
         file_dir = session_dir / "0"
         file_dir.mkdir(parents=True)
@@ -150,9 +171,14 @@ class TestReassembleFailureCleanup:
         """Same cleanup, other failure mode: all chunks present, reassembled
         total disagrees with the declared size."""
         from backend.service.uploads import core as core_mod
+
         size = 2 * core_mod._MIN_CHUNK_BYTES
         core, upload_id, session_dir = self._start_session(
-            tmp_path, monkeypatch, size=size, chunks=2, chunk_max_bytes=core_mod._MIN_CHUNK_BYTES,
+            tmp_path,
+            monkeypatch,
+            size=size,
+            chunks=2,
+            chunk_max_bytes=core_mod._MIN_CHUNK_BYTES,
         )
         file_dir = session_dir / "0"
         file_dir.mkdir(parents=True)
@@ -174,9 +200,11 @@ class TestReassembleFailureCleanup:
 # sweep_orphans: orphan-sweep correctness
 # ---------------------------------------------------------------------------
 
+
 class TestSweepOrphans:
     def test_staging_dir_older_than_ttl_is_removed(self, tmp_path, monkeypatch):
         from backend.service.uploads import core
+
         _patch_library_path(monkeypatch, tmp_path)
 
         root = core.tmp_root()
@@ -197,6 +225,7 @@ class TestSweepOrphans:
 
     def test_staging_dir_younger_than_ttl_is_left_alone(self, tmp_path, monkeypatch):
         from backend.service.uploads import core
+
         _patch_library_path(monkeypatch, tmp_path)
 
         root = core.tmp_root()
@@ -218,11 +247,13 @@ class TestSweepOrphans:
         outlive the TTL (a slow multi-GB upload). Sweeping a live session's
         dir would delete chunks out from under an in-flight transfer."""
         from backend.service.uploads import core
+
         _patch_library_path(monkeypatch, tmp_path)
 
         size = 2 * core._MIN_CHUNK_BYTES
         upload_id = core.init_session(
-            "file", "Test",
+            "file",
+            "Test",
             [{"name": "game.iso", "size": size, "chunks": 2}],
             core._MIN_CHUNK_BYTES,
         )
@@ -245,6 +276,7 @@ class TestSweepOrphans:
         """Only session directories are swept, so a stray file never counts
         toward the removed total or gets deleted as if it were one."""
         from backend.service.uploads import core
+
         _patch_library_path(monkeypatch, tmp_path)
 
         root = core.tmp_root()

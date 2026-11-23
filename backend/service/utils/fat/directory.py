@@ -21,7 +21,7 @@ def _to_83(name: str) -> tuple:
     else:
         base, ext = name, ""
     name_bytes = base[:8].encode("ascii").ljust(8, b" ")
-    ext_bytes  = ext[:3].encode("ascii").ljust(3, b" ")
+    ext_bytes = ext[:3].encode("ascii").ljust(3, b" ")
     return name_bytes, ext_bytes
 
 
@@ -50,9 +50,9 @@ def _to_83_str(component: str) -> str:
 
 def _make_dir_entry(name83: bytes, ext83: bytes, attr: int, first_cluster: int, file_size: int) -> bytes:
     entry = bytearray(32)
-    entry[0:8]  = name83
+    entry[0:8] = name83
     entry[8:11] = ext83
-    entry[11]   = attr
+    entry[11] = attr
     struct.pack_into("<H", entry, 26, first_cluster)
     struct.pack_into("<I", entry, 28, file_size)
     return bytes(entry)
@@ -64,11 +64,11 @@ def _parse_dir_entry(raw: bytes) -> dict | None:
     if raw[11] == 0x0F:
         return None
     return {
-        "name83":        raw[0:8],
-        "ext83":         raw[8:11],
-        "attr":          raw[11],
+        "name83": raw[0:8],
+        "ext83": raw[8:11],
+        "attr": raw[11],
         "first_cluster": struct.unpack_from("<H", raw, 26)[0],
-        "file_size":     struct.unpack_from("<I", raw, 28)[0],
+        "file_size": struct.unpack_from("<I", raw, 28)[0],
     }
 
 
@@ -82,11 +82,11 @@ def _iter_dir_entries(f, geo: dict, dir_cluster):
             if entry is not None:
                 yield off, entry
     else:
-        cluster     = dir_cluster
-        csz         = _cluster_size_bytes(geo)
-        epc         = csz // _DIR_ENTRY_SIZE
+        cluster = dir_cluster
+        csz = _cluster_size_bytes(geo)
+        epc = csz // _DIR_ENTRY_SIZE
         max_cluster = _CLUSTER_FIRST + geo["data_clusters"]
-        seen: set   = set()
+        seen: set = set()
         while cluster < 0xFFF8:
             if cluster in seen:
                 raise RuntimeError(f"corrupt FAT: cluster chain loops at cluster {cluster}")
@@ -120,11 +120,11 @@ def _find_free_dir_slot(f, geo: dict, dir_cluster) -> int:
                 return off
         raise RuntimeError("root directory is full (512 entries used)")
     else:
-        cluster     = dir_cluster
-        csz         = _cluster_size_bytes(geo)
-        epc         = csz // _DIR_ENTRY_SIZE
+        cluster = dir_cluster
+        csz = _cluster_size_bytes(geo)
+        epc = csz // _DIR_ENTRY_SIZE
         max_cluster = _CLUSTER_FIRST + geo["data_clusters"]
-        seen: set   = set()
+        seen: set = set()
         while cluster < 0xFFF8:
             if cluster in seen:
                 raise RuntimeError(f"corrupt FAT: cluster chain loops at cluster {cluster}")
@@ -142,15 +142,15 @@ def _find_free_dir_slot(f, geo: dict, dir_cluster) -> int:
 
 
 def _create_subdir(f, geo: dict, parent_cluster, name83: bytes, ext83: bytes) -> int:
-    clusters    = _alloc_clusters(f, geo, 1)
+    clusters = _alloc_clusters(f, geo, 1)
     new_cluster = clusters[0]
 
     f.seek(_cluster_byte_offset(geo, new_cluster))
     f.write(b"\x00" * _cluster_size_bytes(geo))
 
-    dot_entry    = _make_dir_entry(b".       ", b"   ", _ATTR_DIR, new_cluster, 0)
+    dot_entry = _make_dir_entry(b".       ", b"   ", _ATTR_DIR, new_cluster, 0)
     dotdot_cluster = parent_cluster if parent_cluster is not None else 0
-    dotdot_entry   = _make_dir_entry(b"..      ", b"   ", _ATTR_DIR, dotdot_cluster, 0)
+    dotdot_entry = _make_dir_entry(b"..      ", b"   ", _ATTR_DIR, dotdot_cluster, 0)
 
     f.seek(_cluster_byte_offset(geo, new_cluster))
     f.write(dot_entry)
@@ -180,11 +180,11 @@ def _walk_path(f, geo: dict, parts: list, create: bool = False):
 
 
 def _read_cluster_chain(f, geo: dict, first_cluster: int) -> bytes:
-    csz         = _cluster_size_bytes(geo)
+    csz = _cluster_size_bytes(geo)
     max_cluster = _CLUSTER_FIRST + geo["data_clusters"]
     chunks: list = []
-    cluster      = first_cluster
-    seen: set    = set()
+    cluster = first_cluster
+    seen: set = set()
 
     while cluster < 0xFFF8:
         if cluster in seen:

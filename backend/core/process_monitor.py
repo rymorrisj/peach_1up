@@ -18,6 +18,7 @@ _RETENTION_SWEEP_INTERVAL_S = 3600
 
 async def _process_monitor_loop() -> None:
     from backend.service.launch.monitor import poll_short_lived
+
     last_prune = 0.0
     while True:
         try:

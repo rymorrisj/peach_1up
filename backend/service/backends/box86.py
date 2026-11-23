@@ -99,25 +99,23 @@ def _prepare_config(
     try:
         disk_has_mbr = has_valid_mbr(working_image_path)
     except (ValueError, OSError) as exc:
-        raise OSError(
-            f"Cannot read disk image for environment '{environment_name}': {working_image_path}"
-        ) from exc
+        raise OSError(f"Cannot read disk image for environment '{environment_name}': {working_image_path}") from exc
 
     _ensure_section(parser, "General")
     _set_if_absent(parser, "General", "boot_order", "hdd_cdrom_fdd" if disk_has_mbr else "cdrom_fdd_hdd")
 
     hw_profile = get_86box_profile(hardware_profile or "standard")
     _ensure_section(parser, "Machine")
-    _set_if_absent(parser, "Machine", "machine",         hw_profile["machine"])
-    _set_if_absent(parser, "Machine", "cpu_family",      hw_profile["cpu_family"])
-    _set_if_absent(parser, "Machine", "cpu_speed",       str(hw_profile["cpu_speed"]))
-    _set_if_absent(parser, "Machine", "cpu_multi",       str(hw_profile["cpu_multi"]))
-    _set_if_absent(parser, "Machine", "mem_size",        str(hw_profile["mem_size"]))
+    _set_if_absent(parser, "Machine", "machine", hw_profile["machine"])
+    _set_if_absent(parser, "Machine", "cpu_family", hw_profile["cpu_family"])
+    _set_if_absent(parser, "Machine", "cpu_speed", str(hw_profile["cpu_speed"]))
+    _set_if_absent(parser, "Machine", "cpu_multi", str(hw_profile["cpu_multi"]))
+    _set_if_absent(parser, "Machine", "mem_size", str(hw_profile["mem_size"]))
     _set_if_absent(parser, "Machine", "cpu_use_dynarec", str(hw_profile["cpu_use_dynarec"]))
-    _set_if_absent(parser, "Machine", "fpu_type",        hw_profile["fpu_type"])
+    _set_if_absent(parser, "Machine", "fpu_type", hw_profile["fpu_type"])
 
     _ensure_section(parser, "Video")
-    _set_if_absent(parser, "Video", "gfxcard",      hw_profile["gfxcard"])
+    _set_if_absent(parser, "Video", "gfxcard", hw_profile["gfxcard"])
     _set_if_absent(parser, "Video", "vid_renderer", hw_profile["vid_renderer"])
 
     _ensure_section(parser, "Sound")
@@ -127,15 +125,13 @@ def _prepare_config(
         if parser.has_section(_stale):
             parser.remove_section(_stale)
     _ensure_section(parser, "Input devices")
-    _set_if_absent(parser, "Input devices", "mouse_type",    "ps2")
+    _set_if_absent(parser, "Input devices", "mouse_type", "ps2")
     _set_if_absent(parser, "Input devices", "keyboard_type", "keyboard_ps2")
 
     try:
         image_size_bytes = working_image_path.stat().st_size
     except OSError as exc:
-        raise OSError(
-            f"Cannot stat disk image for environment '{environment_name}': {working_image_path}"
-        ) from exc
+        raise OSError(f"Cannot stat disk image for environment '{environment_name}': {working_image_path}") from exc
     cylinders = max(1, image_size_bytes // (16 * 63 * 512))
 
     _ensure_section(parser, "Hard disks")
@@ -166,11 +162,7 @@ def _prepare_config(
     # 86Box config can use. Any other file_type (directory, hdd, exe, rom,
     # unknown, or a console-only container like .bin/.chd/.gdi/.cdi) is not
     # disc media for this backend and is skipped, not mounted.
-    media_is_iso = (
-        media_path is not None
-        and media_path.suffix.lower() in {".iso", ".cue"}
-        and media_path.exists()
-    )
+    media_is_iso = media_path is not None and media_path.suffix.lower() in {".iso", ".cue"} and media_path.exists()
     if media_is_iso:
         _ensure_section(parser, cdrom_section)
         media_fwd = str(media_path.resolve()).replace("\\", "/")
@@ -186,9 +178,9 @@ def _prepare_config(
             parser.remove_option(cdrom_section, "cdrom_01_image_path")
         if media_path is not None:
             logger.debug(
-                "Not mounting cdrom_01 for environment '%s': media_path '%s' is not an "
-                ".iso/.cue file.",
-                environment_name, media_path,
+                "Not mounting cdrom_01 for environment '%s': media_path '%s' is not an .iso/.cue file.",
+                environment_name,
+                media_path,
             )
 
     _ensure_section(parser, "Paths")
@@ -198,7 +190,6 @@ def _prepare_config(
     parser.set("Network", "net_type", "none")
 
     write_ini(config_path, parser)
-
 
 
 def resolve_rom_path(box86_binary: Path) -> Path:
@@ -308,9 +299,7 @@ def launch(spec: "LaunchSpec") -> tuple:
         _box86_install = get_install_path("86box")
         box86_path = str(_box86_install) if _box86_install and _box86_install.is_file() else ""
         if not box86_path:
-            raise RuntimeError(
-                "86Box executable not found. Install it via the Emulators page."
-            )
+            raise RuntimeError("86Box executable not found. Install it via the Emulators page.")
     if not Path(box86_path).exists():
         raise FileNotFoundError(f"86Box executable not found: {box86_path}")
 
@@ -380,16 +369,17 @@ def launch(spec: "LaunchSpec") -> tuple:
                     p.unlink(missing_ok=True)
                 except OSError:
                     pass
-            raise ValueError(
-                f"Failed to copy dgVoodoo2 DLLs to '{target_dir}': {exc}"
-            ) from exc
+            raise ValueError(f"Failed to copy dgVoodoo2 DLLs to '{target_dir}': {exc}") from exc
 
     vm_dir = spec.vm_dir
 
     args = [
-        "--config", str(spec.config_path),
-        "--rompath", str(effective_rom_path),
-        "--vmpath", str(vm_dir),
+        "--config",
+        str(spec.config_path),
+        "--rompath",
+        str(effective_rom_path),
+        "--vmpath",
+        str(vm_dir),
     ]
 
     job_name_prefix = f"Peach1UP_86box_{spec.platform}_{spec.environment_slug}"
@@ -399,8 +389,7 @@ def launch(spec: "LaunchSpec") -> tuple:
     if container_enabled:
         sandbox_config = get_emulator_container_config("86box", box86_path, user_item_id=spec.user_item_id)
         if spec.base_image_path is not None:
-            sandbox_config.broker_files.append(
-                BrokerFile(path=str(spec.base_image_path), access="r", mode="grant"))
+            sandbox_config.broker_files.append(BrokerFile(path=str(spec.base_image_path), access="r", mode="grant"))
     else:
         sandbox_config = None
 

@@ -23,45 +23,76 @@ def db():
 
 
 class TestLinkTypes:
-    @pytest.mark.parametrize("category,type_name,expected", [
-        (1, None, "official"),
-        (2, None, "wiki"), (3, None, "wiki"),
-        (4, None, "social"), (5, None, "social"), (6, None, "social"), (8, None, "social"),
-        (9, None, "social"), (14, None, "social"), (18, None, "social"), (19, None, "social"),
-        (10, None, "store"), (11, None, "store"), (12, None, "store"), (13, None, "store"),
-        (15, None, "store"), (16, None, "store"), (17, None, "store"),
-        (99, None, "other"),
-        (None, None, "other"),
-        (None, "Steam", "store"),
-        (None, "wikipedia", "wiki"),
-        (13, "official", "official"),
-        (13, "somethingnew", "other"),
-    ])
+    @pytest.mark.parametrize(
+        "category,type_name,expected",
+        [
+            (1, None, "official"),
+            (2, None, "wiki"),
+            (3, None, "wiki"),
+            (4, None, "social"),
+            (5, None, "social"),
+            (6, None, "social"),
+            (8, None, "social"),
+            (9, None, "social"),
+            (14, None, "social"),
+            (18, None, "social"),
+            (19, None, "social"),
+            (10, None, "store"),
+            (11, None, "store"),
+            (12, None, "store"),
+            (13, None, "store"),
+            (15, None, "store"),
+            (16, None, "store"),
+            (17, None, "store"),
+            (99, None, "other"),
+            (None, None, "other"),
+            (None, "Steam", "store"),
+            (None, "wikipedia", "wiki"),
+            (13, "official", "official"),
+            (13, "somethingnew", "other"),
+        ],
+    )
     def test_igdb_site_maps_to_a_link_type(self, category, type_name, expected):
         assert links.igdb_link_type(category, type_name) == expected
 
 
 class TestCleanProviderLinks:
     def test_only_http_and_https_survive(self):
-        out = links.clean_provider_links([
-            {"type": "official", "url": url}
-            for url in (
-                "https://example.com/a", "http://example.com/b",
-                "javascript:alert(1)", "data:text/html,x", "file:///c:/x", "ftp://example.com/x",
-                "steam://run/1", "//example.com/x", "example.com/x", "", None, 5,
-                "https://", "https://user:pw@example.com/", "https://example.com/ a",
-                "https://example.com/\nx", "https://example.com:notaport/",
-                "https://example.com/" + "a" * 2100,
-            )
-        ])
+        out = links.clean_provider_links(
+            [
+                {"type": "official", "url": url}
+                for url in (
+                    "https://example.com/a",
+                    "http://example.com/b",
+                    "javascript:alert(1)",
+                    "data:text/html,x",
+                    "file:///c:/x",
+                    "ftp://example.com/x",
+                    "steam://run/1",
+                    "//example.com/x",
+                    "example.com/x",
+                    "",
+                    None,
+                    5,
+                    "https://",
+                    "https://user:pw@example.com/",
+                    "https://example.com/ a",
+                    "https://example.com/\nx",
+                    "https://example.com:notaport/",
+                    "https://example.com/" + "a" * 2100,
+                )
+            ]
+        )
 
         assert [link["url"] for link in out] == ["https://example.com/a", "http://example.com/b"]
 
     def test_entries_are_tagged_as_provider_and_typed(self):
-        out = links.clean_provider_links([
-            {"type": "store", "url": "https://example.com/s", "source": "manual", "extra": "x"},
-            {"type": "weird", "url": "https://example.com/w"},
-        ])
+        out = links.clean_provider_links(
+            [
+                {"type": "store", "url": "https://example.com/s", "source": "manual", "extra": "x"},
+                {"type": "weird", "url": "https://example.com/w"},
+            ]
+        )
 
         assert out == [
             {"type": "store", "url": "https://example.com/s", "source": "provider"},
@@ -126,13 +157,16 @@ class TestIgdbWebsites:
     def test_websites_are_requested_for_the_game_and_mapped(self, db, monkeypatch):
         from backend.service.metadata_providers.igdb_provider import IGDBProvider
 
-        calls = self._fake_post(monkeypatch, [
-            {"url": "https://doom.example/", "category": 1},
-            {"url": "https://store.steampowered.com/app/2280", "category": 13},
-            {"url": "https://en.wikipedia.org/wiki/Doom", "category": 3},
-            {"url": "https://twitter.com/doom", "type": {"id": 5, "type": "twitter"}},
-            {"url": "https://example.com/unknown", "category": 99},
-        ])
+        calls = self._fake_post(
+            monkeypatch,
+            [
+                {"url": "https://doom.example/", "category": 1},
+                {"url": "https://store.steampowered.com/app/2280", "category": 13},
+                {"url": "https://en.wikipedia.org/wiki/Doom", "category": 3},
+                {"url": "https://twitter.com/doom", "type": {"id": 5, "type": "twitter"}},
+                {"url": "https://example.com/unknown", "category": 99},
+            ],
+        )
 
         details = IGDBProvider().get_game_details(5, db)
 
@@ -149,14 +183,17 @@ class TestIgdbWebsites:
     def test_non_http_schemes_and_duplicates_are_dropped(self, db, monkeypatch):
         from backend.service.metadata_providers.igdb_provider import IGDBProvider
 
-        self._fake_post(monkeypatch, [
-            {"url": "javascript:alert(1)", "category": 1},
-            {"url": "steam://run/2280", "category": 13},
-            {"url": "ftp://example.com/x", "category": 1},
-            {"url": "https://doom.example/", "category": 1},
-            {"url": "https://doom.example/", "category": 1},
-            {"category": 1},
-        ])
+        self._fake_post(
+            monkeypatch,
+            [
+                {"url": "javascript:alert(1)", "category": 1},
+                {"url": "steam://run/2280", "category": 13},
+                {"url": "ftp://example.com/x", "category": 1},
+                {"url": "https://doom.example/", "category": 1},
+                {"url": "https://doom.example/", "category": 1},
+                {"category": 1},
+            ],
+        )
 
         details = IGDBProvider().get_game_details(5, db)
 
@@ -172,10 +209,13 @@ class TestIgdbWebsites:
         assert details.video_urls == ["https://www.youtube.com/watch?v=abc"]
         assert details.external_links == []
 
-    @pytest.mark.parametrize("make_exc", [
-        lambda: httpx2.ReadTimeout("t"),
-        lambda: httpx2.ConnectError("c"),
-    ])
+    @pytest.mark.parametrize(
+        "make_exc",
+        [
+            lambda: httpx2.ReadTimeout("t"),
+            lambda: httpx2.ConnectError("c"),
+        ],
+    )
     def test_a_websites_failure_does_not_fail_the_details_fetch(self, db, monkeypatch, make_exc):
         from backend.service.metadata_providers.igdb_provider import IGDBProvider
 
@@ -201,8 +241,12 @@ def _bundle(db, **fields):
     from backend.models.game import GameItemBundle
 
     bundle = GameItemBundle(
-        title="Doom", platform="dos", slug=fields.pop("slug", "doom"), content_rating="E",
-        external_links=[{"type": "official", "url": "https://doom.example/", "source": "provider"}], **fields,
+        title="Doom",
+        platform="dos",
+        slug=fields.pop("slug", "doom"),
+        content_rating="E",
+        external_links=[{"type": "official", "url": "https://doom.example/", "source": "provider"}],
+        **fields,
     )
     db.add(bundle)
     db.commit()
@@ -211,13 +255,16 @@ def _bundle(db, **fields):
 
 
 class TestLinksHiddenFromRestrictedAccounts:
-    @pytest.mark.parametrize("fields,restricted", [
-        ({"is_owner": True, "max_content_rating": "E"}, False),
-        ({}, False),
-        ({"can_manage_game": True}, False),
-        ({"max_content_rating": "T"}, True),
-        ({"block_unrated_media": True}, True),
-    ])
+    @pytest.mark.parametrize(
+        "fields,restricted",
+        [
+            ({"is_owner": True, "max_content_rating": "E"}, False),
+            ({}, False),
+            ({"can_manage_game": True}, False),
+            ({"max_content_rating": "T"}, True),
+            ({"block_unrated_media": True}, True),
+        ],
+    )
     def test_predicate(self, db, fields, restricted):
         from backend.core.dependencies import is_restricted_account
 
@@ -236,12 +283,15 @@ class TestLinksHiddenFromRestrictedAccounts:
 
         assert is_restricted_account(user, db) is True
 
-    @pytest.mark.parametrize("fields,sees_links", [
-        ({"is_owner": True}, True),
-        ({}, True),
-        ({"max_content_rating": "T"}, False),
-        ({"block_unrated_media": True}, False),
-    ])
+    @pytest.mark.parametrize(
+        "fields,sees_links",
+        [
+            ({"is_owner": True}, True),
+            ({}, True),
+            ({"max_content_rating": "T"}, False),
+            ({"block_unrated_media": True}, False),
+        ],
+    )
     def test_detail_read(self, db, fields, sees_links):
         from backend.models.game import game_item_bundle_to_read
 
@@ -253,11 +303,14 @@ class TestLinksHiddenFromRestrictedAccounts:
         if sees_links:
             assert read.external_links[0]["url"] == "https://doom.example/"
 
-    @pytest.mark.parametrize("fields,sees_links", [
-        ({"is_owner": True}, True),
-        ({}, True),
-        ({"max_content_rating": "T"}, False),
-    ])
+    @pytest.mark.parametrize(
+        "fields,sees_links",
+        [
+            ({"is_owner": True}, True),
+            ({}, True),
+            ({"max_content_rating": "T"}, False),
+        ],
+    )
     def test_list_read(self, db, fields, sees_links):
         from backend.models.game import game_item_bundles_to_read_bulk
 

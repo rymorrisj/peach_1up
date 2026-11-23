@@ -6,7 +6,10 @@ from sqlmodel import SQLModel
 from backend.api.routes.controllers import check_controller_edit_permission
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    VISIBILITY_FILTERED_ENTITY_TYPES, get_active_user, get_filtered_entity, require_permission,
+    VISIBILITY_FILTERED_ENTITY_TYPES,
+    get_active_user,
+    get_filtered_entity,
+    require_permission,
 )
 from backend.models.app import AppItemBundle, AppItem
 from backend.models.controller_mapping import ControllerMappingItem
@@ -53,12 +56,7 @@ class TagAssignmentBody(SQLModel):
 
 
 def _tag_read(tag: Tag, db: Session) -> TagRead:
-    count = (
-        db.query(func.count(EntityTag.entity_id))
-        .filter(EntityTag.tag_id == tag.id)
-        .scalar()
-        or 0
-    )
+    count = db.query(func.count(EntityTag.entity_id)).filter(EntityTag.tag_id == tag.id).scalar() or 0
     return TagRead(id=tag.id, name=tag.name, color=tag.color, item_count=count, is_system=tag.is_system)
 
 

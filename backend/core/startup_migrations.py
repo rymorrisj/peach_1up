@@ -13,16 +13,20 @@ _PLATFORM_COLUMN_RENAMES: tuple[tuple[str, str, str], ...] = (
     ("environment_items", "era", "platform"),
     ("profile_items", "era", "platform"),
 )
-_PLATFORM_COLUMN_DROPS: tuple[tuple[str, str], ...] = (
-    ("environment_items", "supported_eras"),
-)
+_PLATFORM_COLUMN_DROPS: tuple[tuple[str, str], ...] = (("environment_items", "supported_eras"),)
 _SQLITE_RENAME_COLUMN_MIN = (3, 25, 0)
 _SQLITE_DROP_COLUMN_MIN = (3, 35, 0)
 
 # Catalog rows older builds seeded as is_system Environments. Deleted once
 # nothing references them; the seeded DOS row is kept and made a normal row.
 _RETIRED_SYSTEM_ENVIRONMENT_SLUGS: tuple[str, ...] = (
-    "86box", "duckstation", "pcsx2", "mesen", "project64", "flycast", "xemu",
+    "86box",
+    "duckstation",
+    "pcsx2",
+    "mesen",
+    "project64",
+    "flycast",
+    "xemu",
 )
 
 
@@ -40,7 +44,9 @@ def _plan_platform_column_changes(engine) -> tuple[list[tuple[str, str, str]], l
         if old in columns and new in columns:
             logger.error(
                 "Schema migration: %s has both %s and %s; not renaming. Resolve manually.",
-                table, old, new,
+                table,
+                old,
+                new,
             )
         elif old in columns:
             renames.append((table, old, new))
@@ -104,10 +110,12 @@ def _migrate_platform_environment_rows(engine) -> None:
         return
 
     with engine.connect() as conn:
-        flipped = conn.execute(text(
-            "UPDATE environment_items SET is_system = 0 "
-            "WHERE slug = 'dos' AND emulator_slug = 'dosbox-x' AND is_system = 1"
-        )).rowcount
+        flipped = conn.execute(
+            text(
+                "UPDATE environment_items SET is_system = 0 "
+                "WHERE slug = 'dos' AND emulator_slug = 'dosbox-x' AND is_system = 1"
+            )
+        ).rowcount
         conn.commit()
         if flipped:
             logger.info("Schema migration: DOS Environment is now a normal Environment row")
@@ -122,13 +130,16 @@ def _migrate_platform_environment_rows(engine) -> None:
             columns = {c["name"] for c in inspector.get_columns(table)}
             if not {"platform", "environment_item_id"} <= columns:
                 continue
-            cleared += conn.execute(text(
-                f"UPDATE {table} SET environment_item_id = NULL "
-                "WHERE environment_item_id IS NOT NULL AND ("
-                f"platform NOT IN ({pc_list}) "
-                "OR environment_item_id IN (SELECT id FROM environment_items "
-                "WHERE slug = '86box' AND emulator_slug = '86box' AND is_system = 1))"
-            ), pc_params).rowcount
+            cleared += conn.execute(
+                text(
+                    f"UPDATE {table} SET environment_item_id = NULL "
+                    "WHERE environment_item_id IS NOT NULL AND ("
+                    f"platform NOT IN ({pc_list}) "
+                    "OR environment_item_id IN (SELECT id FROM environment_items "
+                    "WHERE slug = '86box' AND emulator_slug = '86box' AND is_system = 1))"
+                ),
+                pc_params,
+            ).rowcount
         conn.commit()
         if cleared:
             logger.info(
@@ -164,16 +175,20 @@ def _migrate_platform_environment_rows(engine) -> None:
         kept: list[str] = []
         for env_id, slug in rows:
             in_use = any(
-                conn.execute(
-                    text(f"SELECT 1 FROM {table} WHERE {column} = :id LIMIT 1"), {"id": env_id}
-                ).first()
+                conn.execute(text(f"SELECT 1 FROM {table} WHERE {column} = :id LIMIT 1"), {"id": env_id}).first()
                 for table, column in sorted(references)
             )
             if not in_use and "entity_tags" in tables:
-                in_use = conn.execute(text(
-                    "SELECT 1 FROM entity_tags WHERE entity_type = 'environment_item' "
-                    "AND entity_id = :id LIMIT 1"
-                ), {"id": env_id}).first() is not None
+                in_use = (
+                    conn.execute(
+                        text(
+                            "SELECT 1 FROM entity_tags WHERE entity_type = 'environment_item' "
+                            "AND entity_id = :id LIMIT 1"
+                        ),
+                        {"id": env_id},
+                    ).first()
+                    is not None
+                )
             if in_use:
                 kept.append(slug)
                 continue
@@ -258,9 +273,7 @@ def _apply_schema_migrations() -> None:
         # for clean error messages; this index is the guarantee.
         users_indexes = {ix["name"] for ix in inspector.get_indexes("user_items")}
         if "idx_single_owner" not in users_indexes:
-            owner_count = conn.execute(
-                text("SELECT COUNT(*) FROM user_items WHERE is_owner = 1")
-            ).scalar()
+            owner_count = conn.execute(text("SELECT COUNT(*) FROM user_items WHERE is_owner = 1")).scalar()
             if owner_count and owner_count > 1:
                 # Fail loud: the DB already holds multiple owner rows (a prior
                 # race or manual tampering). We refuse to silently demote one —
@@ -271,9 +284,7 @@ def _apply_schema_migrations() -> None:
                     "accounts already exist. Resolve the extra owner row(s) "
                     "manually, then restart."
                 )
-            conn.execute(text(
-                "CREATE UNIQUE INDEX idx_single_owner ON user_items (is_owner) WHERE is_owner = 1"
-            ))
+            conn.execute(text("CREATE UNIQUE INDEX idx_single_owner ON user_items (is_owner) WHERE is_owner = 1"))
             conn.commit()
             logger.info("Schema migration: enforced single-owner partial unique index on user_items")
 
@@ -282,10 +293,7 @@ def _apply_schema_migrations() -> None:
         # convention for this column (ix_<table>_<column>) so this is a no-op on a
         # freshly created DB, create_all() already made the same-named index —
         # and a real backfill on an existing DB that predates it.
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS ix_game_items_file_path "
-            "ON game_items (file_path)"
-        ))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_game_items_file_path ON game_items (file_path)"))
         conn.commit()
         logger.info("Schema migration: confirmed ix_game_items_file_path exists")
 
@@ -294,10 +302,12 @@ def _apply_schema_migrations() -> None:
         # gained the column through it needs this; on a fresh DB create_all()
         # already made the same-named index and this is a no-op.
         if "media_item_bundles" in inspector.get_table_names():
-            conn.execute(text(
-                "CREATE INDEX IF NOT EXISTS ix_media_item_bundles_content_rating "
-                "ON media_item_bundles (content_rating)"
-            ))
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_media_item_bundles_content_rating "
+                    "ON media_item_bundles (content_rating)"
+                )
+            )
             conn.commit()
             logger.info("Schema migration: confirmed ix_media_item_bundles_content_rating exists")
 

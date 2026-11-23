@@ -52,7 +52,7 @@ def list_rom_packs(
     rows_by_slug = {r.slug: r for r in db.query(RomPackItem).all()}
     items = [_to_read(entry, rows_by_slug.get(entry["slug"])) for entry in entries]
     total = len(items)
-    return Page(items=items[offset:offset + limit], total=total, limit=limit, offset=offset)
+    return Page(items=items[offset : offset + limit], total=total, limit=limit, offset=offset)
 
 
 @router.get("/{slug}", response_model=RomPackItemRead)

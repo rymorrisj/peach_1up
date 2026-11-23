@@ -52,10 +52,11 @@ def _load_rating_ordinals() -> dict[str, int]:
     """
     try:
         from backend.core.settings import get_settings
+
         custom = get_settings().get("rating_ordinals")
         if isinstance(custom, dict):
             return {str(k): int(v) for k, v in custom.items()}
-    except (RuntimeError, TypeError, ValueError):
+    except RuntimeError, TypeError, ValueError:
         pass
     return dict(_BASE_RATING_ORDINALS)
 
@@ -132,10 +133,7 @@ def validate_max_content_rating(value: str | None) -> str | None:
         return None
     known = _load_rating_ordinals()
     if value not in known:
-        raise ValueError(
-            f"Unknown max_content_rating {value!r}; expected one of: "
-            f"{', '.join(sorted(known))}."
-        )
+        raise ValueError(f"Unknown max_content_rating {value!r}; expected one of: {', '.join(sorted(known))}.")
     return value
 
 
@@ -203,6 +201,7 @@ def require_permission(flag: str):
         def create_item(_: UserItem = require_permission("can_manage_game"), ...):
             ...
     """
+
     def _check(active_user: UserItem = Depends(get_active_user)) -> UserItem:
         if active_user.is_owner:
             return active_user
@@ -212,6 +211,7 @@ def require_permission(flag: str):
                 detail=f"Permission denied: requires {flag}.",
             )
         return active_user
+
     _check.__name__ = f"require_{flag}"
     return Depends(_check)
 
@@ -234,10 +234,14 @@ def _restricted_bundle_ids(restriction_column, active_user: UserItem, db: Sessio
     TRUE, so without this filter, one cross-domain restriction row would
     silently blank out this user's entire query for every other domain.
     """
-    return db.query(restriction_column).filter(
-        MediaRestriction.user_item_id == active_user.id,
-        restriction_column.isnot(None),
-    ).scalar_subquery()
+    return (
+        db.query(restriction_column)
+        .filter(
+            MediaRestriction.user_item_id == active_user.id,
+            restriction_column.isnot(None),
+        )
+        .scalar_subquery()
+    )
 
 
 def get_filtered_game_item_bundles(active_user: UserItem, db: Session):
@@ -400,7 +404,10 @@ def get_filtered_media_item_bundles(active_user: UserItem, db: Session):
     return q.filter(
         MediaItemBundle.id.not_in(restricted_ids),
         media_rating_visible(
-            "media_item_bundle", MediaItemBundle.id, MediaItemBundle.content_rating, active_user,
+            "media_item_bundle",
+            MediaItemBundle.id,
+            MediaItemBundle.content_rating,
+            active_user,
         ),
     )
 
@@ -440,9 +447,7 @@ def get_filtered_media_items(active_user: UserItem, db: Session):
     q = db.query(MediaItem)
     if active_user.is_owner:
         return q
-    visible_bundle_ids = (
-        get_filtered_media_item_bundles(active_user, db).with_entities(MediaItemBundle.id).subquery()
-    )
+    visible_bundle_ids = get_filtered_media_item_bundles(active_user, db).with_entities(MediaItemBundle.id).subquery()
     return q.filter(
         or_(
             and_(

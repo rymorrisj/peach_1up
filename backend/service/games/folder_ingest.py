@@ -7,6 +7,7 @@ point); it funnels into the shared collection ingester in service.games.items. E
 single disc or multi-disc, becomes a GameItemBundle (single-disc is a
 collection-of-one).
 """
+
 from __future__ import annotations
 
 import shutil
@@ -170,9 +171,7 @@ def _persist_disc_set(disc_files: list[Path], staging_dir: Path, title: str, db:
     return collection
 
 
-def _ingest_multi_disc(
-    dest_dir: Path, disc_files: list[Path], title: str, db: Session, media_root: Path
-):
+def _ingest_multi_disc(dest_dir: Path, disc_files: list[Path], title: str, db: Session, media_root: Path):
     """Multi-disc branch: adopt an untracked leftover folder only when EVERY disc
     matches a file in it, else import the set into its own folder."""
     matches = leftover_folder.lookup_matches(disc_files, media_root)
@@ -203,9 +202,7 @@ def _ingest_single_disc(dest_dir: Path, title: str, db: Session, media_root: Pat
     return "game_item_bundle", collection, 1
 
 
-def ingest_folder(
-    dest_dir: Path, written_paths: list[Path], title: str, db: Session, media_root: Path
-):
+def ingest_folder(dest_dir: Path, written_paths: list[Path], title: str, db: Session, media_root: Path):
     """Multi-disc collection when 2+ disc files are present, else a collection-of-one.
 
     Returns ``(result_type, collection, disc_count)`` where result_type is always

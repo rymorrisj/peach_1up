@@ -1,5 +1,5 @@
-"""Tests for backend.core.rate_limit: sliding-window counter, lockout, retry-after, sweep.
-"""
+"""Tests for backend.core.rate_limit: sliding-window counter, lockout, retry-after, sweep."""
+
 import time
 
 import pytest

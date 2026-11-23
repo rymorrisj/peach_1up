@@ -24,15 +24,22 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-_ENV_KEYS = frozenset({
-    "PIN_PEPPER", "THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_CLIENT_ID", "IGDB_CLIENT_SECRET",
-})
+_ENV_KEYS = frozenset(
+    {
+        "PIN_PEPPER",
+        "THEGAMESDB_API_KEY",
+        "AI_API_KEY",
+        "IGDB_CLIENT_ID",
+        "IGDB_CLIENT_SECRET",
+    }
+)
 
 _dotenv_loaded = False
 
 
 def _env_path() -> Path:
     from backend.core.settings import get_base_path
+
     return get_base_path() / ".env"
 
 

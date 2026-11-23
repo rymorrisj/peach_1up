@@ -40,18 +40,32 @@ def legacy_db(tmp_path, monkeypatch):
     ids = {}
     with Session(engine) as db:
         profile = ProfileItem(
-            name="DOS Default", slug="dos-default", platform="dos", emulator_slug="dosbox-x", is_bundled=True,
+            name="DOS Default",
+            slug="dos-default",
+            platform="dos",
+            emulator_slug="dosbox-x",
+            is_bundled=True,
         )
         db.add(profile)
         db.flush()
         envs = {
             "dos": EnvironmentItem(
-                name="DOS", slug="dos", platform="dos", emulator_slug="dosbox-x",
-                is_system=True, profile_item_id=profile.id,
+                name="DOS",
+                slug="dos",
+                platform="dos",
+                emulator_slug="dosbox-x",
+                is_system=True,
+                profile_item_id=profile.id,
             ),
-            "86box": EnvironmentItem(name="86Box", slug="86box", platform="win95", emulator_slug="86box", is_system=True),
+            "86box": EnvironmentItem(
+                name="86Box", slug="86box", platform="win95", emulator_slug="86box", is_system=True
+            ),
             "duckstation": EnvironmentItem(
-                name="DuckStation", slug="duckstation", platform="ps1", emulator_slug="duckstation", is_system=True,
+                name="DuckStation",
+                slug="duckstation",
+                platform="ps1",
+                emulator_slug="duckstation",
+                is_system=True,
             ),
             "pcsx2": EnvironmentItem(name="PCSX2", slug="pcsx2", platform="ps2", emulator_slug="pcsx2", is_system=True),
             "user": EnvironmentItem(name="My Win98", slug="my-win98", platform="win98", emulator_slug="86box"),
@@ -64,11 +78,17 @@ def legacy_db(tmp_path, monkeypatch):
         games = {
             "dos": GameItemBundle(title="Doom", slug="doom", platform="dos", environment_item_id=envs["dos"].id),
             "win98_86box": GameItemBundle(
-                title="Myst", slug="myst", platform="win98", environment_item_id=envs["86box"].id,
+                title="Myst",
+                slug="myst",
+                platform="win98",
+                environment_item_id=envs["86box"].id,
             ),
             "ps1": GameItemBundle(title="Ico", slug="ico", platform="ps1", environment_item_id=envs["user"].id),
             "win98_user": GameItemBundle(
-                title="Riven", slug="riven", platform="win98", platform_confirmed=True,
+                title="Riven",
+                slug="riven",
+                platform="win98",
+                platform_confirmed=True,
                 environment_item_id=envs["user"].id,
             ),
         }
@@ -90,6 +110,7 @@ def legacy_db(tmp_path, monkeypatch):
         conn.commit()
 
     import backend.core.database as database_mod
+
     monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
     return engine, ids
 
@@ -99,13 +120,13 @@ def _snapshot(engine):
 
     with engine.connect() as conn:
         return {
-            "games": conn.execute(text(
-                "SELECT id, platform, platform_confirmed, environment_item_id FROM game_item_bundles ORDER BY id"
-            )).fetchall(),
+            "games": conn.execute(
+                text("SELECT id, platform, platform_confirmed, environment_item_id FROM game_item_bundles ORDER BY id")
+            ).fetchall(),
             "apps": conn.execute(text("SELECT id, platform, environment_item_id FROM app_item_bundles")).fetchall(),
-            "envs": conn.execute(text(
-                "SELECT id, slug, platform, is_system FROM environment_items ORDER BY id"
-            )).fetchall(),
+            "envs": conn.execute(
+                text("SELECT id, slug, platform, is_system FROM environment_items ORDER BY id")
+            ).fetchall(),
             "profiles": conn.execute(text("SELECT slug, platform FROM profile_items")).fetchall(),
             "launches": conn.execute(text("SELECT environment_item_id FROM launch_history")).fetchall(),
         }

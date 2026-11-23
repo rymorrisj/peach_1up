@@ -23,11 +23,13 @@ from sqlmodel import select
 
 def _owner_user():
     from backend.models.user import UserItem
+
     return UserItem(id=1, name="Owner", is_owner=True)
 
 
 def _no_permission_user():
     from backend.models.user import UserItem
+
     return UserItem(id=2, name="Guest", is_owner=False, is_admin=False)
 
 
@@ -186,10 +188,7 @@ class TestListRomPacksPagination:
     """GET /api/v1/emulator-items/rom-packs returns Page[RomPackItemRead]."""
 
     def _catalog(self, n):
-        return [
-            {"slug": f"pack-{i}", "name": f"Pack {i}", "install_type": "rom_pack"}
-            for i in range(n)
-        ]
+        return [{"slug": f"pack-{i}", "name": f"Pack {i}", "install_type": "rom_pack"} for i in range(n)]
 
     def test_envelope_shape_and_first_page(self, client, monkeypatch):
         c, db = client
@@ -259,6 +258,7 @@ class TestVerifyRomPack:
     def test_requires_is_admin_permission(self, client, monkeypatch):
         c, _ = client
         from backend.core.dependencies import get_active_user
+
         _set_catalog(monkeypatch, [EMULATOR_ENTRY_WITH_DEP, ROM_PACK_ENTRY])
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
@@ -282,15 +282,14 @@ class TestVerifyRomPack:
 
         assert resp.status_code == 400
 
-    def test_success_writes_row_via_test_engine_and_resyncs_is_present(
-        self, client, monkeypatch, tmp_path
-    ):
+    def test_success_writes_row_via_test_engine_and_resyncs_is_present(self, client, monkeypatch, tmp_path):
         c, db = client
         rom_dir = tmp_path / "mame-roms"
         rom_dir.mkdir()
         _set_catalog(monkeypatch, [EMULATOR_ENTRY_WITH_DEP, ROM_PACK_ENTRY])
 
         from backend.api.routes import rom_packs
+
         monkeypatch.setattr(rom_packs, "get_install_path", lambda slug: rom_dir)
 
         resp = c.post("/api/v1/emulator-items/rom-packs/mame-roms/verify")
@@ -304,6 +303,7 @@ class TestVerifyRomPack:
         # its write actually landed in the test's in-memory DB rather than some
         # other engine, by reading it back through the fixture's own session.
         from backend.models.rom_pack import RomPackItem
+
         db.expire_all()
         row = db.exec(select(RomPackItem).where(RomPackItem.slug == "mame-roms")).one_or_none()
         assert row is not None
@@ -317,6 +317,7 @@ class TestVerifyRomPack:
         _make_rom_pack_item(db, is_present=True, install_path="/roms/mame")
 
         from backend.api.routes import rom_packs
+
         monkeypatch.setattr(rom_packs, "get_install_path", lambda slug: None)
 
         resp = c.post("/api/v1/emulator-items/rom-packs/mame-roms/verify")

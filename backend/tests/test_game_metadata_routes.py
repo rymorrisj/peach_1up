@@ -288,15 +288,18 @@ class TestRatingChangeConfirmation:
 
 
 class TestAcceptMetadataAssetsTypeAllowlist:
-    @pytest.mark.parametrize("asset_type", [
-        "..\\..\\evil",
-        "../../evil",
-        "C:\\Windows\\evil",
-        "\\\\attacker\\share\\evil",
-        "boxart_front.html",
-        "",
-        "Cover",
-    ])
+    @pytest.mark.parametrize(
+        "asset_type",
+        [
+            "..\\..\\evil",
+            "../../evil",
+            "C:\\Windows\\evil",
+            "\\\\attacker\\share\\evil",
+            "boxart_front.html",
+            "",
+            "Cover",
+        ],
+    )
     def test_unlisted_asset_type_is_422_and_nothing_is_downloaded(self, http_client, monkeypatch, asset_type):
         import backend.service.games.media_link as media_link_mod
 
@@ -333,13 +336,16 @@ class TestAssetFilenameStem:
         assert len(set(stems)) == 10
         assert stems[0] == "screenshot-0"
 
-    @pytest.mark.parametrize("asset_type,expected", [
-        ("boxart_front", "boxart_front-3"),
-        ("..\\..\\evil", "evil-3"),
-        ("../../evil", "evil-3"),
-        ("\\\\attacker\\share\\evil", "evil-3"),
-        ("", "asset-3"),
-    ])
+    @pytest.mark.parametrize(
+        "asset_type,expected",
+        [
+            ("boxart_front", "boxart_front-3"),
+            ("..\\..\\evil", "evil-3"),
+            ("../../evil", "evil-3"),
+            ("\\\\attacker\\share\\evil", "evil-3"),
+            ("", "asset-3"),
+        ],
+    )
     def test_stem_is_a_safe_basename(self, asset_type, expected):
         from backend.service.games.media_link import asset_filename_stem
 
@@ -368,7 +374,9 @@ class TestAssetFilenameStem:
 
         monkeypatch.setattr(core_settings, "get_settings", lambda: _S())
         monkeypatch.setattr(
-            utils_settings, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+            utils_settings,
+            "get",
+            lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
         )
 
         def _fake_fetch(url, staging_dir, **kwargs):
@@ -493,11 +501,13 @@ class TestTheGamesDBSearchPlatform:
         from backend.service.metadata_providers.thegamesdb_provider import TheGamesDBProvider
 
         raw = {
-            "data": {"games": [
-                {"id": 1, "game_title": "Doom", "release_date": "1993-12-10", "platform": 1},
-                {"id": 2, "game_title": "Doom", "release_date": "1994-01-01", "platform": 99},
-                {"id": 3, "game_title": "Doom", "release_date": None},
-            ]},
+            "data": {
+                "games": [
+                    {"id": 1, "game_title": "Doom", "release_date": "1993-12-10", "platform": 1},
+                    {"id": 2, "game_title": "Doom", "release_date": "1994-01-01", "platform": 99},
+                    {"id": 3, "game_title": "Doom", "release_date": None},
+                ]
+            },
             "include": {"platform": {"data": {"1": {"id": 1, "name": "PC", "alias": "pc"}}}},
         }
         monkeypatch.setattr(client, "search_games", lambda name: raw)
@@ -539,7 +549,13 @@ class TestTheGamesDBClientFields:
         client.get_game_details(5)
 
         assert seen["fields"].split(",") == [
-            "overview", "rating", "genres", "publishers", "developers", "platform", "youtube",
+            "overview",
+            "rating",
+            "genres",
+            "publishers",
+            "developers",
+            "platform",
+            "youtube",
         ]
 
 
@@ -744,7 +760,9 @@ def _status_error(status):
     import httpx2
 
     request = httpx2.Request("GET", _SECRET_URL)
-    return httpx2.HTTPStatusError(f"boom {_SECRET_URL}", request=request, response=httpx2.Response(status, request=request))
+    return httpx2.HTTPStatusError(
+        f"boom {_SECRET_URL}", request=request, response=httpx2.Response(status, request=request)
+    )
 
 
 def _raising_provider(monkeypatch, exc):
@@ -813,11 +831,14 @@ class TestProviderErrorMapping:
         assert resp.status_code == 502
         assert resp.json()["detail"] == "TheGamesDB returned an unreadable response."
 
-    @pytest.mark.parametrize("make_exc", [
-        lambda: _status_error(500),
-        lambda: __import__("httpx2").ReadTimeout(f"t {_SECRET_URL}"),
-        lambda: __import__("httpx2").ConnectError(f"c {_SECRET_URL}"),
-    ])
+    @pytest.mark.parametrize(
+        "make_exc",
+        [
+            lambda: _status_error(500),
+            lambda: __import__("httpx2").ReadTimeout(f"t {_SECRET_URL}"),
+            lambda: __import__("httpx2").ConnectError(f"c {_SECRET_URL}"),
+        ],
+    )
     def test_no_key_or_url_reaches_the_response(self, http_client, monkeypatch, route, make_exc):
         _raising_provider(monkeypatch, make_exc())
 
@@ -886,10 +907,18 @@ class TestStoredGameIdAndProvider:
         assert resp.json()["external_provider"] == "igdb"
         assert resp.json()["external_game_id"] == 525
 
-    @pytest.mark.parametrize("source,provider", [
-        ("TheGamesDB", "thegamesdb"), ("IGDB", "igdb"), ("igdb", "igdb"),
-        (None, None), ("", None), ("Manual", None), ("TheGamesDB v2", None),
-    ])
+    @pytest.mark.parametrize(
+        "source,provider",
+        [
+            ("TheGamesDB", "thegamesdb"),
+            ("IGDB", "igdb"),
+            ("igdb", "igdb"),
+            (None, None),
+            ("", None),
+            ("Manual", None),
+            ("TheGamesDB v2", None),
+        ],
+    )
     def test_reader_tolerates_legacy_and_unknown_sources(self, mem_db_session, source, provider):
         from backend.models.game import game_item_bundle_to_read
 

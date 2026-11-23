@@ -230,7 +230,9 @@ def library(tmp_path, monkeypatch):
     from backend.service.utils import settings as settings_mod
 
     monkeypatch.setattr(
-        settings_mod, "get", lambda key, default=None: str(root) if key == "LIBRARY_PATH" else default,
+        settings_mod,
+        "get",
+        lambda key, default=None: str(root) if key == "LIBRARY_PATH" else default,
     )
     monkeypatch.setattr(core_settings, "get_settings", lambda: settings_mod)
     return root
@@ -300,11 +302,14 @@ class TestLeafPatchCover:
         cover = library / "media" / "cover.png"
         cover.write_bytes(b"png")
         c, db, leaf = self._owner_and_leaf(
-            http_client, cover_art_path=str(cover), executable_path=str(library / "game.exe"),
+            http_client,
+            cover_art_path=str(cover),
+            executable_path=str(library / "game.exe"),
         )
 
         resp = c.patch(
-            f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": None, "executable_path": None},
+            f"/api/v1/game-item/{leaf.id}",
+            json={"cover_art_path": None, "executable_path": None},
         )
 
         assert resp.status_code == 200, resp.text
@@ -317,7 +322,9 @@ class TestLeafPatchCover:
         cover = library / "media" / "cover.png"
         cover.write_bytes(b"png")
         c, db, leaf = self._owner_and_leaf(
-            http_client, cover_art_path=str(cover), executable_path=str(library / "game.exe"),
+            http_client,
+            cover_art_path=str(cover),
+            executable_path=str(library / "game.exe"),
         )
 
         resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": None})

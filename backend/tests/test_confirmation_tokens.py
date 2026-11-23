@@ -13,6 +13,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _clear_token_store():
     import backend.service.utils.confirmation_tokens as mod
+
     with mod._lock:
         mod._tokens.clear()
     yield

@@ -42,9 +42,9 @@ def resolve_derived_path(path_key: str, slug: str) -> str | None:
     base = get_base_path()
     derived: dict[str, Path] = {
         # Emulator install root (binary directory).
-        "install_dir":  base / "emulators" / slug,
+        "install_dir": base / "emulators" / slug,
         # Per-emulator save-state directory (e.g. Flycast, Mesen, Project64).
-        "saves_dir":    base / "emulators" / slug / "saves",
+        "saves_dir": base / "emulators" / slug / "saves",
         # Per-emulator quick save-state directory (DuckStation, which really
         # does ship a "savestates" folder). PCSX2 does NOT: it names the same
         # thing "sstates", so it uses sstates_dir below. Do not merge the two.
@@ -53,41 +53,41 @@ def resolve_derived_path(path_key: str, slug: str) -> str | None:
         # "savestates" (confirmed against a live install actively receiving
         # .p2s writes). Kept as its own key rather than changing
         # savestates_dir, which DuckStation shares and which is correct there.
-        "sstates_dir":  base / "emulators" / slug / "sstates",
+        "sstates_dir": base / "emulators" / slug / "sstates",
         # Per-emulator memory-card directory (PCSX2, DuckStation).
         "memcards_dir": base / "emulators" / slug / "memcards",
         # Per-emulator screenshot/snapshot directory (PCSX2).
-        "snaps_dir":    base / "emulators" / slug / "snaps",
+        "snaps_dir": base / "emulators" / slug / "snaps",
         # Emulator config directory (same as install root for portable layout).
-        "config_dir":   base / "emulators" / slug,
+        "config_dir": base / "emulators" / slug,
         # xemu NVRAM/VM state directory.
-        "nvram":        base / "emulators" / slug / "vms",
+        "nvram": base / "emulators" / slug / "vms",
         # Per-emulator shader/disk cache directory.
-        "cache_dir":    base / "emulators" / slug / "cache",
+        "cache_dir": base / "emulators" / slug / "cache",
         # Per-emulator plugin directory (Project64, capital-P singular as PJ64
         # ships it: the archive creates "Plugin", not "plugins").
-        "plugin_dir":   base / "emulators" / slug / "Plugin",
+        "plugin_dir": base / "emulators" / slug / "Plugin",
         # Project64 portable EEPROM/save directory (capital-S as PJ64 writes it).
         "pj64_save_dir": base / "emulators" / slug / "Save",
         # Project64 portable config directory (capital-C as PJ64 writes it).
         "pj64_config_dir": base / "emulators" / slug / "Config",
         # PCSX2 portable inis directory (needs rw; install_dir grant is r-only).
-        "inis_dir":     base / "emulators" / slug / "inis",
+        "inis_dir": base / "emulators" / slug / "inis",
         # Per-emulator BIOS/firmware directory (Flycast: data/).
-        "bios_dir":     base / "emulators" / slug / "data",
+        "bios_dir": base / "emulators" / slug / "data",
         # xemu HDD image fallback: grants the whole xemu emulator dir when launch_paths
         # does not supply the specific .qcow2 path.
-        "hdd_image":    base / "emulators" / "xemu",
+        "hdd_image": base / "emulators" / "xemu",
         # RPCS3 portable virtual HDD (game installs, saves, trophies).
-        "dev_hdd0":     base / "emulators" / slug / "dev_hdd0",
+        "dev_hdd0": base / "emulators" / slug / "dev_hdd0",
         # RPCS3 portable firmware directory (populated by File > Install Firmware).
-        "dev_flash":    base / "emulators" / slug / "dev_flash",
+        "dev_flash": base / "emulators" / slug / "dev_flash",
         # RPCS3 portable mounted-disc directory.
-        "dev_bdvd":     base / "emulators" / slug / "dev_bdvd",
+        "dev_bdvd": base / "emulators" / slug / "dev_bdvd",
         # Xenia portable content directory (saves/DLC), under storage_root.
-        "content":      base / "emulators" / slug / "content",
+        "content": base / "emulators" / slug / "content",
         # Xenia portable shader cache directory, under storage_root.
-        "cache":        base / "emulators" / slug / "cache",
+        "cache": base / "emulators" / slug / "cache",
     }
 
     if path_key in derived:

@@ -48,8 +48,7 @@ class TestConvertDvdRipToXisoPreflight:
         allowlist violation, even with an empty allowlist configured."""
         import backend.service.utils.extract_xiso as extract_xiso_mod
 
-        monkeypatch.setattr(
-            extract_xiso_mod, "get_extract_xiso_path", lambda: tmp_path / "extract-xiso.exe")
+        monkeypatch.setattr(extract_xiso_mod, "get_extract_xiso_path", lambda: tmp_path / "extract-xiso.exe")
         monkeypatch.setattr(extract_xiso_mod, "allowed_browse_roots", lambda: [])
         calls = []
         monkeypatch.setattr(extract_xiso_mod.subprocess, "run", lambda *a, **kw: calls.append((a, kw)))
@@ -86,6 +85,7 @@ class TestConvertDvdRipToXisoExitZeroReverification:
         under a reported success means the only copy of the rip is gone."""
         import backend.service.utils.extract_xiso as extract_xiso_mod
         import backend.service.utils.detection.xbox_image as xbox_image_mod
+
         _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
 
         source = tmp_path / "rip.iso"
@@ -93,7 +93,8 @@ class TestConvertDvdRipToXisoExitZeroReverification:
 
         detect_calls = []
         monkeypatch.setattr(
-            xbox_image_mod, "detect_xbox_image_type",
+            xbox_image_mod,
+            "detect_xbox_image_type",
             lambda path: detect_calls.append(path) or "xiso",
         )
 
@@ -111,6 +112,7 @@ class TestConvertDvdRipToXisoExitZeroReverification:
     def test_exit_zero_but_implausibly_small_output_raises(self, tmp_path, monkeypatch):
         """Size-floor leg: exit 0 is not enough if the result is truncated."""
         import backend.service.utils.extract_xiso as extract_xiso_mod
+
         _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
 
         source = tmp_path / "rip.iso"
@@ -126,6 +128,7 @@ class TestConvertDvdRipToXisoExitZeroReverification:
         """Detection leg: the exact silent no-op err_iso_no_files produces."""
         import backend.service.utils.extract_xiso as extract_xiso_mod
         import backend.service.utils.detection.xbox_image as xbox_image_mod
+
         _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
 
         source = tmp_path / "rip.iso"
@@ -146,6 +149,7 @@ class TestConvertDvdRipToXisoNonZeroExit:
         never called is what pins the failure to the exit code."""
         import backend.service.utils.extract_xiso as extract_xiso_mod
         import backend.service.utils.detection.xbox_image as xbox_image_mod
+
         _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
 
         source = tmp_path / "rip.iso"
@@ -153,7 +157,8 @@ class TestConvertDvdRipToXisoNonZeroExit:
 
         detect_calls = []
         monkeypatch.setattr(
-            xbox_image_mod, "detect_xbox_image_type",
+            xbox_image_mod,
+            "detect_xbox_image_type",
             lambda path: detect_calls.append(path) or "dvd_rip",
         )
         monkeypatch.setattr(extract_xiso_mod.subprocess, "run", _stub_run(1, stderr="corrupt sector table"))
@@ -168,6 +173,7 @@ class TestConvertDvdRipToXisoHappyPath:
     def test_exit_zero_plausible_size_xiso_detected_returns_source_path(self, tmp_path, monkeypatch):
         import backend.service.utils.extract_xiso as extract_xiso_mod
         import backend.service.utils.detection.xbox_image as xbox_image_mod
+
         _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
 
         source = tmp_path / "rip.iso"

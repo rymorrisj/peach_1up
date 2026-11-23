@@ -87,6 +87,7 @@ def clone_rom_pack() -> Path:
         raise RuntimeError("git is not available on PATH. Install git and try again.")
 
     from backend.service.utils.emulator_catalog import get_install_path
+
     _box86_install = get_install_path("86box")
     if _box86_install and _box86_install.is_file():
         box86_base = _box86_install.resolve().parent
@@ -98,10 +99,7 @@ def clone_rom_pack() -> Path:
     if target_path.exists():
         try:
             if any(target_path.iterdir()):
-                raise FileExistsError(
-                    f"Target directory already has content: {target_path}. "
-                    "Remove it before cloning."
-                )
+                raise FileExistsError(f"Target directory already has content: {target_path}. Remove it before cloning.")
         except PermissionError:
             pass
 

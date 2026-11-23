@@ -15,15 +15,15 @@ from fastapi import HTTPException, UploadFile
 from backend.service.utils.path_utils import resolve_under, safe_basename
 from backend.service.utils.slug_generator import unique_slug
 
-DEFAULT_MAX_BYTES = 25 * 1024 ** 3  # 25 GB, absolute per-file cap
+DEFAULT_MAX_BYTES = 25 * 1024**3  # 25 GB, absolute per-file cap
 _CHUNK_SIZE = 1024 * 1024  # 1 MB, avoids loading the full file into memory
 
 # Chunked-upload tuning, overridable via a setting of the same UPPER_SNAKE
 # name. See api/routes/uploads.py and service/uploads/core.py. There is no
 # inline/background size split anymore, every upload finalizes as a
 # background job, so this covers per-chunk transport sizing only.
-DEFAULT_CHUNK_MAX_BYTES = 64 * 1024 ** 2             # 64 MB, largest single chunk the server will accept
-DEFAULT_UPLOAD_TMP_TTL_SECONDS = 24 * 3600           # orphaned tmp_chunks dirs older than this are swept
+DEFAULT_CHUNK_MAX_BYTES = 64 * 1024**2  # 64 MB, largest single chunk the server will accept
+DEFAULT_UPLOAD_TMP_TTL_SECONDS = 24 * 3600  # orphaned tmp_chunks dirs older than this are swept
 TMP_CHUNKS_DIRNAME = "tmp_chunks"
 
 # begin_upload retries after losing a directory-name race to a concurrent upload.
@@ -67,6 +67,7 @@ def begin_upload(base_dir: Path, filename: str) -> tuple[Path, Path]:
             dest_path = resolve_under(dest_dir, safe_name)
         except ValueError as exc:
             from backend.core.logger import get_logger
+
             get_logger(__name__).warning("Upload rejected, path escapes base directory: %s", exc)
             raise HTTPException(status_code=400, detail="Invalid filename.") from exc
 
@@ -103,7 +104,7 @@ async def stream_upload_to_disk(file: UploadFile, dest_path: Path, max_bytes: in
                 dest_path.unlink(missing_ok=True)
                 raise HTTPException(
                     status_code=413,
-                    detail=f"File exceeds the maximum allowed size ({max_bytes // 1024 ** 3} GB).",
+                    detail=f"File exceeds the maximum allowed size ({max_bytes // 1024**3} GB).",
                 )
             fh.write(chunk)
     return written

@@ -10,9 +10,9 @@ FRONTEND_DIR = ROOT / "frontend"
 
 
 def run(label: str, cmd: list, cwd: Path) -> int:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {label}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
     result = subprocess.run(cmd, cwd=cwd)
     return result.returncode
 
@@ -32,9 +32,9 @@ def main():
         FRONTEND_DIR,
     )
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  Summary")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     all_passed = True
     for suite, code in results.items():
         status = "PASSED" if code == 0 else "FAILED"

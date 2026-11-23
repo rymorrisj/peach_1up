@@ -19,12 +19,14 @@ def _run(coro):
 
 def _place(**kwargs):
     from backend.service.utils.bios_placement import place_bios_asset
+
     return _run(place_bios_asset(**kwargs))
 
 
 def _make_upload(filename: str, content: bytes = b"data"):
     from io import BytesIO
     from starlette.datastructures import Headers, UploadFile
+
     return UploadFile(BytesIO(content), filename=filename, headers=Headers({}))
 
 
@@ -32,19 +34,23 @@ def _make_upload(filename: str, content: bytes = b"data"):
 # Shared validation, no source, no uploads, nonexistent path, unknown slug
 # ---------------------------------------------------------------------------
 
+
 class TestSharedValidation:
     def test_no_source_or_uploads_rejected(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         with pytest.raises(PlacementError, match="Provide either"):
             _place(slug="ps1-bios", source_path=None, uploads=[], dest_dir=tmp_path)
 
     def test_nonexistent_source_path_rejected(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         with pytest.raises(PlacementError, match="does not exist"):
             _place(slug="ps1-bios", source_path=str(tmp_path / "missing"), uploads=[], dest_dir=tmp_path)
 
     def test_unsupported_slug_rejected(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         src = tmp_path / "src.bin"
         src.write_bytes(b"x")
         with pytest.raises(PlacementError, match="Unsupported"):
@@ -52,6 +58,7 @@ class TestSharedValidation:
 
     def test_xbox_bios_always_rejected_with_xemu_guidance(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         src = tmp_path / "mcpx_1.0.bin"
         src.write_bytes(b"x")
         with pytest.raises(PlacementError, match="xemu/asset-paths"):
@@ -61,6 +68,7 @@ class TestSharedValidation:
 # ---------------------------------------------------------------------------
 # DuckStation (ps1-bios), flat *.bin copy, filenames flexible
 # ---------------------------------------------------------------------------
+
 
 class TestDuckStationPlacement:
     def test_copies_all_bin_files_from_source_dir(self, tmp_path):
@@ -89,6 +97,7 @@ class TestDuckStationPlacement:
 
     def test_no_matching_files_in_dir_rejected(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         src_dir = tmp_path / "src"
         src_dir.mkdir()
         (src_dir / "readme.txt").write_text("nope")
@@ -120,6 +129,7 @@ class TestDuckStationPlacement:
 
     def test_upload_mode_rejects_when_nothing_matches(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         upload = _make_upload("notes.txt", b"hi")
         with pytest.raises(PlacementError, match="None of the uploaded files"):
             _place(slug="ps1-bios", source_path=None, uploads=[upload], dest_dir=tmp_path / "dest")
@@ -128,6 +138,7 @@ class TestDuckStationPlacement:
 # ---------------------------------------------------------------------------
 # PCSX2 (ps2-bios), multi-file set, warn (don't block) if it looks incomplete
 # ---------------------------------------------------------------------------
+
 
 class TestPcsx2Placement:
     def test_full_set_copied_no_incomplete_warning(self, tmp_path):
@@ -159,6 +170,7 @@ class TestPcsx2Placement:
 # 86Box ROM pack (86box-roms), full tree merge, preserve relative structure
 # ---------------------------------------------------------------------------
 
+
 class Test86BoxRomPackPlacement:
     def test_preserves_relative_subdirectory_structure(self, tmp_path):
         src_dir = tmp_path / "roms"
@@ -189,6 +201,7 @@ class Test86BoxRomPackPlacement:
 
     def test_single_file_source_rejected_requires_folder(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         src = tmp_path / "bios.bin"
         src.write_bytes(b"x")
         with pytest.raises(PlacementError, match="requires a folder"):
@@ -196,6 +209,7 @@ class Test86BoxRomPackPlacement:
 
     def test_upload_mode_not_supported(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         upload = _make_upload("bios.bin", b"x")
         with pytest.raises(PlacementError, match="file upload isn't supported"):
             _place(slug="86box-roms", source_path=None, uploads=[upload], dest_dir=tmp_path / "dest")
@@ -204,6 +218,7 @@ class Test86BoxRomPackPlacement:
 # ---------------------------------------------------------------------------
 # Flycast (dreamcast-bios), both dc_boot.bin and dc_flash.bin required together
 # ---------------------------------------------------------------------------
+
 
 class TestFlycastPlacement:
     def test_both_files_copied_together_no_warning(self, tmp_path):
@@ -244,6 +259,7 @@ class TestFlycastPlacement:
 
     def test_neither_file_present_rejected(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         src_dir = tmp_path / "src"
         src_dir.mkdir()
         (src_dir / "unrelated.bin").write_bytes(b"x")
@@ -254,6 +270,7 @@ class TestFlycastPlacement:
 # ---------------------------------------------------------------------------
 # Mesen FDS BIOS (mesen-fds-bios), optional, exact filename, known-good SHA1
 # ---------------------------------------------------------------------------
+
 
 class TestMesenFdsPlacement:
     def test_known_good_hash_places_without_warning(self, tmp_path):
@@ -294,6 +311,7 @@ class TestMesenFdsPlacement:
 
     def test_wrong_filename_rejected(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         src = tmp_path / "fds.bin"
         src.write_bytes(b"x")
         with pytest.raises(PlacementError, match="Expected a file named"):
@@ -301,6 +319,7 @@ class TestMesenFdsPlacement:
 
     def test_upload_mode_rejects_multiple_files(self, tmp_path):
         from backend.service.utils.bios_placement import PlacementError
+
         uploads = [_make_upload("FdsBios.bin", b"a"), _make_upload("extra.bin", b"b")]
         with pytest.raises(PlacementError, match="Upload exactly one file"):
             _place(slug="mesen-fds-bios", source_path=None, uploads=uploads, dest_dir=tmp_path / "dest")

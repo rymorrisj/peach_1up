@@ -10,14 +10,28 @@ from backend.constants_generated import PlatformValue
 from backend.core import install_registry, jobs, rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_game_item_bundle, get_filtered_game_item_bundles, reject_old_era_query_param,
+    get_active_user,
+    get_filtered_game_item_bundle,
+    get_filtered_game_item_bundles,
+    reject_old_era_query_param,
     require_permission,
 )
 from backend.core.logger import get_logger
 from backend.models.game import (
-    GameCoverCandidate, GameCoverFromMedia, ImportResult, GameItemBundle, GameItemBundleCreate, GameItemBundleRead,
-    GameItemBundleUpdate, GameItem, GameItemRead, GameItemReorder, GameItemUpdate,
-    ScanStatus, game_item_bundle_to_read, game_item_bundles_to_read_bulk,
+    GameCoverCandidate,
+    GameCoverFromMedia,
+    ImportResult,
+    GameItemBundle,
+    GameItemBundleCreate,
+    GameItemBundleRead,
+    GameItemBundleUpdate,
+    GameItem,
+    GameItemRead,
+    GameItemReorder,
+    GameItemUpdate,
+    ScanStatus,
+    game_item_bundle_to_read,
+    game_item_bundles_to_read_bulk,
 )
 from backend.models.pagination import Page
 from backend.models.user import UserItem
@@ -25,7 +39,8 @@ from backend.service.games import cover_from_media
 from backend.service.games import items as lib_svc
 from backend.service.games import path_import
 from backend.service.media.rating_change_guard import (
-    game_removal_effects, require_rating_change_confirmation,
+    game_removal_effects,
+    require_rating_change_confirmation,
 )
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
@@ -101,6 +116,7 @@ def list_game_items(
         q = q.filter(GameItemBundle.profile_item_id.is_(None))
     if tag:
         from backend.models.tag import Tag, EntityTag
+
         subq = (
             db.query(EntityTag.entity_id)
             .join(Tag, EntityTag.tag_id == Tag.id)
@@ -110,7 +126,9 @@ def list_game_items(
         q = q.filter(GameItemBundle.id.in_(subq))
     total = q.count()
     rows = apply_bundle_sort(q, GameItemBundle, sort).offset(offset).limit(limit).all()
-    return Page(items=game_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
+    return Page(
+        items=game_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset
+    )
 
 
 @router.post("/game-items", response_model=GameItemBundleRead, status_code=201)
@@ -179,6 +197,7 @@ def import_from_path(
     # copy has already happened and would silently duplicate an OS image into
     # the library. Check the original source here, before staging starts.
     from backend.models.environment import EnvironmentItem
+
     incoming_norm = resolved.as_posix()
     for base_path, working_path in db.query(EnvironmentItem.base_image_path, EnvironmentItem.working_image_path).all():
         if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
@@ -195,10 +214,11 @@ def import_from_path(
     if size > DEFAULT_MAX_BYTES:
         raise HTTPException(
             status_code=413,
-            detail=f"Import exceeds the maximum allowed size ({DEFAULT_MAX_BYTES // 1024 ** 3} GB).",
+            detail=f"Import exceeds the maximum allowed size ({DEFAULT_MAX_BYTES // 1024**3} GB).",
         )
 
     from backend.service.utils.path_utils import library_domain_root
+
     # Games-only route today, so the destination domain is always "games".
     domain_root = library_domain_root("games")
 
@@ -206,10 +226,14 @@ def import_from_path(
     # upload, no inline/background size split. _ItemAlreadyExists/_SlugCollision
     # are reported into the job via jobs.fail() inside import_background
     # itself, not translated into an HTTP response here.
-    job_id = jobs.create("upload", message=f"Importing \"{title}\"…")
+    job_id = jobs.create("upload", message=f'Importing "{title}"…')
     background_tasks.add_task(
         path_import.import_background,
-        str(resolved), title, str(domain_root), job_id, body.delete_original,
+        str(resolved),
+        title,
+        str(domain_root),
+        job_id,
+        body.delete_original,
     )
     return JSONResponse(status_code=202, content={"job_id": job_id, "status": "processing"})
 
@@ -264,6 +288,7 @@ def _resolve_scan_directory(domain: str) -> Path:
     correctly without any change here."""
     try:
         from backend.core.settings import get_settings
+
         software_path = get_settings().get("SOFTWARE_PATH", "") or ""
     except RuntimeError:
         software_path = ""
@@ -273,6 +298,7 @@ def _resolve_scan_directory(domain: str) -> Path:
             detail="No software library path is configured. Set SOFTWARE_PATH in Settings before scanning.",
         )
     from backend.service.utils.path_utils import library_domain_root
+
     resolved = library_domain_root(domain)
     if not resolved.is_dir():
         raise HTTPException(
@@ -298,9 +324,7 @@ def _check_known_items_findable(db: Session) -> None:
     generic except Exception clause reads str(exc), which for an HTTPException
     is just its detail (Starlette's HTTPException stores detail as the
     exception's own message)."""
-    rows = db.query(GameItem.file_path, GameItem.original_name).filter(
-        GameItem.file_path.isnot(None)
-    ).all()
+    rows = db.query(GameItem.file_path, GameItem.original_name).filter(GameItem.file_path.isnot(None)).all()
     for file_path, original_name in rows:
         if not Path(file_path).exists():
             name = original_name or Path(file_path).name
@@ -366,13 +390,10 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
             total_entries = len(entries) or 1
             existing_folder_paths: set[str] = {
                 str(Path(fp).resolve())
-                for (fp,) in db.query(GameItem.folder_path)
-                .filter(GameItem.folder_path.isnot(None))
-                .all()
+                for (fp,) in db.query(GameItem.folder_path).filter(GameItem.folder_path.isnot(None)).all()
             }
             existing_media_dirs: set[str] = {
-                str(Path(mp).resolve().parent)
-                for (mp,) in db.query(GameItem.file_path).all()
+                str(Path(mp).resolve().parent) for (mp,) in db.query(GameItem.file_path).all()
             }
 
             dir_cache: dict[Path, list[Path]] = {}
@@ -386,12 +407,10 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                     cancelled = True
                     break
                 if job_id is not None and _idx % 10 == 0:
-                    jobs.update(job_id, progress=_idx / total_entries,
-                                message=f"Scanned {_idx} of {total_entries} folders…")
-                is_loose = (
-                    entry.executable_path is not None
-                    and entry.executable_path.resolve().parent == base_path
-                )
+                    jobs.update(
+                        job_id, progress=_idx / total_entries, message=f"Scanned {_idx} of {total_entries} folders…"
+                    )
+                is_loose = entry.executable_path is not None and entry.executable_path.resolve().parent == base_path
                 is_zip = is_loose and entry.executable_path.suffix.lower() == ".zip"
 
                 if is_loose:
@@ -430,13 +449,15 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                     logger.warning("Scan: platform detection failed for '%s': %s", scan_path, exc, exc_info=True)
                     platform_slug = None
 
-                preview.append({
-                    "title": entry.name,
-                    "file_path": str(scan_path),
-                    "detected_platform": platform_slug,
-                    "is_loose": is_loose,
-                    "is_zip": is_zip,
-                })
+                preview.append(
+                    {
+                        "title": entry.name,
+                        "file_path": str(scan_path),
+                        "detected_platform": platform_slug,
+                        "is_loose": is_loose,
+                        "is_zip": is_zip,
+                    }
+                )
         finally:
             db.close()
 
@@ -472,13 +493,14 @@ def import_scan_results(
     (drive_hydration.hydrate_drive_for_entity).
     """
     from backend.service.games.items import (
-        _ingest_transaction, _ItemAlreadyExists, _persist_multi_disc_collection, _prepare_item, _SlugCollision,
+        _ingest_transaction,
+        _ItemAlreadyExists,
+        _persist_multi_disc_collection,
+        _prepare_item,
+        _SlugCollision,
     )
 
-    used_slugs: set[str] = {
-        s
-        for (s,) in db.query(GameItemBundle.slug).filter(GameItemBundle.slug.isnot(None)).all()
-    }
+    used_slugs: set[str] = {s for (s,) in db.query(GameItemBundle.slug).filter(GameItemBundle.slug.isnot(None)).all()}
 
     imported = 0
     skipped = 0
@@ -506,7 +528,12 @@ def import_scan_results(
                 # _prepare_item's docstring for why the client echo is not
                 # trusted.
                 collection_fields, leaf_rows = _prepare_item(
-                    path, title, db, used_slugs=used_slugs, detected_platform=item.platform, _undo_stack=undo_ops,
+                    path,
+                    title,
+                    db,
+                    used_slugs=used_slugs,
+                    detected_platform=item.platform,
+                    _undo_stack=undo_ops,
                 )
                 _persist_multi_disc_collection(collection_fields, leaf_rows, db)
                 db.commit()
@@ -525,7 +552,9 @@ def import_scan_results(
             if collection_fields is not None:
                 used_slugs.discard(collection_fields.get("slug"))
             logger.exception(
-                "Import: error %s '%s'", "persisting" if collection_fields is not None else "preparing", path,
+                "Import: error %s '%s'",
+                "persisting" if collection_fields is not None else "preparing",
+                path,
             )
             errors.append({"path": path, "reason": str(exc)})
 
@@ -553,7 +582,9 @@ def get_game_item_bundle(
     active_user: UserItem = Depends(get_active_user),
 ):
     return game_item_bundle_to_read(
-        get_filtered_game_item_bundle(collection_id, active_user, db), db, viewer=active_user,
+        get_filtered_game_item_bundle(collection_id, active_user, db),
+        db,
+        viewer=active_user,
     )
 
 
@@ -569,7 +600,10 @@ def update_game_item_bundle(
     get_filtered_game_item_bundle(collection_id, active_user, db)
     return game_item_bundle_to_read(
         lib_svc.update_library_collection(
-            collection_id, body, db, confirm_rating_change=confirm_rating_change,
+            collection_id,
+            body,
+            db,
+            confirm_rating_change=confirm_rating_change,
         ),
         db,
         viewer=active_user,
@@ -588,7 +622,9 @@ def verify_game_item_bundle(
     state for a multi-disc collection."""
     get_filtered_game_item_bundle(collection_id, active_user, db)
     return game_item_bundle_to_read(
-        lib_svc.reverify_library_collection(collection_id, db), db, viewer=active_user,
+        lib_svc.reverify_library_collection(collection_id, db),
+        db,
+        viewer=active_user,
     )
 
 
@@ -736,9 +772,7 @@ def update_game_item(
     active_user: UserItem = require_permission("can_manage_game"),
 ):
     get_filtered_game_item_bundle(collection_id, active_user, db)
-    return GameItemRead.model_validate(
-        lib_svc.update_library_leaf(collection_id, leaf_id, body, db)
-    )
+    return GameItemRead.model_validate(lib_svc.update_library_leaf(collection_id, leaf_id, body, db))
 
 
 @router.get("/game-item-bundle/{collection_id}/cover-candidates", response_model=list[GameCoverCandidate])

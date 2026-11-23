@@ -22,7 +22,15 @@ _COVER_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".webp"}
 # a pointer/disc image is a more specific "this is the launch file" signal
 # than a bare executable sitting alongside it.
 _EXECUTABLE_PRIORITY_ORDER: tuple[str, ...] = (
-    ".gdi", ".cue", ".iso", ".chd", ".xiso", ".pkg", ".xex", ".zip", ".exe",
+    ".gdi",
+    ".cue",
+    ".iso",
+    ".chd",
+    ".xiso",
+    ".pkg",
+    ".xex",
+    ".zip",
+    ".exe",
 )
 
 
@@ -52,6 +60,7 @@ class FolderScanEntry:
         executable_path: Highest-priority launchable file in the folder, or None.
         cover_path:      Cover image found in the folder, or None.
     """
+
     folder_path: Path
     name: str
     executable_path: Optional[Path]
@@ -62,13 +71,9 @@ def _find_cover(folder: Path) -> Optional[Path]:
     """Return the first cover image found in ``folder``, or ``None``."""
     try:
         for p in folder.iterdir():
-            if (
-                p.is_file()
-                and p.stem.lower() in _COVER_STEMS
-                and p.suffix.lower() in _COVER_EXTENSIONS
-            ):
+            if p.is_file() and p.stem.lower() in _COVER_STEMS and p.suffix.lower() in _COVER_EXTENSIONS:
                 return p
-    except (OSError, PermissionError):
+    except OSError, PermissionError:
         pass
     return None
 
@@ -98,14 +103,11 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
 
     try:
         children = list(base.iterdir())
-    except (OSError, PermissionError):
+    except OSError, PermissionError:
         return []
 
     subdirs = sorted(
-        (
-            p for p in children
-            if p.is_dir() and not p.name.startswith(".") and p.name != TMP_CHUNKS_DIRNAME
-        ),
+        (p for p in children if p.is_dir() and not p.name.startswith(".") and p.name != TMP_CHUNKS_DIRNAME),
         key=lambda p: p.name.lower(),
     )
     loose_files = sorted(
@@ -118,7 +120,7 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
 
         try:
             all_files = [f for f in folder.iterdir() if f.is_file()]
-        except (OSError, PermissionError):
+        except OSError, PermissionError:
             all_files = []
 
         candidates = [f for f in all_files if not is_drive_image(f, folder_name)]
@@ -135,29 +137,35 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
         name = folder_name.replace("-", " ").title()
         cover = _find_cover(folder)
 
-        entries.append(FolderScanEntry(
-            folder_path=folder,
-            name=name,
-            executable_path=executable,
-            cover_path=cover,
-        ))
+        entries.append(
+            FolderScanEntry(
+                folder_path=folder,
+                name=name,
+                executable_path=executable,
+                cover_path=cover,
+            )
+        )
 
     for f in loose_files:
         ext = f.suffix.lower()
         if ext == ".zip":
             # zip extraction deferred
-            entries.append(FolderScanEntry(
-                folder_path=f.parent,
-                name=f.stem.replace("-", " ").title(),
-                executable_path=f,
-                cover_path=None,
-            ))
+            entries.append(
+                FolderScanEntry(
+                    folder_path=f.parent,
+                    name=f.stem.replace("-", " ").title(),
+                    executable_path=f,
+                    cover_path=None,
+                )
+            )
         elif ext in supported_exts:
-            entries.append(FolderScanEntry(
-                folder_path=f.parent,
-                name=f.stem.replace("-", " ").title(),
-                executable_path=f,
-                cover_path=None,
-            ))
+            entries.append(
+                FolderScanEntry(
+                    folder_path=f.parent,
+                    name=f.stem.replace("-", " ").title(),
+                    executable_path=f,
+                    cover_path=None,
+                )
+            )
 
     return entries

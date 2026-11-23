@@ -13,11 +13,13 @@ import pytest
 
 def _owner_user():
     from backend.models.user import UserItem
+
     return UserItem(id=1, name="Owner", is_owner=True)
 
 
 def _non_admin_user():
     from backend.models.user import UserItem
+
     return UserItem(id=2, name="Guest", is_owner=False, is_admin=False)
 
 
@@ -119,6 +121,7 @@ class TestPlaceRoute:
     def test_requires_admin_permission(self, client):
         c, tmp_path = client
         from backend.core.dependencies import get_active_user
+
         c.app.dependency_overrides[get_active_user] = _non_admin_user
         src = tmp_path / "scph1001.bin"
         src.write_bytes(b"x")
@@ -154,6 +157,7 @@ class TestListRoutePagination:
     def test_envelope_shape_and_first_page(self, client, monkeypatch):
         c, _ = client
         from backend.api.routes import bios as bios_mod
+
         monkeypatch.setattr(bios_mod, "load_bios_requirements", lambda: self._entries(3))
 
         resp = c.get("/api/v1/bios", params={"limit": 2, "offset": 0})
@@ -168,6 +172,7 @@ class TestListRoutePagination:
     def test_offset_returns_remaining_page(self, client, monkeypatch):
         c, _ = client
         from backend.api.routes import bios as bios_mod
+
         monkeypatch.setattr(bios_mod, "load_bios_requirements", lambda: self._entries(3))
 
         resp = c.get("/api/v1/bios", params={"limit": 2, "offset": 2})

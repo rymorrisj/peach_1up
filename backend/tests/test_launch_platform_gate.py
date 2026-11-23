@@ -46,6 +46,7 @@ class _FakeSettings:
 @pytest.fixture(autouse=True)
 def _patch_settings(monkeypatch):
     import backend.core.settings as settings_mod
+
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
 
 

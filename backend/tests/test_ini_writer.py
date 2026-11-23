@@ -19,16 +19,9 @@ import pytest
 class TestSetIniKeyExistingKey:
     def test_existing_key_mid_section_changes_only_that_line(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "test.ini"
-        original = (
-            "[General]\n"
-            "; a comment\n"
-            "foo = 1\n"
-            "bar = 2\n"
-            "\n"
-            "[Other]\n"
-            "baz = 3\n"
-        )
+        original = "[General]\n; a comment\nfoo = 1\nbar = 2\n\n[Other]\nbaz = 3\n"
         ini_path.write_text(original, encoding="utf-8")
 
         set_ini_key(ini_path, "General", "foo", "99")
@@ -40,32 +33,23 @@ class TestSetIniKeyExistingKey:
 class TestSetIniKeyMissingKeyExistingSection:
     def test_missing_key_inserted_before_next_section_header(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "test.ini"
         ini_path.write_text(
-            "[General]\n"
-            "foo = 1\n"
-            "\n"
-            "[Other]\n"
-            "baz = 3\n",
+            "[General]\nfoo = 1\n\n[Other]\nbaz = 3\n",
             encoding="utf-8",
         )
 
         set_ini_key(ini_path, "General", "newkey", "v")
 
-        expected = (
-            "[General]\n"
-            "foo = 1\n"
-            "\n"
-            "newkey = v\n"
-            "[Other]\n"
-            "baz = 3\n"
-        )
+        expected = "[General]\nfoo = 1\n\nnewkey = v\n[Other]\nbaz = 3\n"
         assert ini_path.read_text(encoding="utf-8") == expected
 
 
 class TestSetIniKeyMissingSection:
     def test_missing_section_appended_with_blank_line_separator(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "test.ini"
         ini_path.write_text("[Existing]\nfoo = 1\n", encoding="utf-8")
 
@@ -78,11 +62,10 @@ class TestSetIniKeyMissingSection:
 class TestSetIniKeyIgnoresComments:
     def test_commented_out_key_is_untouched_and_real_key_added_then_updated(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "test.ini"
         ini_path.write_text(
-            "[General]\n"
-            "; foo = old_commented\n"
-            "bar = 1\n",
+            "[General]\n; foo = old_commented\nbar = 1\n",
             encoding="utf-8",
         )
 
@@ -98,6 +81,7 @@ class TestSetIniKeyIgnoresComments:
 class TestSetIniKeyMissingFile:
     def test_creates_file_with_minimal_content(self, tmp_path):
         from backend.service.utils.ini_writer import set_ini_key
+
         ini_path = tmp_path / "new_subdir" / "test.ini"
 
         set_ini_key(ini_path, "Section", "key", "value")
@@ -110,6 +94,7 @@ class TestPatchIni:
         """A section named in both remove_sections and edits ends up holding
         only the edited keys, never the dropped file's leftovers."""
         from backend.service.utils.ini_writer import patch_ini
+
         ini_path = tmp_path / "86box.cfg"
         ini_path.write_text(
             "[Machine]\nmachine = old\nstale_key = 1\n\n[Video]\ngfxcard = vga\n",
@@ -130,6 +115,7 @@ class TestPatchIni:
         so the first section header stays parseable, and write_ini emits plain
         utf-8, so the BOM is consumed rather than accumulating on each edit."""
         from backend.service.utils.ini_writer import patch_ini
+
         ini_path = tmp_path / "86box.cfg"
         ini_path.write_bytes("\ufeff[General]\nvid_resize = 0\n".encode("utf-8"))
 
@@ -147,6 +133,7 @@ class TestWriteIni:
         sibling behind or a half-written config in place of the real one."""
         import os as os_mod
         from backend.service.utils.ini_writer import write_ini
+
         ini_path = tmp_path / "86box.cfg"
         original = "[General]\nvid_resize = 0\n"
         ini_path.write_text(original, encoding="utf-8")
@@ -158,6 +145,7 @@ class TestWriteIni:
 
         def _raise_replace(*args, **kwargs):
             raise OSError("simulated disk failure")
+
         monkeypatch.setattr(os_mod, "replace", _raise_replace)
 
         with pytest.raises(OSError, match="simulated disk failure"):

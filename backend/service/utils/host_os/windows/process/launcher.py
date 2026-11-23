@@ -53,17 +53,13 @@ def _load_platform_limits(platform: str) -> tuple[int, int]:
 
     platform_cfg = platforms_config[platform]
 
-    memory_limit_mb = platform_cfg.get('memory_limit_mb')
+    memory_limit_mb = platform_cfg.get("memory_limit_mb")
     if memory_limit_mb is None:
-        raise RuntimeError(
-            f"memory_limit_mb not defined for platform '{platform}' in platforms.yaml"
-        )
+        raise RuntimeError(f"memory_limit_mb not defined for platform '{platform}' in platforms.yaml")
 
-    cpu_limit_percent = platform_cfg.get('cpu_limit_percent')
+    cpu_limit_percent = platform_cfg.get("cpu_limit_percent")
     if cpu_limit_percent is None:
-        raise RuntimeError(
-            f"cpu_limit_percent not defined for platform '{platform}' in platforms.yaml"
-        )
+        raise RuntimeError(f"cpu_limit_percent not defined for platform '{platform}' in platforms.yaml")
 
     return int(memory_limit_mb), int(cpu_limit_percent)
 
@@ -91,8 +87,7 @@ def launch_under_job_object(
     """
     if container_enabled and sandbox_config is None:
         raise RuntimeError(
-            "container_enabled is True but sandbox_config is None, "
-            "pass a SandboxConfig to launch_under_job_object."
+            "container_enabled is True but sandbox_config is None, pass a SandboxConfig to launch_under_job_object."
         )
 
     base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -117,16 +112,24 @@ def launch_under_job_object(
         sandbox_config.memory_limit_mb = None if skip_memory_limit else memory_limit_mb
 
     process = launch_suspended(
-        executable_path, args, base_flags, cwd,
+        executable_path,
+        args,
+        base_flags,
+        cwd,
         sandbox_config if container_enabled else None,
     )
 
     job_name = f"{job_name_prefix}_{process.pid}"
 
     return run_under_job(
-        executable_path, args, base_flags, cwd,
-        process, job_name,
-        memory_limit_mb, cpu_limit_percent,
+        executable_path,
+        args,
+        base_flags,
+        cwd,
+        process,
+        job_name,
+        memory_limit_mb,
+        cpu_limit_percent,
         apply_limits=not container_enabled,
         cpu_min_rate_percent=cpu_min_rate_percent,
         skip_cpu_limit=skip_cpu_limit,

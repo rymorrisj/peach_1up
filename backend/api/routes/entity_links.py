@@ -92,11 +92,12 @@ def create_entity_link(
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    _resolve_link_entities(
-        entity_type, entity_id, body.target_entity_type, body.target_entity_id, active_user, db
-    )
+    _resolve_link_entities(entity_type, entity_id, body.target_entity_type, body.target_entity_id, active_user, db)
     link = make_entity_link(
-        entity_type, entity_id, body.target_entity_type, body.target_entity_id,
+        entity_type,
+        entity_id,
+        body.target_entity_type,
+        body.target_entity_id,
         link_note=body.link_note,
     )
     existing = (
@@ -113,7 +114,12 @@ def create_entity_link(
         return existing
     require_rating_change_confirmation(
         link_change_effects(
-            entity_type, entity_id, body.target_entity_type, body.target_entity_id, adding=True, db=db,
+            entity_type,
+            entity_id,
+            body.target_entity_type,
+            body.target_entity_id,
+            adding=True,
+            db=db,
         ),
         confirm_rating_change=confirm_rating_change,
         action="link",
@@ -150,7 +156,12 @@ def delete_entity_link(
         raise HTTPException(status_code=404, detail="Link not found.")
     require_rating_change_confirmation(
         link_change_effects(
-            entity_type, entity_id, target_entity_type, target_entity_id, adding=False, db=db,
+            entity_type,
+            entity_id,
+            target_entity_type,
+            target_entity_id,
+            adding=False,
+            db=db,
         ),
         confirm_rating_change=confirm_rating_change,
         action="link removal",

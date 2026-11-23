@@ -12,6 +12,7 @@ def _reset_jobs():
     """_jobs/_cancel_events are module-level and shared across the whole test
     process; clear either side so jobs never leak between tests."""
     from backend.core import jobs
+
     jobs._jobs.clear()
     jobs._cancel_events.clear()
     yield
@@ -25,6 +26,7 @@ class TestRequestCancel:
         through jobs.get / jobs.cancel_requested, not the returned dict, since
         the running job loop reads them that way."""
         from backend.core import jobs
+
         job_id = jobs.create("upload")
 
         result = jobs.request_cancel(job_id)
@@ -38,6 +40,7 @@ class TestRequestCancel:
         """Cancellation is not retroactive: a terminal job must come back None
         with no field mutated, never resurrected into 'cancelling'."""
         from backend.core import jobs
+
         job_id = jobs.create("upload")
         jobs.complete(job_id, result={"ok": True}, message="Finished")
         before = jobs.get(job_id)
@@ -49,11 +52,11 @@ class TestRequestCancel:
         assert after == before
         assert jobs.cancel_requested(job_id) is False
 
-
     def test_unknown_job_id_returns_none(self):
         """A cancel arriving after the job was swept must not raise or
         register a flag for an id that no longer exists."""
         from backend.core import jobs
+
         assert jobs.request_cancel("no-such-job-id") is None
         assert jobs.cancel_requested("no-such-job-id") is False
 
@@ -63,6 +66,7 @@ class TestUpdateProgressClamp:
         """Callers divide bytes by a client-declared total, so a bogus
         manifest can push the ratio outside 0..1 and past the UI's bar."""
         from backend.core import jobs
+
         job_id = jobs.create("upload")
 
         jobs.update(job_id, progress=2.5)
@@ -75,6 +79,7 @@ class TestUpdateProgressClamp:
         """A worker thread still reporting progress after its job was swept
         must not resurrect the entry."""
         from backend.core import jobs
+
         jobs.update("no-such-job-id", progress=0.5, message="…")
         assert jobs.get("no-such-job-id") is None
 

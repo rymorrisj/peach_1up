@@ -24,6 +24,7 @@ class ProcessEntry:
 @dataclass(frozen=True)
 class Reservation:
     """Token returned by try_reserve(); pass to release() exactly once."""
+
     profile_item_id: int | None
     emulator_scope: tuple[str, int | None] | None
 
@@ -41,7 +42,10 @@ def register(pid: int, entry: ProcessEntry) -> None:
         except Exception as exc:
             logger.error(
                 "Failed to register process pid=%d software_collection_id=%s profile_item_id=%s: %s",
-                pid, entry.software_collection_id, entry.profile_item_id, exc,
+                pid,
+                entry.software_collection_id,
+                entry.profile_item_id,
+                exc,
             )
             raise
 
@@ -127,7 +131,9 @@ def cleanup_exited() -> list[tuple[int, ProcessEntry]]:
                 reaped = proc is not None and poll_result is not None and poll_result != "no-handle"
                 logger.debug(
                     "cleanup_exited: pid=%d poll=%s reaped=%s",
-                    pid, poll_result, reaped,
+                    pid,
+                    poll_result,
+                    reaped,
                 )
                 if reaped:
                     _registry.pop(pid)

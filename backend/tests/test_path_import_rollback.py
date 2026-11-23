@@ -85,6 +85,7 @@ class TestStageFromSourceCopyMode:
 
         def _rename_should_not_be_called(source, dest):
             raise AssertionError("_rename_same_filesystem must not run when move=False")
+
         monkeypatch.setattr(path_import, "_rename_same_filesystem", _rename_should_not_be_called)
 
         domain_root = tmp_path / "domain"
@@ -109,6 +110,7 @@ class TestStageFromSourceSameFilesystemMove:
 
         def _copy_should_not_be_called(src, dst, *a, **kw):
             raise AssertionError("copy2 must not run after a successful rename")
+
         monkeypatch.setattr(path_import.shutil, "copy2", _copy_should_not_be_called)
 
         domain_root = tmp_path / "domain"
@@ -173,7 +175,9 @@ class TestImportBackgroundInPlaceRouting:
         from backend.core import jobs as jobs_mod
 
         engine = create_engine(
-            "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
         )
         monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
 
@@ -189,6 +193,7 @@ class TestImportBackgroundInPlaceRouting:
 
         def _stage_should_not_be_called(*a, **kw):
             raise AssertionError("stage_from_source must not be called for an in-place source")
+
         monkeypatch.setattr(path_import, "stage_from_source", _stage_should_not_be_called)
 
         job_id = jobs_mod.create("upload")
@@ -210,7 +215,9 @@ class TestImportBackgroundInPlaceRouting:
         from backend.core import jobs as jobs_mod
 
         engine = create_engine(
-            "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
         )
         monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
 
@@ -224,6 +231,7 @@ class TestImportBackgroundInPlaceRouting:
 
         def _raise_already_exists(source, title, db):
             raise path_import.lib_svc._ItemAlreadyExists(existing)
+
         monkeypatch.setattr(path_import.lib_svc, "_ingest_media_entry", _raise_already_exists)
 
         job_id = jobs_mod.create("upload")

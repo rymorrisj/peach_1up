@@ -40,10 +40,12 @@ def _patch_common(monkeypatch, app_container, *, descriptor=None, skip_cpu=False
 # Resolution *within* get_skip_cpu_limit is emulator_catalog's own concern and
 # is covered there so settings=True/descriptor=False deliberately does not yield True.
 
+
 class TestGetContainerConfigSkipCpuLimit:
     def test_skip_cpu_limit_sourced_from_get_skip_cpu_limit_not_descriptor(self, monkeypatch):
         """Descriptor says False, the resolver says True; the resolver wins."""
         import backend.service.utils.host_os.windows.app_container as app_container
+
         descriptor = {"container_broker_files": [], "skip_cpu_limit": False}
         _patch_common(monkeypatch, app_container, descriptor=descriptor, skip_cpu=True, skip_mem=False)
 
@@ -52,6 +54,7 @@ class TestGetContainerConfigSkipCpuLimit:
 
     def test_skip_cpu_limit_false_from_resolver_is_honoured(self, monkeypatch):
         import backend.service.utils.host_os.windows.app_container as app_container
+
         descriptor = {"container_broker_files": [], "skip_cpu_limit": True}
         _patch_common(monkeypatch, app_container, descriptor=descriptor, skip_cpu=False, skip_mem=False)
 
@@ -63,10 +66,12 @@ class TestGetContainerConfigSkipCpuLimit:
 # get_container_config: skip_memory_limit resolution + memory_limit_mb
 # ---------------------------------------------------------------------------
 
+
 class TestGetContainerConfigSkipMemoryLimit:
     def test_skip_memory_limit_true_nulls_memory_limit_mb(self, monkeypatch):
         """Same call-boundary regression as skip_cpu_limit above."""
         import backend.service.utils.host_os.windows.app_container as app_container
+
         descriptor = {"container_broker_files": [], "skip_memory_limit": False}
         _patch_common(monkeypatch, app_container, descriptor=descriptor, skip_cpu=False, skip_mem=True)
 
@@ -75,6 +80,7 @@ class TestGetContainerConfigSkipMemoryLimit:
 
     def test_skip_memory_limit_false_uses_platform_derived_value(self, monkeypatch):
         import backend.service.utils.host_os.windows.app_container as app_container
+
         descriptor = {"container_broker_files": [], "skip_memory_limit": True}
         _patch_common(monkeypatch, app_container, descriptor=descriptor, skip_cpu=False, skip_mem=False)
 
@@ -86,9 +92,11 @@ class TestGetContainerConfigSkipMemoryLimit:
 # get_container_config: launch_paths override vs directory-wide fallback
 # ---------------------------------------------------------------------------
 
+
 class TestGetContainerConfigLaunchPathsOverride:
     def test_launch_paths_entry_overrides_directory_fallback_grant(self, monkeypatch):
         import backend.service.utils.host_os.windows.app_container as app_container
+
         descriptor = {"container_broker_files": [{"path_key": "hdd_image", "access": "r"}]}
         _patch_common(monkeypatch, app_container, descriptor=descriptor)
         monkeypatch.setattr(app_container, "_resolve_path_key", lambda path_key, slug: "/fallback/xemu/")
@@ -97,7 +105,8 @@ class TestGetContainerConfigLaunchPathsOverride:
         assert cfg_without_override.broker_files[0].path == "/fallback/xemu/"
 
         cfg_with_override = app_container.get_container_config(
-            "xemu", "xemu.exe", launch_paths={"hdd_image": "/exact/game.qcow2"})
+            "xemu", "xemu.exe", launch_paths={"hdd_image": "/exact/game.qcow2"}
+        )
         assert cfg_with_override.broker_files[0].path == "/exact/game.qcow2"
 
 
@@ -105,11 +114,13 @@ class TestGetContainerConfigLaunchPathsOverride:
 # get_container_config: platform-derived cpu_limit_percent
 # ---------------------------------------------------------------------------
 
+
 class TestGetContainerConfigCpuLimitMissing:
     def test_missing_cpu_limit_percent_raises_instead_of_defaulting(self, monkeypatch):
         """Fail-loud: an platform block with no cpu_limit_percent must raise, never
         fall back to an unlimited (or arbitrary) rate on the container path."""
         import backend.service.utils.host_os.windows.app_container as app_container
+
         _patch_common(monkeypatch, app_container)
         monkeypatch.setattr(app_container, "_load_sizing_limits", lambda slug: {"memory_limit_mb": 2048})
 
@@ -120,6 +131,7 @@ class TestGetContainerConfigCpuLimitMissing:
 # ---------------------------------------------------------------------------
 # _resolve_path_key: derived map wins over a same-named settings row
 # ---------------------------------------------------------------------------
+
 
 class TestResolvePathKeyPrecedence:
     def test_derived_path_wins_over_a_same_named_settings_row(self, monkeypatch):
@@ -148,13 +160,16 @@ class TestResolvePathKeyPrecedence:
 # build_container_moniker: pure string construction
 # ---------------------------------------------------------------------------
 
+
 class TestBuildContainerMoniker:
     def test_none_scope_yields_shared_moniker(self):
         from backend.service.utils.host_os.windows.app_container import build_container_moniker
+
         assert build_container_moniker("xemu", None) == "Peach1UP.xemu.shared"
 
     def test_int_scope_yields_per_user_moniker(self):
         from backend.service.utils.host_os.windows.app_container import build_container_moniker
+
         assert build_container_moniker("xemu", 7) == "Peach1UP.xemu.7"
 
 
@@ -167,11 +182,13 @@ class TestBuildContainerMoniker:
 # validate_descriptor_grant_surface
 # ---------------------------------------------------------------------------
 
+
 class TestValidateDescriptorGrantSurface:
     def test_passes_against_real_emulator_catalog(self, monkeypatch, tmp_path):
         """Runs against the real config/emulators/ catalog, unpatched. APPDATA
         is stubbed so xemu's appdata_xemu path_key resolves off Windows too."""
         import backend.service.utils.host_os.windows.app_container as app_container
+
         monkeypatch.setenv("APPDATA", str(tmp_path))
         app_container.validate_descriptor_grant_surface()
 
@@ -179,6 +196,7 @@ class TestValidateDescriptorGrantSurface:
         """Fake descriptor via a patched load_catalog, never a real one."""
         from backend.service.utils import emulator_catalog
         import backend.service.utils.host_os.windows.app_container as app_container
+
         fake_descriptor = {
             "slug": "fake-emu",
             "container_broker_files": [{"path_key": "nonexistent_key_xyz"}],

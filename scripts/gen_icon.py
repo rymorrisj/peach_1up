@@ -1,6 +1,7 @@
 """Generate the placeholder tray icon: assets/peach1up.png (runtime tray icon,
 see backend/tray.py) and assets/peach1up.ico (PyInstaller exe icon, see
 peach1up.spec) from the same source image."""
+
 from pathlib import Path
 
 from PIL import Image

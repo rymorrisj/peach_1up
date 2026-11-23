@@ -56,8 +56,13 @@ def _iter_source_files(source: Path) -> list[Path]:
 
 
 async def _copy_or_stream(
-    *, source: Path | None, upload: UploadFile | None, dest_path: Path,
-    max_bytes: int, result: PlacementResult, name: str,
+    *,
+    source: Path | None,
+    upload: UploadFile | None,
+    dest_path: Path,
+    max_bytes: int,
+    result: PlacementResult,
+    name: str,
 ) -> None:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     if dest_path.exists():
@@ -72,8 +77,13 @@ async def _copy_or_stream(
 
 
 async def _place_flat_pattern(
-    *, pattern: re.Pattern, label: str, source: Path | None,
-    uploads: list[UploadFile], dest_dir: Path, max_bytes: int,
+    *,
+    pattern: re.Pattern,
+    label: str,
+    source: Path | None,
+    uploads: list[UploadFile],
+    dest_dir: Path,
+    max_bytes: int,
 ) -> PlacementResult:
     result = PlacementResult()
     if source is not None:
@@ -83,8 +93,12 @@ async def _place_flat_pattern(
         for p in matched:
             dest_path = resolve_under(dest_dir, p.name)
             await _copy_or_stream(
-                source=p, upload=None, dest_path=dest_path,
-                max_bytes=max_bytes, result=result, name=p.name,
+                source=p,
+                upload=None,
+                dest_path=dest_path,
+                max_bytes=max_bytes,
+                result=result,
+                name=p.name,
             )
     else:
         if not uploads:
@@ -95,15 +109,17 @@ async def _place_flat_pattern(
                 continue
             safe_name = safe_basename(up.filename)
             if not pattern.search(safe_name):
-                result.warnings.append(
-                    f"Skipped '{up.filename}', does not look like a {label} file."
-                )
+                result.warnings.append(f"Skipped '{up.filename}', does not look like a {label} file.")
                 continue
             matched_any = True
             dest_path = resolve_under(dest_dir, safe_name)
             await _copy_or_stream(
-                source=None, upload=up, dest_path=dest_path,
-                max_bytes=max_bytes, result=result, name=safe_name,
+                source=None,
+                upload=up,
+                dest_path=dest_path,
+                max_bytes=max_bytes,
+                result=result,
+                name=safe_name,
             )
         if not matched_any:
             raise PlacementError(f"None of the uploaded files look like {label} files.")
@@ -133,7 +149,11 @@ def _place_tree_merge(*, source: Path, dest_dir: Path) -> PlacementResult:
 
 
 async def _place_named_pair(
-    *, source: Path | None, uploads: list[UploadFile], dest_dir: Path, max_bytes: int,
+    *,
+    source: Path | None,
+    uploads: list[UploadFile],
+    dest_dir: Path,
+    max_bytes: int,
 ) -> PlacementResult:
     result = PlacementResult()
     found: dict[str, Path | UploadFile] = {}
@@ -153,33 +173,41 @@ async def _place_named_pair(
 
     if not found:
         where = "folder" if source is not None else "upload"
-        raise PlacementError(
-            f"Expected {' and '.join(_FLYCAST_NAMES)}, neither was found in the supplied {where}."
-        )
+        raise PlacementError(f"Expected {' and '.join(_FLYCAST_NAMES)}, neither was found in the supplied {where}.")
 
     for canon, item in found.items():
         dest_path = resolve_under(dest_dir, canon)
         if isinstance(item, Path):
             await _copy_or_stream(
-                source=item, upload=None, dest_path=dest_path,
-                max_bytes=max_bytes, result=result, name=canon,
+                source=item,
+                upload=None,
+                dest_path=dest_path,
+                max_bytes=max_bytes,
+                result=result,
+                name=canon,
             )
         else:
             await _copy_or_stream(
-                source=None, upload=item, dest_path=dest_path,
-                max_bytes=max_bytes, result=result, name=canon,
+                source=None,
+                upload=item,
+                dest_path=dest_path,
+                max_bytes=max_bytes,
+                result=result,
+                name=canon,
             )
 
     for canon in _FLYCAST_NAMES:
         if canon not in found and not (dest_dir / canon).exists():
-            result.warnings.append(
-                f"'{canon}' is still missing, Flycast requires both files together."
-            )
+            result.warnings.append(f"'{canon}' is still missing, Flycast requires both files together.")
     return result
 
 
 async def _place_mesen_fds(
-    *, source: Path | None, uploads: list[UploadFile], dest_dir: Path, max_bytes: int,
+    *,
+    source: Path | None,
+    uploads: list[UploadFile],
+    dest_dir: Path,
+    max_bytes: int,
 ) -> PlacementResult:
     result = PlacementResult()
     dest_path = resolve_under(dest_dir, _MESEN_FDS_NAME)
@@ -192,8 +220,12 @@ async def _place_mesen_fds(
         if match is None:
             raise PlacementError(f"Expected a file named '{_MESEN_FDS_NAME}', not found in '{source}'.")
         await _copy_or_stream(
-            source=match, upload=None, dest_path=dest_path,
-            max_bytes=max_bytes, result=result, name=_MESEN_FDS_NAME,
+            source=match,
+            upload=None,
+            dest_path=dest_path,
+            max_bytes=max_bytes,
+            result=result,
+            name=_MESEN_FDS_NAME,
         )
     else:
         if len(uploads) != 1 or not uploads[0].filename:
@@ -202,8 +234,12 @@ async def _place_mesen_fds(
         if up.filename.lower() != _MESEN_FDS_NAME.lower():
             raise PlacementError(f"Expected a file named '{_MESEN_FDS_NAME}', got '{up.filename}'.")
         await _copy_or_stream(
-            source=None, upload=up, dest_path=dest_path,
-            max_bytes=max_bytes, result=result, name=_MESEN_FDS_NAME,
+            source=None,
+            upload=up,
+            dest_path=dest_path,
+            max_bytes=max_bytes,
+            result=result,
+            name=_MESEN_FDS_NAME,
         )
 
     if _MESEN_FDS_NAME in result.copied:
@@ -217,8 +253,12 @@ async def _place_mesen_fds(
 
 
 async def place_bios_asset(
-    *, slug: str, source_path: str | None, uploads: list[UploadFile],
-    dest_dir: Path, max_bytes: int = DEFAULT_MAX_BYTES,
+    *,
+    slug: str,
+    source_path: str | None,
+    uploads: list[UploadFile],
+    dest_dir: Path,
+    max_bytes: int = DEFAULT_MAX_BYTES,
 ) -> PlacementResult:
     source: Path | None = None
     if source_path:
@@ -231,14 +271,22 @@ async def place_bios_asset(
 
     if slug == "ps1-bios":
         return await _place_flat_pattern(
-            pattern=_BIN_PATTERN, label="PS1 BIOS (.bin)",
-            source=source, uploads=uploads, dest_dir=dest_dir, max_bytes=max_bytes,
+            pattern=_BIN_PATTERN,
+            label="PS1 BIOS (.bin)",
+            source=source,
+            uploads=uploads,
+            dest_dir=dest_dir,
+            max_bytes=max_bytes,
         )
 
     if slug == "ps2-bios":
         result = await _place_flat_pattern(
-            pattern=_PS2_PATTERN, label="PS2 BIOS",
-            source=source, uploads=uploads, dest_dir=dest_dir, max_bytes=max_bytes,
+            pattern=_PS2_PATTERN,
+            label="PS2 BIOS",
+            source=source,
+            uploads=uploads,
+            dest_dir=dest_dir,
+            max_bytes=max_bytes,
         )
         try:
             total = sum(1 for p in dest_dir.iterdir() if p.is_file())
@@ -261,12 +309,18 @@ async def place_bios_asset(
 
     if slug == "dreamcast-bios":
         return await _place_named_pair(
-            source=source, uploads=uploads, dest_dir=dest_dir, max_bytes=max_bytes,
+            source=source,
+            uploads=uploads,
+            dest_dir=dest_dir,
+            max_bytes=max_bytes,
         )
 
     if slug == "mesen-fds-bios":
         return await _place_mesen_fds(
-            source=source, uploads=uploads, dest_dir=dest_dir, max_bytes=max_bytes,
+            source=source,
+            uploads=uploads,
+            dest_dir=dest_dir,
+            max_bytes=max_bytes,
         )
 
     if slug == "xbox-bios":

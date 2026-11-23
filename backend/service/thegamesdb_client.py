@@ -18,11 +18,11 @@ _TIMEOUT = 15.0
 
 def _api_key() -> str:
     from backend.service.utils.env_secrets import get_env_secret
+
     key = get_env_secret("THEGAMESDB_API_KEY")
     if not key:
         raise ValueError(
-            "THEGAMESDB_API_KEY is not configured. "
-            "Set it via Settings > Metadata before using TheGamesDB features."
+            "THEGAMESDB_API_KEY is not configured. Set it via Settings > Metadata before using TheGamesDB features."
         )
     return key
 

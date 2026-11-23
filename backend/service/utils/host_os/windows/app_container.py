@@ -40,9 +40,7 @@ def _load_sizing_limits(slug: str) -> dict:
     platform_key = get_emulator_sizing_platform(slug)
     sizing_limits = get_platform_config(platform_key)
     if not sizing_limits:
-        raise RuntimeError(
-            f"Platform '{platform_key}' (used by emulator '{slug}') not found in platforms.yaml."
-        )
+        raise RuntimeError(f"Platform '{platform_key}' (used by emulator '{slug}') not found in platforms.yaml.")
     return sizing_limits
 
 
@@ -100,8 +98,7 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         message=f"Cannot resolve path_key '{path_key}' for emulator '{slug}'",
         stage=SandboxStage.CONFIG_VALIDATION,
         suggestions=[
-            f"Add '{path_key}' to settings or define it as a derived "
-            "path in emulator_paths.resolve_derived_path()",
+            f"Add '{path_key}' to settings or define it as a derived path in emulator_paths.resolve_derived_path()",
         ],
     )
 

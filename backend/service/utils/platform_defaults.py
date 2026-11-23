@@ -117,10 +117,7 @@ def resolve_environments_for_launch_gate_bulk(items: list, db: Session) -> dict[
         for row in db.query(EnvironmentItem).filter(EnvironmentItem.id.in_(explicit_ids)).all():
             by_id[row.id] = row
 
-    return {
-        i.id: by_id.get(i.environment_item_id) if i.environment_item_id is not None else None
-        for i in items
-    }
+    return {i.id: by_id.get(i.environment_item_id) if i.environment_item_id is not None else None for i in items}
 
 
 # The full reason vocabulary for both evaluate_launch_readiness call sites,
