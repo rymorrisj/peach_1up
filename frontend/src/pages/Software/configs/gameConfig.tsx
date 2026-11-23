@@ -22,6 +22,7 @@ import { canOfferPlatformConfirm } from '../components/platformReview';
 import type { GameItemBundleData } from '../components/CollectionCard';
 import { getGameCoverArt } from '../components/gameCoverArt';
 import { LinkedItemsSection } from '../components/LinkedItemsSection';
+import { GameCoverPicker } from '../components/GameCoverPicker';
 import { LaunchNote } from '../components/LaunchNote';
 import { useUserEnvironmentCount } from '@/hooks/useUserEnvironmentCount';
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types';
@@ -366,6 +367,12 @@ function useGameDetailExtras(
   // now, no parallel client-side profile check. effectiveProfileId is still used
   // as the launch payload so a saved profile override is honored, but it no
   // longer decides whether the button is enabled.
+  const displayLeaf = resolveDisplayLeaf(
+    bundle.items,
+    bundle.display_disk_id,
+    bundle.launch_disk_id,
+  );
+
   const launchGate = launchGateFromReason(
     bundle.launch_blocked_reason,
     isLaunching,
@@ -684,6 +691,16 @@ function useGameDetailExtras(
     afterContent: (
       <>
         <LinkedItemsSection items={bundle.linked_items} />
+
+        {canManageGame && (
+          <GameCoverPicker
+            bundleId={bundle.id}
+            displayDiscId={displayLeaf?.id ?? null}
+            hasCover={Boolean(displayLeaf?.cover_art_path)}
+            detailQueryKey={detailQueryKey}
+            onCoverChanged={(path) => setFormField('cover_art_path', path ?? '')}
+          />
+        )}
 
         <FetchMetadataModal
           open={fetchMetadataOpen}

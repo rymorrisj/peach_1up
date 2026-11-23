@@ -11,6 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Optional
 
+from fastapi import HTTPException
+
 from backend.core.logger import get_logger
 
 if TYPE_CHECKING:
@@ -30,6 +32,23 @@ def effective_display_leaf(bundle: "GameItemBundle") -> Optional["GameItem"]:
     if leaf is None and bundle.items:
         return bundle.items[0]
     return leaf
+
+
+def require_cover_in_library(resolved: Path, raw: str) -> None:
+    """A cover renders from /media/<path relative to LIBRARY_PATH>, the same
+    root GameItemRead resolves cover_art_url against, so a path outside it
+    would save and then show a blank card. Checked before any existence test,
+    so the 422 says nothing about whether the path exists."""
+    from backend.service.utils import settings as _s
+
+    library = _s.get("LIBRARY_PATH", "") or ""
+    if library and resolved.is_relative_to(Path(library).resolve()):
+        return
+    _log.warning("Rejected game cover_art_path %r: outside LIBRARY_PATH", raw)
+    raise HTTPException(
+        status_code=422,
+        detail="cover_art_path must be inside the library folder (its software or media folders).",
+    )
 
 
 def leaf_cover_stem(leaf_id: int) -> str:

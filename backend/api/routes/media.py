@@ -398,7 +398,7 @@ def apply_cover_art_to_linked_games(
         raise HTTPException(status_code=422, detail="file_path does not belong to this media item.")
 
     from backend.models.game import GameItemBundle
-    from backend.service.games.leaf_covers import effective_display_leaf
+    from backend.service.games.leaf_covers import effective_display_leaf, require_cover_in_library
 
     linked_game_ids = [
         ref.entity_id
@@ -414,6 +414,7 @@ def apply_cover_art_to_linked_games(
         cover_path = normalise_path(body.file_path)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"cover_art_path: {exc}")
+    require_cover_in_library(cover_path, body.file_path)
     if not cover_path.exists():
         raise HTTPException(status_code=400, detail=f"cover_art_path does not exist: {cover_path}")
 

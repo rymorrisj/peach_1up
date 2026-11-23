@@ -188,6 +188,21 @@ def derive_item_type(platform: PlatformValue) -> ItemType:
     return "pc" if platform in PC_PLATFORMS else "console"
 
 
+class GameCoverCandidate(SQLModel):
+    """One linked Media image the caller may use as this game's cover."""
+
+    media_item_id: int
+    title: str
+    asset_type: Optional[str] = None
+    file_url: str
+    media_item_bundle_id: Optional[int] = None
+    is_current: bool = False
+
+
+class GameCoverFromMedia(SQLModel):
+    media_item_id: int
+
+
 class GameItemBundle(SQLModel, table=True):
     __tablename__ = "game_item_bundles"
 

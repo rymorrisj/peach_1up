@@ -5,7 +5,6 @@ import type { SoftwareMediaForm } from '../types/mediaForm';
 const form: SoftwareMediaForm = {
   title: 'Doom OST',
   description: '',
-  cover_art_path: '',
   content_rating: 'T',
 };
 
@@ -22,6 +21,15 @@ function renderForm(rating: MediaRatingInheritance) {
     />,
   );
 }
+
+describe('MediaEditForm cover art', () => {
+  it('has no path input or browse button, so media-only editors never hit browse', () => {
+    renderForm({ isInherited: false, effectiveRating: null });
+
+    expect(screen.queryByLabelText('Cover Art Path')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Browse…' })).not.toBeInTheDocument();
+  });
+});
 
 describe('MediaEditForm content rating', () => {
   it('shows an editable rating field for a standalone bundle', () => {

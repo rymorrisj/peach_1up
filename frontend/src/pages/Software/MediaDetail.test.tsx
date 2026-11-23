@@ -159,11 +159,8 @@ describe('MediaDetail', () => {
           (c) => c.url === '/api/v1/media-item-bundle/1' && c.method === 'PATCH',
         );
         expect(patch).toBeTruthy();
-        expect(patch?.body).toMatchObject({
-          title: 'Renamed Video',
-          description: null,
-          cover_art_path: null,
-        });
+        expect(patch?.body).toMatchObject({ title: 'Renamed Video', description: null });
+        expect(patch?.body).not.toHaveProperty('cover_art_path');
       });
     });
   });

@@ -15,12 +15,13 @@ from backend.core.dependencies import (
 )
 from backend.core.logger import get_logger
 from backend.models.game import (
-    ImportResult, GameItemBundle, GameItemBundleCreate, GameItemBundleRead,
+    GameCoverCandidate, GameCoverFromMedia, ImportResult, GameItemBundle, GameItemBundleCreate, GameItemBundleRead,
     GameItemBundleUpdate, GameItem, GameItemRead, GameItemReorder, GameItemUpdate,
     ScanStatus, game_item_bundle_to_read, game_item_bundles_to_read_bulk,
 )
 from backend.models.pagination import Page
 from backend.models.user import UserItem
+from backend.service.games import cover_from_media
 from backend.service.games import items as lib_svc
 from backend.service.games import path_import
 from backend.service.media.rating_change_guard import (
@@ -737,4 +738,41 @@ def update_game_item(
     get_filtered_game_item_bundle(collection_id, active_user, db)
     return GameItemRead.model_validate(
         lib_svc.update_library_leaf(collection_id, leaf_id, body, db)
+    )
+
+
+@router.get("/game-item-bundle/{collection_id}/cover-candidates", response_model=list[GameCoverCandidate])
+def list_cover_candidates(
+    collection_id: int,
+    db: Session = Depends(get_db),
+    active_user: UserItem = require_permission("can_manage_game"),
+):
+    """Image files from the media linked to this game that the caller may
+    see, for the cover picker."""
+    game = get_filtered_game_item_bundle(collection_id, active_user, db)
+    return [
+        GameCoverCandidate(
+            media_item_id=item.id,
+            title=item.title,
+            asset_type=item.asset_type,
+            file_url=item.file_url,
+            media_item_bundle_id=item.media_item_bundle_id,
+            is_current=cover_from_media.current_cover_matches(game, item),
+        )
+        for item in cover_from_media.linked_image_items(game.id, active_user, db)
+    ]
+
+
+@router.put("/game-item-bundle/{collection_id}/cover-art", response_model=GameItemRead)
+def set_cover_from_media(
+    collection_id: int,
+    body: GameCoverFromMedia,
+    db: Session = Depends(get_db),
+    active_user: UserItem = require_permission("can_manage_game"),
+):
+    """Use a linked media image as the cover of the disc the card shows.
+    Clearing a cover is PATCH .../items/{leaf_id} with an explicit null."""
+    game = get_filtered_game_item_bundle(collection_id, active_user, db)
+    return GameItemRead.model_validate(
+        cover_from_media.set_cover_from_media_item(game, body.media_item_id, active_user, db)
     )

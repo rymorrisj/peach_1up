@@ -1,5 +1,4 @@
 import { Button, Card, FormField, Input, Textarea, Select } from '@/ui';
-import PathInput from '@/components/common/PathInput';
 import { RATING_OPTIONS } from '@/generated/constants';
 import type { SoftwareMediaForm } from '../types/mediaForm';
 
@@ -57,17 +56,6 @@ export function MediaEditForm({
               onChange={(e) => setField('description', e.target.value)}
               placeholder="Short description…"
               rows={3}
-            />
-          </FormField>
-
-          <FormField label="Cover Art Path" htmlFor="detail-cover">
-            <PathInput
-              id="detail-cover"
-              mode="file"
-              accept=".png,.jpg,.jpeg,.webp"
-              value={form.cover_art_path}
-              onChange={(v) => setField('cover_art_path', v)}
-              placeholder="C:\Images\cover.png"
             />
           </FormField>
 

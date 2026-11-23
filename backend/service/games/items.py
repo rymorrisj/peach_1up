@@ -1633,24 +1633,6 @@ _EXISTENCE_FIELDS = {"executable_path", "cover_art_path"}
 _CONTAINMENT_FIELDS = {"executable_path"}
 
 
-def _require_cover_in_library(resolved: Path, raw: str) -> None:
-    """A cover renders from /media/<path relative to LIBRARY_PATH>, the same
-    root GameItemRead resolves cover_art_url against, so a path outside it
-    would save and then show a blank card. Checked before any existence test,
-    so the 422 says nothing about whether the path exists."""
-    from backend.core.logger import get_logger
-    from backend.core.settings import get_settings
-
-    library = get_settings().get("LIBRARY_PATH", "") or ""
-    if library and resolved.is_relative_to(Path(library).resolve()):
-        return
-    get_logger(__name__).warning("Rejected game cover_art_path %r: outside LIBRARY_PATH", raw)
-    raise HTTPException(
-        status_code=422,
-        detail="cover_art_path must be inside the library folder (its software or media folders).",
-    )
-
-
 def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, db: Session) -> GameItem:
     """Only fields present in the body are written; an explicit null clears
     the column. Clearing a cover never deletes the file."""
@@ -1666,7 +1648,8 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, 
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"{key}: {e}")
         if key == "cover_art_path":
-            _require_cover_in_library(resolved, fields[key])
+            from backend.service.games.leaf_covers import require_cover_in_library
+            require_cover_in_library(resolved, fields[key])
         if key in _EXISTENCE_FIELDS and not resolved.exists():
             raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
         if key in _CONTAINMENT_FIELDS:
