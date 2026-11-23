@@ -84,6 +84,8 @@ def run_job(plan: "ApplyPlan", job_id: str) -> None:
             result={
                 "media_item_bundle_id": bundle.id if bundle is not None else None,
                 "item_count": len(bundle.items) if bundle is not None else 0,
+                "created_count": plan.created_count,
+                "cover_set": plan.cover_set,
             },
             message="Fetched images applied.",
         )

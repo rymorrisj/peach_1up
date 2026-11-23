@@ -6,7 +6,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -347,13 +347,17 @@ def _validate_source(media_path: str, db: Session) -> _SourceRef:
     """
     from backend.models.environment import EnvironmentItem
 
+    from backend.core.logger import get_logger
+
+    log = get_logger(__name__)
     try:
         media_src = normalise_path(media_path)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"media_path: {e}")
 
     if not media_src.exists():
-        raise HTTPException(status_code=400, detail=f"Path does not exist: {media_path}")
+        log.warning("Rejected media_path %r: does not exist", media_path)
+        raise HTTPException(status_code=400, detail="media_path is not a readable file or folder.")
 
     incoming_norm = media_src.as_posix()
 
@@ -370,10 +374,8 @@ def _validate_source(media_path: str, db: Session) -> _SourceRef:
         return _SourceRef(path=media_src, is_dir=True)
     if media_src.is_file():
         return _SourceRef(path=media_src, is_dir=False)
-    raise HTTPException(
-        status_code=400,
-        detail=f"Path is not a file or directory: {media_path}",
-    )
+    log.warning("Rejected media_path %r: neither a file nor a directory", media_path)
+    raise HTTPException(status_code=400, detail="media_path is not a readable file or folder.")
 
 
 def _guard_directory_source(folder: Path, db: Session, games_root_str: str) -> None:
@@ -1671,6 +1673,13 @@ def update_library_collection(
                 new_rating,
             )
         fields["content_rating"] = new_rating
+    if "external_links" in fields:
+        from backend.service.metadata_providers.links import web_links
+
+        try:
+            fields["external_links"] = web_links(fields["external_links"], strict=True)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
     _validate_platform_confirmation(collection, fields)
     _apply_platform_change(collection, fields, db)
     for key, value in fields.items():
@@ -1686,29 +1695,40 @@ def update_library_collection(
 
 
 _PATH_FIELDS = {"executable_path", "cover_art_path"}
-_EXISTENCE_FIELDS = {"executable_path", "cover_art_path"}
 # executable_path is what coordinator.py prefers over media_path when
 # building a LaunchSpec (see _launch_entity), so it is the one field here
 # that can steer a launch outside the library entirely if left unchecked.
 _CONTAINMENT_FIELDS = {"executable_path"}
 
 
-def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, db: Session) -> GameItem:
-    """Only fields present in the body are written; an explicit null clears
-    the column. Clearing a cover never deletes the file."""
-    leaf = db.get(GameItem, leaf_id)
-    if not leaf or leaf.game_item_bundle_id != collection_id:
-        raise HTTPException(status_code=404, detail="Software item not found.")
-    fields = body.model_dump(exclude_unset=True)
+def _in_games_library(resolved: Path) -> bool:
+    from backend.service.utils.path_utils import library_domain_root
+
+    root = library_domain_root("games")
+    return resolved == root or resolved.is_relative_to(root)
+
+
+def validate_leaf_paths(fields: dict, contained: Callable[[Path], bool]) -> None:
+    """Normalise, confine and existence-check the path fields present in
+    *fields*, in place; null values are left to clear the column.
+
+    executable_path must satisfy *contained*, and is refused with 503 while
+    SOFTWARE_PATH is unset, so a missing root never turns the check off.
+    Containment runs before any existence test and no message names a path,
+    so an outside path answers the same whether or not it exists. The detail
+    goes to the log only. Shared by the game and app leaf PATCH.
+    """
     from backend.core.logger import get_logger
 
     log = get_logger(__name__)
     for key in _PATH_FIELDS & fields.keys():
         if fields[key] is None:
             continue
-        # Containment runs before any existence test, and no message below
-        # names a path, so an outside path answers the same whether or not it
-        # exists. The detail goes to the log only.
+        if key in _CONTAINMENT_FIELDS:
+            from backend.core.settings import get_settings
+
+            if not (get_settings().get("SOFTWARE_PATH", "") or "").strip():
+                raise HTTPException(status_code=503, detail="SOFTWARE_PATH is not configured.")
         try:
             resolved = normalise_path(fields[key])
         except ValueError as exc:
@@ -1718,24 +1738,23 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, 
             from backend.service.games.leaf_covers import require_cover_in_library
 
             require_cover_in_library(resolved, fields[key])
-        if key in _CONTAINMENT_FIELDS:
-            from backend.core.settings import get_settings
-
-            games_root_str = get_settings().get("SOFTWARE_PATH", "") or ""
-            if games_root_str:
-                from backend.service.utils.path_utils import library_domain_root
-
-                media_root = library_domain_root("games")
-                if not (resolved == media_root or resolved.is_relative_to(media_root)):
-                    log.warning("Rejected %s %r: outside the games library", key, fields[key])
-                    raise HTTPException(
-                        status_code=422,
-                        detail=f"{key} must be inside the games library (library/software/games/).",
-                    )
-        if key in _EXISTENCE_FIELDS and not resolved.exists():
+        if key in _CONTAINMENT_FIELDS and not contained(resolved):
+            log.warning("Rejected %s %r: outside the permitted library location", key, fields[key])
+            raise HTTPException(status_code=422, detail=f"{key} is outside the permitted library location.")
+        if not resolved.exists():
             log.warning("Rejected %s %r: does not exist", key, fields[key])
             raise HTTPException(status_code=400, detail=f"{key} does not exist.")
         fields[key] = str(resolved)
+
+
+def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, db: Session) -> GameItem:
+    """Only fields present in the body are written; an explicit null clears
+    the column. Clearing a cover never deletes the file."""
+    leaf = db.get(GameItem, leaf_id)
+    if not leaf or leaf.game_item_bundle_id != collection_id:
+        raise HTTPException(status_code=404, detail="Software item not found.")
+    fields = body.model_dump(exclude_unset=True)
+    validate_leaf_paths(fields, _in_games_library)
     for key, value in fields.items():
         setattr(leaf, key, value)
     db.commit()

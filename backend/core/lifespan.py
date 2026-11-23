@@ -22,6 +22,7 @@ from backend.core.startup_tasks import (
     _flag_corrupt_environment_working_paths,
     _heal_interrupted_rom_pack_clones,
     _scan_installed_emulators,
+    _sweep_asset_staging,
     _sweep_upload_tmp,
     _sync_detected_emulator_paths,
     _sync_first_run_from_db,
@@ -103,6 +104,7 @@ async def lifespan(app: FastAPI):
 
     _heal_interrupted_rom_pack_clones()
     _sweep_upload_tmp()
+    _sweep_asset_staging()
     _scan_installed_emulators()
     _sync_detected_emulator_paths()
 

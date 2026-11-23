@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from backend.core import jobs, rate_limit
 from backend.core.database import get_db
-from backend.core.dependencies import get_filtered_game_item_bundle, require_permission
+from backend.core.dependencies import get_filtered_game_item_bundle, normalize_content_rating, require_permission
 from backend.models.game import game_item_bundle_to_read
 from backend.models.user import UserItem
 from backend.service.games import accept_all_job, media_link
@@ -154,6 +154,7 @@ def get_metadata_details(
         "release_date": details.release_date,
         "overview": details.overview,
         "rating": details.rating,
+        "normalized_rating": normalize_content_rating(details.rating),
         "provider_platform_id": details.provider_platform_id,
         "cover_art_url": details.cover_art_url,
         "cover_art_thumb_url": details.cover_art_thumb_url,

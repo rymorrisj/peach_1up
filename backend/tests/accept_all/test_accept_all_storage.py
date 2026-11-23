@@ -10,6 +10,8 @@ Downloads are replaced by a fake that writes into the staging dir it is
 handed, the same contract fetch_image_to_temp has.
 """
 
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -159,7 +161,7 @@ class TestLimits:
         import backend.service.games.media_link as media_link_mod
 
         game = _game(db)
-        monkeypatch.setattr(media_link_mod, "_running_applies", {("game", game.id)})
+        monkeypatch.setattr(media_link_mod, "_running_applies", {("game", game.id): time.monotonic()})
 
         with pytest.raises(HTTPException) as exc_info:
             _apply(db, game, _assets(_url(0)))
@@ -181,7 +183,7 @@ class TestLimits:
         db.add(make_entity_link("game_item_bundle", second.id, "media_item_bundle", bundle.id))
         db.commit()
         env.fetched.clear()
-        monkeypatch.setattr(media_link_mod, "_running_applies", {("media_bundle", bundle.id)})
+        monkeypatch.setattr(media_link_mod, "_running_applies", {("media_bundle", bundle.id): time.monotonic()})
 
         with pytest.raises(HTTPException) as exc_info:
             _apply(db, second, _assets(_url(1)), previous_assets="keep")
@@ -199,7 +201,7 @@ class TestLimits:
         with pytest.raises(HTTPException):
             _apply(db, game, _assets(_url(0)))
 
-        assert media_link_mod._running_applies == set()
+        assert media_link_mod._running_applies == {}
 
 
 # META-7: source_url, dedupe, Replace / Keep
@@ -500,3 +502,122 @@ class TestGameCover:
         assert "no discs" in exc_info.value.message
         assert _counts(db) == (0, 0, 0)
         assert env.files() == []
+
+
+# Stale locks and the startup staging sweep
+
+
+class TestStaleLock:
+    def test_a_stale_lock_is_taken_over_and_the_old_plan_cannot_release_it(self, db, env, monkeypatch):
+        import backend.service.games.media_link as media_link_mod
+        from backend.service.games.media_link import LOCK_STALE_SECONDS, prepare_apply
+
+        game = _game(db)
+        stale_at = time.monotonic() - LOCK_STALE_SECONDS - 1
+        monkeypatch.setattr(media_link_mod, "_running_applies", {("game", game.id): stale_at})
+
+        plan = prepare_apply(game.id, _assets(_url(0)), db)
+
+        assert media_link_mod._running_applies == {("game", game.id): plan.acquired_at}
+        from backend.service.games.media_link import ApplyPlan
+
+        old = ApplyPlan(
+            game_id=game.id,
+            assets=[],
+            previous_assets=None,
+            cover_asset_url=None,
+            root=env.media,
+            lock_keys=[("game", game.id)],
+            acquired_at=stale_at,
+        )
+        old.release()
+        assert ("game", game.id) in media_link_mod._running_applies
+        plan.release()
+        assert media_link_mod._running_applies == {}
+
+    def test_a_fresh_lock_still_blocks(self, db, env, monkeypatch):
+        from fastapi import HTTPException
+
+        import backend.service.games.media_link as media_link_mod
+        from backend.service.games.media_link import prepare_apply
+
+        game = _game(db)
+        monkeypatch.setattr(media_link_mod, "_running_applies", {("game", game.id): time.monotonic()})
+
+        with pytest.raises(HTTPException) as exc_info:
+            prepare_apply(game.id, _assets(_url(0)), db)
+
+        assert exc_info.value.status_code == 409
+
+
+class TestStagingSweep:
+    @staticmethod
+    def _age(path: Path, seconds: float) -> None:
+        old = time.time() - seconds
+        os.utime(path, (old, old))
+
+    def test_only_stale_apply_dirs_are_removed(self, env):
+        from backend.service.games.media_link import STAGING_STALE_SECONDS, sweep_stale_apply_dirs
+
+        staging = env.media / "_asset_staging"
+        staging.mkdir()
+        old_age = STAGING_STALE_SECONDS + 60
+        stale = staging / "apply-stale"
+        stale.mkdir()
+        (stale / "a.part").write_bytes(b"x")
+        fresh = staging / "apply-fresh"
+        fresh.mkdir()
+        (fresh / "a.part").write_bytes(b"x")
+        other = staging / "other-stale"
+        other.mkdir()
+        (other / "a.part").write_bytes(b"x")
+        loose = staging / "apply-file"
+        loose.write_bytes(b"x")
+        nested = staging / "apply-nested"
+        (nested / "sub").mkdir(parents=True)
+        for path in (stale, other, loose, nested):
+            self._age(path, old_age)
+
+        assert sweep_stale_apply_dirs() == 1
+
+        assert not stale.exists()
+        assert (fresh / "a.part").exists()
+        assert (other / "a.part").exists()
+        assert loose.exists()
+        assert (nested / "sub").is_dir()
+
+    def test_a_symlinked_apply_dir_is_never_followed(self, env, tmp_path):
+        from backend.service.games.media_link import STAGING_STALE_SECONDS, sweep_stale_apply_dirs
+
+        staging = env.media / "_asset_staging"
+        staging.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "keep.txt").write_bytes(b"keep")
+        link = staging / "apply-link"
+        try:
+            link.symlink_to(outside, target_is_directory=True)
+        except OSError, NotImplementedError:
+            pytest.skip("symlinks not available")
+        self._age(outside, STAGING_STALE_SECONDS + 60)
+
+        assert sweep_stale_apply_dirs() == 0
+
+        assert (outside / "keep.txt").read_bytes() == b"keep"
+        assert link.is_symlink()
+
+    def test_a_symlinked_staging_root_is_left_alone(self, env, tmp_path):
+        from backend.service.games.media_link import STAGING_STALE_SECONDS, sweep_stale_apply_dirs
+
+        real = tmp_path / "real_staging"
+        victim = real / "apply-old"
+        victim.mkdir(parents=True)
+        (victim / "keep.txt").write_bytes(b"keep")
+        self._age(victim, STAGING_STALE_SECONDS + 60)
+        try:
+            (env.media / "_asset_staging").symlink_to(real, target_is_directory=True)
+        except OSError, NotImplementedError:
+            pytest.skip("symlinks not available")
+
+        assert sweep_stale_apply_dirs() == 0
+        assert (victim / "keep.txt").exists()

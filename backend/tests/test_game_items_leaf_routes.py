@@ -364,6 +364,21 @@ def games_root(tmp_path, monkeypatch):
 
 
 class TestLeafPatchExecutablePath:
+    def test_unset_software_path_fails_closed_with_503_for_any_path(self, http_client, library, tmp_path):
+        existing = tmp_path / "elsewhere" / "evil.exe"
+        existing.parent.mkdir()
+        existing.write_bytes(b"MZ")
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        leaf = _make_leaf(db, _make_game_bundle(db))
+
+        for path in (existing, tmp_path / "elsewhere" / "missing.exe"):
+            resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={"executable_path": str(path)})
+            assert resp.status_code == 503, resp.text
+            assert resp.json()["detail"] == "SOFTWARE_PATH is not configured."
+        db.refresh(leaf)
+        assert leaf.executable_path is None
+
     def _owner_and_leaf(self, http_client):
         c, db, app = http_client
         _set_active_user(app, _make_user(db, is_owner=True))

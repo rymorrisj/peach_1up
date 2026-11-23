@@ -84,6 +84,21 @@ def _is_web_url(url: object) -> bool:
     )
 
 
+def web_links(raw: Optional[list], *, strict: bool = False) -> Optional[list]:
+    """*raw* limited to dict entries with a plain http(s) url, otherwise
+    unchanged. With *strict* a bad entry, or more than PROVIDER_LINK_CAP
+    entries, raises ValueError (the message never carries a value); without
+    it bad entries are dropped, for reading what is already stored."""
+    if raw is None:
+        return None
+    if strict and len(raw) > PROVIDER_LINK_CAP:
+        raise ValueError(f"external_links holds at most {PROVIDER_LINK_CAP} links.")
+    kept = [e for e in raw if isinstance(e, dict) and _is_web_url(e.get("url"))]
+    if strict and len(kept) != len(raw):
+        raise ValueError("Every external link needs a plain http or https url.")
+    return kept
+
+
 def clean_provider_links(raw: Optional[Iterable[object]]) -> list[dict]:
     """*raw* reduced to unique, http(s)-only entries tagged as provider links,
     at most PROVIDER_LINK_CAP. Anything else is dropped."""

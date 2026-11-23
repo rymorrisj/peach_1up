@@ -522,7 +522,7 @@ describe('assets', () => {
     const { user } = renderModal();
     await reachReview(user);
 
-    expect(screen.getByText('9 of 30 selected')).toBeInTheDocument();
+    expect(screen.getByText('11 of 30 selected')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Screenshots' })).toBeInTheDocument();
     expect(screen.getByAltText('Front box art 1')).toHaveAttribute(
       'src',
@@ -538,7 +538,7 @@ describe('assets', () => {
     ]) {
       expect(screen.getByRole('checkbox', { name: `Include ${name}` })).toBeChecked();
     }
-    expect(screen.getByRole('checkbox', { name: 'Include Screenshot 4' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Include Screenshot 5' })).toBeChecked();
   });
 
   it('stops further selection at 30', async () => {
@@ -572,7 +572,7 @@ describe('assets', () => {
     await screen.findByText('Step 3 of 3: Apply');
 
     const urls = (acceptCalls(calls)[0].body?.assets as { url: string }[]).map((a) => a.url);
-    expect(urls).toHaveLength(8);
+    expect(urls).toHaveLength(10);
     expect(urls).not.toContain(asset('banner', 1).url);
   });
 

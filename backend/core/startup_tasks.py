@@ -165,6 +165,16 @@ def _sweep_upload_tmp() -> None:
         logger.warning("Upload tmp sweep failed: %s", exc)
 
 
+def _sweep_asset_staging() -> None:
+    """Remove apply-* staging dirs a hard kill left under MEDIA_PATH/_asset_staging."""
+    try:
+        from backend.service.games.media_link import sweep_stale_apply_dirs
+
+        sweep_stale_apply_dirs()
+    except Exception as exc:
+        logger.warning("Asset staging sweep failed: %s", exc)
+
+
 def _scan_installed_emulators() -> None:
     try:
         from backend.service.utils.emulator_catalog import load_catalog

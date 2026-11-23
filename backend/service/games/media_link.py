@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Callable, Literal, Optional
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
+from backend.core.logger import get_logger
 from backend.service.utils.path_utils import asset_staging_root, media_root, safe_basename
 
 if TYPE_CHECKING:
@@ -48,6 +49,12 @@ if TYPE_CHECKING:
 # for a full 600 MB set.
 ACCEPT_ALL_MAX_ASSETS = 30
 ACCEPT_ALL_TIME_BUDGET_SECONDS = 600.0
+# A lock older than the budget plus this margin belongs to an apply that
+# never ran or died (a client dropped before the 202 was sent), so the next
+# acquire takes it over. Staging dirs get a longer margin before the sweep
+# at startup may remove them.
+LOCK_STALE_SECONDS = ACCEPT_ALL_TIME_BUDGET_SECONDS + 300.0
+STAGING_STALE_SECONDS = ACCEPT_ALL_TIME_BUDGET_SECONDS + 3600.0
 
 PreviousAssets = Literal["replace", "keep"]
 # error_type of the structured 409 asking the client to choose Replace or Keep.
@@ -62,7 +69,10 @@ _COVER_ASSET_TYPES = ("cover", "boxart_front")
 ProgressFn = Callable[[int, int, Optional[str]], None]
 LockKey = tuple[str, int]
 
-_running_applies: set[LockKey] = set()
+logger = get_logger(__name__)
+
+# Lock key to the time.monotonic() it was taken at.
+_running_applies: dict[LockKey, float] = {}
 _running_guard = threading.Lock()
 
 
@@ -87,6 +97,9 @@ class ApplyPlan:
     cover_asset_url: Optional[str]
     root: Path
     lock_keys: list[LockKey] = field(default_factory=list)
+    acquired_at: float = 0.0
+    created_count: int = 0
+    cover_set: bool = False
     _released: bool = False
 
     def release(self) -> None:
@@ -96,8 +109,7 @@ class ApplyPlan:
             if self._released:
                 return
             self._released = True
-            for key in self.lock_keys:
-                _running_applies.discard(key)
+            _drop_locks(self.lock_keys, self.acquired_at)
 
 
 def asset_filename_stem(asset_type: str, index: int) -> str:
@@ -113,15 +125,27 @@ def asset_filename_stem(asset_type: str, index: int) -> str:
     return f"{safe_basename(asset_type or '', fallback='asset')}-{index}"
 
 
-def _acquire(key: LockKey, held: list[LockKey]) -> None:
-    """Take *key* (409 if another apply holds it) and append it to *held*."""
+def _drop_locks(keys: list[LockKey], acquired_at: float) -> None:
+    """Remove *keys* still held from the *acquired_at* acquisition. The
+    caller holds _running_guard."""
+    for key in keys:
+        if _running_applies.get(key) == acquired_at:
+            del _running_applies[key]
+
+
+def _acquire(key: LockKey, held: list[LockKey], acquired_at: float) -> None:
+    """Take *key* (409 if another apply holds it, unless that lock is stale)
+    and append it to *held*."""
     with _running_guard:
-        if key in _running_applies:
-            raise HTTPException(
-                status_code=409,
-                detail="An Accept All for this game's media is already running. Wait for it to finish.",
-            )
-        _running_applies.add(key)
+        taken_at = _running_applies.get(key)
+        if taken_at is not None:
+            if acquired_at - taken_at < LOCK_STALE_SECONDS:
+                raise HTTPException(
+                    status_code=409,
+                    detail="An Accept All for this game's media is already running. Wait for it to finish.",
+                )
+            logger.warning("Released stale apply lock %s held for %.0f seconds", key, acquired_at - taken_at)
+        _running_applies[key] = acquired_at
         held.append(key)
 
 
@@ -204,11 +228,12 @@ def prepare_apply(
         raise HTTPException(status_code=503, detail="MEDIA_PATH is not configured.") from exc
 
     held: list[LockKey] = []
+    acquired_at = time.monotonic()
     try:
-        _acquire(("game", game_item_bundle_id), held)
+        _acquire(("game", game_item_bundle_id), held, acquired_at)
         bundle = _linked_bundle(game_item_bundle_id, db)
         if bundle is not None:
-            _acquire(("media_bundle", bundle.id), held)
+            _acquire(("media_bundle", bundle.id), held, acquired_at)
         fetched_before = _fetched_items(bundle)
         if fetched_before and previous_assets is None:
             raise HTTPException(
@@ -224,8 +249,7 @@ def prepare_apply(
             )
     except BaseException:
         with _running_guard:
-            for key in held:
-                _running_applies.discard(key)
+            _drop_locks(held, acquired_at)
         raise
     return ApplyPlan(
         game_id=game_item_bundle_id,
@@ -234,6 +258,7 @@ def prepare_apply(
         cover_asset_url=cover_asset_url,
         root=root,
         lock_keys=held,
+        acquired_at=acquired_at,
     )
 
 
@@ -409,6 +434,8 @@ def _apply(
             db.add(make_entity_link("game_item_bundle", game.id, "media_item_bundle", bundle.id))
         _check_cancel(should_cancel)
         db.commit()
+        plan.created_count = len(new_items)
+        plan.cover_set = bool(plan.cover_asset_url)
     except BaseException:
         db.rollback()
         for path in created_files:
@@ -425,3 +452,40 @@ def _apply(
     remove_files(old_files, db)
     db.refresh(bundle)
     return bundle
+
+
+def sweep_stale_apply_dirs() -> int:
+    """Remove apply-* directories a hard kill left in MEDIA_PATH/_asset_staging
+    and return how many went. Only real directories directly under that root,
+    older than STAGING_STALE_SECONDS, are touched: symlinks and junctions
+    (the root included) are skipped, files inside are unlinked one by one
+    and the directory is then rmdir'd, so nothing outside the root is ever
+    reached. A directory holding anything but plain files is left in place."""
+    try:
+        root = asset_staging_root()
+    except ValueError:
+        return 0
+    if root.is_symlink() or root.is_junction() or not root.is_dir():
+        return 0
+    cutoff = time.time() - STAGING_STALE_SECONDS
+    removed = 0
+    for child in root.iterdir():
+        try:
+            if (
+                not child.name.startswith("apply-")
+                or child.is_symlink()
+                or child.is_junction()
+                or not child.is_dir()
+                or child.stat().st_mtime > cutoff
+            ):
+                continue
+            for entry in child.iterdir():
+                if entry.is_file() and not entry.is_symlink():
+                    entry.unlink()
+            child.rmdir()
+            removed += 1
+        except OSError as exc:
+            logger.warning("Could not remove stale staging dir %s: %s", child.name, exc)
+    if removed:
+        logger.info("Startup: removed %d stale asset staging dir(s)", removed)
+    return removed

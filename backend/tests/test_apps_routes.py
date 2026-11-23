@@ -104,6 +104,86 @@ def _set_active_user(app, user):
     app.dependency_overrides[get_active_user] = lambda: user
 
 
+# PATCH /app-item/{id}: unset vs null, fail-closed containment
+
+
+@pytest.fixture
+def app_library(tmp_path, monkeypatch):
+    """SOFTWARE_PATH and LIBRARY_PATH under tmp_path, so tmp_path files are
+    inside the permitted roots."""
+    import backend.core.settings as core_settings
+
+    root = tmp_path / "library"
+    (root / "software").mkdir(parents=True)
+
+    class _Settings:
+        def get(self, key, default=None):
+            return {"SOFTWARE_PATH": str(root / "software"), "LIBRARY_PATH": str(root)}.get(key, default)
+
+    monkeypatch.setattr(core_settings, "get_settings", lambda: _Settings())
+    from backend.service.utils import settings as settings_mod
+
+    monkeypatch.setattr(settings_mod, "get", _Settings().get)
+    return root
+
+
+class TestAppLeafPatch:
+    def _owner_and_leaf(self, http_client, **leaf_fields):
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True, can_manage_app=True))
+        return c, db, _make_app_item(db, _make_app_bundle(db), **leaf_fields)
+
+    def test_explicit_null_clears_cover_and_executable_and_omitted_fields_stay(self, http_client, app_library):
+        cover = app_library / "cover.png"
+        cover.write_bytes(b"png")
+        c, db, leaf = self._owner_and_leaf(
+            http_client,
+            cover_art_path=str(cover),
+            executable_path=str(app_library / "app.exe"),
+        )
+
+        resp = c.patch(f"/api/v1/app-item/{leaf.id}", json={"cover_art_path": None})
+        assert resp.status_code == 200, resp.text
+        db.refresh(leaf)
+        assert leaf.cover_art_path is None
+        assert leaf.executable_path == str(app_library / "app.exe")
+
+        resp = c.patch(f"/api/v1/app-item/{leaf.id}", json={"executable_path": None})
+        assert resp.status_code == 200, resp.text
+        db.refresh(leaf)
+        assert leaf.executable_path is None
+        assert cover.read_bytes() == b"png"
+
+    def test_unset_software_path_fails_closed_with_503(self, http_client, tmp_path, monkeypatch):
+        import backend.core.settings as core_settings
+
+        class _Unset:
+            def get(self, key, default=None):
+                return default
+
+        monkeypatch.setattr(core_settings, "get_settings", lambda: _Unset())
+        exe = tmp_path / "app.exe"
+        exe.write_bytes(b"MZ")
+        c, db, leaf = self._owner_and_leaf(http_client)
+
+        resp = c.patch(f"/api/v1/app-item/{leaf.id}", json={"executable_path": str(exe)})
+
+        assert resp.status_code == 503, resp.text
+        assert resp.json()["detail"] == "SOFTWARE_PATH is not configured."
+        db.refresh(leaf)
+        assert leaf.executable_path is None
+
+    def test_path_errors_are_generic_and_never_echo_the_path(self, http_client, app_library):
+        c, db, leaf = self._owner_and_leaf(http_client)
+        missing = app_library / "software" / "missing.exe"
+
+        resp = c.patch(f"/api/v1/app-item/{leaf.id}", json={"executable_path": str(missing)})
+
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["detail"] == "executable_path does not exist."
+        assert str(app_library) not in resp.text
+
+
 # ---------------------------------------------------------------------------
 # can_manage_app gating
 # ---------------------------------------------------------------------------

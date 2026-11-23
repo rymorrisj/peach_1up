@@ -630,6 +630,19 @@ class TestMediaCoverArtPathValidation:
         assert resp.status_code == 400
         assert "UNC" in resp.json()["detail"]
 
+    def test_cover_errors_never_echo_the_path_and_ignore_whether_it_exists(self, media_env):
+        c, _, media_root, _, outside = media_env
+        missing_outside = outside.parent / "nope.png"
+
+        a = self._create_item(c, cover_art_path=str(outside))
+        b = self._create_item(c, cover_art_path=str(missing_outside))
+        gone = self._create_item(c, cover_art_path=str(media_root / "doom" / "missing.png"))
+
+        assert a.status_code == b.status_code == gone.status_code == 400
+        assert a.json() == b.json()
+        assert gone.json()["detail"] == "cover_art_path does not exist."
+        assert str(media_root) not in gone.text and str(outside.parent) not in a.text
+
     def test_item_patch_rejects_hostile_cover_paths_and_leaves_row_unchanged(self, media_env):
         c, db, media_root, cover, outside = media_env
         item_id = self._create_item(c, cover_art_path=str(cover)).json()["id"]

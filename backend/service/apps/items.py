@@ -14,6 +14,7 @@ from backend.models.app import (
     derive_is_pc,
 )
 from backend.models.environment import EnvironmentItem
+from backend.service.games.items import validate_leaf_paths
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.file_types import file_type_from_path
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots, normalise_path
@@ -22,17 +23,10 @@ from backend.service.utils.slug_generator import unique_slug
 # Apps have no dedicated APPS_PATH setting (see dev_docs), they share the
 # same allowlisted source roots as everything else the file browser can
 # point at (SOFTWARE_PATH plus the other configured library roots).
-_PATH_FIELDS = {"executable_path", "cover_art_path"}
-_EXISTENCE_FIELDS = {"executable_path"}
-# Mirrors backend/service/games/items.py's _CONTAINMENT_FIELDS: executable_path
-# is what coordinator.py prefers over media_path when building a LaunchSpec,
-# so it is the one field that can steer a launch outside the permitted
-# directories. Uses the same allowed_browse_roots() check create_app_item_bundle
-# already applies at ingest (~line 62), not games' library_domain_root("games"),
-# apps have no dedicated APPS_PATH and are intentionally allowed to point at
-# any of the configured library roots or local drives, see this module's
-# top-of-file comment.
-_CONTAINMENT_FIELDS = {"executable_path"}
+
+
+def _in_permitted_roots(resolved: Path) -> bool:
+    return is_within_roots(resolved, allowed_browse_roots())
 
 
 def _generate_app_slug(name: str, db: Session) -> str:
@@ -73,7 +67,7 @@ def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBun
         resolved = normalise_path(body.file_path)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not is_within_roots(resolved, allowed_browse_roots()):
+    if not _in_permitted_roots(resolved):
         raise HTTPException(status_code=400, detail="Path is outside the permitted directories.")
     if not resolved.exists():
         raise HTTPException(status_code=400, detail="Path does not exist.")
@@ -154,20 +148,8 @@ def update_app_leaf(collection_id: int, leaf_id: int, body: AppItemUpdate, db: S
     leaf = db.get(AppItem, leaf_id)
     if not leaf or leaf.app_item_bundle_id != collection_id:
         raise HTTPException(status_code=404, detail="App item not found.")
-    fields = body.model_dump(exclude_none=True)
-    for key in _PATH_FIELDS & fields.keys():
-        try:
-            resolved = normalise_path(fields[key])
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"{key}: {e}")
-        if key in _EXISTENCE_FIELDS and not resolved.exists():
-            raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
-        if key in _CONTAINMENT_FIELDS and not is_within_roots(resolved, allowed_browse_roots()):
-            raise HTTPException(
-                status_code=422,
-                detail=f"{key} is outside the permitted directories.",
-            )
-        fields[key] = str(resolved)
+    fields = body.model_dump(exclude_unset=True)
+    validate_leaf_paths(fields, _in_permitted_roots)
     for key, value in fields.items():
         setattr(leaf, key, value)
     db.commit()

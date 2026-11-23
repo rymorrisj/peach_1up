@@ -13,6 +13,7 @@ by calling the BackgroundTasks entries directly, on the test's own engine.
 """
 
 import errno
+import time
 
 import httpx2
 import pytest
@@ -57,7 +58,7 @@ def _assert_nothing_left(db, env):
     assert _counts(db) == (0, 0, 0)
     assert env.files() == []
     assert env.staging_leftovers() == []
-    assert media_link._running_applies == set()
+    assert media_link._running_applies == {}
 
 
 class TestLifecycle:
@@ -90,9 +91,21 @@ class TestLifecycle:
             None,
         )
         assert final["result"]["item_count"] == 2
+        assert (final["result"]["created_count"], final["result"]["cover_set"]) == (2, False)
         assert jobs.get(job_id)["status"] == "done"
         assert len(env.files()) == 2
-        assert media_link._running_applies == set()
+        assert media_link._running_applies == {}
+
+    def test_a_keep_apply_with_only_known_urls_reports_nothing_created(self, db, env):
+        game = _game(db)
+        _, tasks = _start(db, game, _assets(_url(0)))
+        _run(tasks)
+
+        job_id, tasks = _start(db, game, _assets(_url(0)), previous_assets="keep")
+        _run(tasks)
+
+        result = _status(job_id)["result"]
+        assert (_status(job_id)["state"], result["created_count"], result["cover_set"]) == ("done", 0, False)
 
     def test_game_cover_is_set_in_the_same_job(self, db, env):
         game, leaves = _game_with_discs(db)
@@ -106,6 +119,7 @@ class TestLifecycle:
         _run(tasks)
 
         assert _status(job_id)["state"] == "done"
+        assert _status(job_id)["result"]["cover_set"] is True
         db.refresh(leaves[0])
         assert leaves[0].cover_art_path is not None and leaves[0].cover_art_path.endswith("boxart_front-1.jpg")
 
@@ -264,7 +278,7 @@ class TestFailures:
         with pytest.raises(RuntimeError):
             _start(db, _game(db), _assets(_url(0)))
 
-        assert media_link._running_applies == set()
+        assert media_link._running_applies == {}
 
     def test_a_restart_leaves_no_job_or_lock_behind(self, db, env):
         """Jobs and locks live only in process memory (core.jobs,
@@ -433,13 +447,13 @@ class TestAcceptRoute:
         import backend.service.games.media_link as media_link_mod
 
         game = _game(db)
-        monkeypatch.setattr(media_link_mod, "_running_applies", {("game", game.id)})
+        monkeypatch.setattr(media_link_mod, "_running_applies", {("game", game.id): time.monotonic()})
         before = _job_count()
 
         resp = _post(client, game.id, [_url(0)])
 
         assert resp.status_code == 409
-        assert media_link_mod._running_applies == {("game", game.id)}
+        assert list(media_link_mod._running_applies) == [("game", game.id)]
         assert _job_count() == before
 
     def test_cover_asset_outside_the_submitted_ones_is_422_before_any_job(self, client, db, env):

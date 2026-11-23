@@ -117,6 +117,97 @@ class TestCleanProviderLinks:
         ]
 
 
+class TestWebLinks:
+    def test_strict_rejects_a_bad_scheme_without_echoing_it(self):
+        with pytest.raises(ValueError) as exc_info:
+            links.web_links([{"type": "official", "url": "javascript:alert(1)"}], strict=True)
+
+        assert "javascript" not in str(exc_info.value)
+
+    def test_strict_rejects_non_dict_entries_and_too_many(self):
+        with pytest.raises(ValueError):
+            links.web_links(["https://example.com/"], strict=True)
+        with pytest.raises(ValueError):
+            links.web_links(
+                [{"type": "other", "url": f"https://example.com/{n}"} for n in range(links.PROVIDER_LINK_CAP + 1)],
+                strict=True,
+            )
+
+    def test_strict_keeps_valid_entries_unchanged(self):
+        raw = [
+            {"type": "official", "url": "https://example.com/a"},
+            {"type": "x", "url": "http://example.com/b", "source": "manual"},
+        ]
+
+        assert links.web_links(raw, strict=True) == raw
+
+    def test_lenient_drops_bad_entries_and_keeps_none(self):
+        raw = [{"url": "javascript:x"}, {"url": "https://example.com/ok"}, "junk"]
+
+        assert links.web_links(raw) == [{"url": "https://example.com/ok"}]
+        assert links.web_links(None) is None
+
+
+class TestExternalLinksWriteAndRead:
+    def test_patch_rejects_a_javascript_link_and_stores_nothing(self, db):
+        from fastapi import HTTPException
+
+        from backend.models.game import GameItemBundle, GameItemBundleUpdate
+        from backend.service.games.items import update_library_collection
+
+        bundle = GameItemBundle(title="Doom", platform="dos", slug="doom")
+        db.add(bundle)
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            update_library_collection(
+                bundle.id,
+                GameItemBundleUpdate(external_links=[{"type": "official", "url": "javascript:alert(1)"}]),
+                db,
+            )
+
+        assert exc_info.value.status_code == 422
+        assert "javascript" not in exc_info.value.detail
+        db.refresh(bundle)
+        assert bundle.external_links is None
+
+    def test_patch_accepts_https_links(self, db):
+        from backend.models.game import GameItemBundle, GameItemBundleUpdate
+        from backend.service.games.items import update_library_collection
+
+        bundle = GameItemBundle(title="Doom", platform="dos", slug="doom")
+        db.add(bundle)
+        db.commit()
+        good = [{"type": "official", "url": "https://example.com/doom"}]
+
+        update_library_collection(bundle.id, GameItemBundleUpdate(external_links=good), db)
+
+        db.refresh(bundle)
+        assert bundle.external_links == good
+
+    def test_both_read_builders_filter_a_stored_bad_link(self, db):
+        from backend.models.game import GameItemBundle, game_item_bundle_to_read, game_item_bundles_to_read_bulk
+        from backend.models.user import UserItem
+
+        owner = UserItem(name="Owner", is_owner=True)
+        db.add(owner)
+        bundle = GameItemBundle(
+            title="Doom",
+            platform="dos",
+            slug="doom",
+            external_links=[
+                {"type": "other", "url": "javascript:alert(1)"},
+                {"type": "official", "url": "https://example.com/d"},
+            ],
+        )
+        db.add(bundle)
+        db.commit()
+        expected = [{"type": "official", "url": "https://example.com/d"}]
+
+        assert game_item_bundle_to_read(bundle, db, viewer=owner).external_links == expected
+        assert game_item_bundles_to_read_bulk([bundle], db, viewer=owner)[0].external_links == expected
+
+
 class TestReplaceProviderLinks:
     def test_provider_entries_are_replaced_and_the_rest_kept_in_order(self):
         manual = {"type": "other", "url": "https://me.example/"}

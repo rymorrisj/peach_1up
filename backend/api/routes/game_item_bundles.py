@@ -301,10 +301,8 @@ def _resolve_scan_directory(domain: str) -> Path:
 
     resolved = library_domain_root(domain)
     if not resolved.is_dir():
-        raise HTTPException(
-            status_code=400,
-            detail=f"The '{domain}' library directory does not exist or is not a directory: {resolved}",
-        )
+        logger.warning("Scan root for domain %r is not a directory: %s", domain, resolved)
+        raise HTTPException(status_code=400, detail=f"The '{domain}' library directory is not available.")
     return resolved
 
 

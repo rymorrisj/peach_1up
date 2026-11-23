@@ -105,7 +105,8 @@ def _validated_cover_art_path(raw: Optional[str]) -> Optional[str]:
     if resolved.suffix.lower() not in INLINE_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="cover_art_path must be a png, jpg, gif, webp, bmp or avif image.")
     if not resolved.is_file():
-        raise HTTPException(status_code=400, detail=f"cover_art_path does not exist: {resolved}")
+        logger.warning("Rejected media cover_art_path %r: not an existing file", raw)
+        raise HTTPException(status_code=400, detail="cover_art_path does not exist.")
     return str(resolved)
 
 

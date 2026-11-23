@@ -619,10 +619,10 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session", *, viewer: "Use
 
     from backend.core.dependencies import is_restricted_account
     from backend.models.media import _linked_items_for
+    from backend.service.metadata_providers.links import web_links
 
     read = GameItemBundleRead.model_validate(c)
-    if is_restricted_account(viewer, db):
-        read.external_links = None
+    read.external_links = None if is_restricted_account(viewer, db) else web_links(read.external_links)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("game_item_bundle", c.id, db)
     read.genres = get_genres_for_game_item_bundle(c.id, db)
@@ -679,13 +679,13 @@ def game_item_bundles_to_read_bulk(
     environment_by_bundle_id = resolve_environments_for_launch_gate_bulk(pc_bundles, db)
 
     from backend.core.dependencies import is_restricted_account
+    from backend.service.metadata_providers.links import web_links
 
     hide_links = is_restricted_account(viewer, db)
     reads: list[GameItemBundleRead] = []
     for c in bundles:
         read = GameItemBundleRead.model_validate(c)
-        if hide_links:
-            read.external_links = None
+        read.external_links = None if hide_links else web_links(read.external_links)
         read.items = leaves_by_bundle.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
         read.genres = genre_map.get(c.id, [])

@@ -857,6 +857,28 @@ class TestProviderErrorMapping:
 
 
 @pytest.mark.usefixtures("metadata_fetch_enabled")
+class TestDetailsNormalizedRating:
+    @pytest.mark.parametrize(
+        "raw,expected", [("M - Mature 17+", "M"), ("E10+", "E10+"), ("Banana", None), (None, None)]
+    )
+    def test_details_carries_the_rating_the_enrich_would_store(self, http_client, monkeypatch, raw, expected):
+        import backend.service.metadata_providers as providers_mod
+        from backend.service.metadata_providers import GameDetails
+
+        class _Provider:
+            def get_game_details(self, game_id, db):
+                return GameDetails(game_id=game_id, rating=raw)
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        monkeypatch.setattr(providers_mod, "get_active_provider", lambda: _Provider())
+
+        body = c.get("/api/v1/game-items/metadata-details", params={"game_id": 5}).json()
+
+        assert (body["rating"], body["normalized_rating"]) == (raw, expected)
+
+
+@pytest.mark.usefixtures("metadata_fetch_enabled")
 class TestDetailsExternalLinks:
     def test_details_offers_provider_links_and_trailers_http_only(self, http_client, monkeypatch):
         import backend.service.metadata_providers as providers_mod
@@ -906,6 +928,20 @@ class TestStoredGameIdAndProvider:
         assert resp.json()["metadata_source"] == "IGDB"
         assert resp.json()["external_provider"] == "igdb"
         assert resp.json()["external_game_id"] == 525
+
+    def test_enrich_with_only_id_and_provider_is_recorded_and_stamped_once(self, http_client):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db)
+        _set_active_user(app, _make_user(db, is_owner=True))
+        body = {"entity_id": bundle.id, "external_game_id": 525, "metadata_source": "IGDB"}
+
+        first = c.post("/api/v1/game-items/enrich", json=body)
+        repeat = c.post("/api/v1/game-items/enrich", json=body)
+
+        assert first.status_code == repeat.status_code == 200, repeat.text
+        assert first.json()["external_game_id"] == 525
+        assert first.json()["metadata_fetched_at"] is not None
+        assert repeat.json()["metadata_fetched_at"] == first.json()["metadata_fetched_at"]
 
     @pytest.mark.parametrize(
         "source,provider",
