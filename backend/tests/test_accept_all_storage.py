@@ -110,9 +110,9 @@ def _assets(*urls, types=None):
 
 
 def _apply(db, game, assets, **kwargs):
-    from backend.service.games.media_link import create_linked_media_from_metadata
+    from backend.service.games.media_link import prepare_apply, run_apply
 
-    return create_linked_media_from_metadata(game.id, assets, db, **kwargs)
+    return run_apply(prepare_apply(game.id, assets, db, **kwargs), db)
 
 
 def _counts(db):
@@ -498,50 +498,104 @@ class TestBundleCover:
         assert bundle.cover_art_path == chosen
 
 
-# Route wiring
+# Game cover (cover_asset_url)
 
 
-class TestAcceptRoute:
-    @pytest.fixture
-    def client(self, db, env, monkeypatch):
-        from fastapi import FastAPI
-        from fastapi.testclient import TestClient
+def _game_with_discs(db, count=1, display=None):
+    from backend.models.game import GameItem
 
-        import backend.service.metadata_providers as providers_mod
-        from backend.api.routes import game_metadata
-        from backend.core.database import get_db
-        from backend.core.dependencies import get_active_user
-        from backend.models.user import UserItem
+    game = _game(db)
+    leaves = []
+    for number in range(1, count + 1):
+        leaf = GameItem(game_item_bundle_id=game.id, file_path=f"/library/games/doom/disc{number}.iso", disc_number=number)
+        db.add(leaf)
+        db.commit()
+        db.refresh(leaf)
+        leaves.append(leaf)
+    if display is not None:
+        game.display_disk_id = leaves[display].id
+        db.commit()
+    return game, leaves
 
-        monkeypatch.setattr(providers_mod, "is_metadata_fetch_enabled", lambda: True)
-        monkeypatch.setattr(game_metadata, "_enforce_rate_limit", lambda *a, **k: None)
-        app = FastAPI()
-        app.include_router(game_metadata.router)
-        app.dependency_overrides[get_db] = lambda: db
-        app.dependency_overrides[get_active_user] = lambda: UserItem(id=1, name="Owner", is_owner=True)
-        with TestClient(app) as c:
-            yield c
 
-    def _post(self, c, game_id, urls, **extra):
-        return c.post(
-            f"/api/v1/game-items/{game_id}/accept-metadata-assets",
-            json={"assets": [{"url": u, "type": "screenshot"} for u in urls], **extra},
+class TestGameCover:
+    def test_cover_is_set_on_the_display_disc_from_the_chosen_asset(self, db, env):
+        game, leaves = _game_with_discs(db, count=2, display=1)
+
+        bundle = _apply(
+            db, game, _assets(_url(0), _BOX, types=["screenshot", "boxart_front"]), cover_asset_url=_BOX,
         )
 
-    def test_409_then_keep_retry(self, client, db, env):
-        game = _game(db)
-        assert self._post(client, game.id, [_url(0)]).status_code == 200
+        chosen = next(i for i in bundle.items if i.source_url == _BOX)
+        db.refresh(leaves[0]), db.refresh(leaves[1])
+        assert leaves[1].cover_art_path == str(Path(chosen.file_path).resolve())
+        assert leaves[0].cover_art_path is None
 
-        conflict = self._post(client, game.id, [_url(1)])
-        assert conflict.status_code == 409
-        assert conflict.json()["detail"]["existing_count"] == 1
+    def test_without_cover_asset_url_the_game_cover_is_unchanged(self, db, env):
+        game, leaves = _game_with_discs(db)
+        leaves[0].cover_art_path = "/library/games/doom/own.jpg"
+        db.commit()
 
-        retry = self._post(client, game.id, [_url(1)], previous_assets="keep")
-        assert retry.status_code == 200, retry.text
-        assert sorted(i["source_url"] for i in retry.json()["items"]) == [_url(0), _url(1)]
+        _apply(db, game, _assets(_BOX, types=["boxart_front"]))
 
-    def test_unknown_previous_assets_value_is_422(self, client, db, env):
-        resp = self._post(client, _game(db).id, [_url(0)], previous_assets="merge")
+        db.refresh(leaves[0])
+        assert leaves[0].cover_art_path == "/library/games/doom/own.jpg"
 
-        assert resp.status_code == 422
+    def test_asset_not_among_the_submitted_ones_is_422_before_anything_runs(self, db, env):
+        from fastapi import HTTPException
+
+        game, _ = _game_with_discs(db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            _apply(db, game, _assets(_url(0)), cover_asset_url=_BOX)
+
+        assert exc_info.value.status_code == 422
+        assert "cover_asset_url" in exc_info.value.detail
         assert env.fetched == []
+        assert _counts(db) == (0, 0, 0)
+
+    def test_keep_can_choose_an_image_saved_by_an_earlier_apply(self, db, env):
+        game, leaves = _game_with_discs(db)
+        box_path = _apply(db, game, _assets(_BOX, types=["boxart_front"])).items[0].file_path
+        env.fetched.clear()
+
+        _apply(db, game, _assets(_BOX, _url(0), types=["boxart_front", "screenshot"]),
+               previous_assets="keep", cover_asset_url=_BOX)
+
+        db.refresh(leaves[0])
+        assert leaves[0].cover_art_path == str(Path(box_path).resolve())
+        assert env.fetched == [_url(0)]
+
+    def test_cover_outside_the_library_fails_and_rolls_the_whole_apply_back(self, db, env, monkeypatch):
+        from fastapi import HTTPException
+
+        import backend.service.games.cover_from_media as cover_mod
+        from backend.service.games.media_link import ApplyFailure
+
+        def _outside(resolved, raw):
+            raise HTTPException(status_code=422, detail="cover_art_path must be inside the library folder")
+
+        monkeypatch.setattr(cover_mod, "require_cover_in_library", _outside)
+        game, leaves = _game_with_discs(db)
+
+        with pytest.raises(ApplyFailure) as exc_info:
+            _apply(db, game, _assets(_BOX, types=["boxart_front"]), cover_asset_url=_BOX)
+
+        assert exc_info.value.code == "cover_rejected"
+        assert _counts(db) == (0, 0, 0)
+        assert env.files() == []
+        db.refresh(leaves[0])
+        assert leaves[0].cover_art_path is None
+
+    def test_game_without_discs_fails_and_leaves_nothing(self, db, env):
+        from backend.service.games.media_link import ApplyFailure
+
+        game = _game(db)
+
+        with pytest.raises(ApplyFailure) as exc_info:
+            _apply(db, game, _assets(_BOX, types=["boxart_front"]), cover_asset_url=_BOX)
+
+        assert exc_info.value.code == "cover_rejected"
+        assert "no discs" in exc_info.value.message
+        assert _counts(db) == (0, 0, 0)
+        assert env.files() == []

@@ -58,6 +58,28 @@ def current_cover_matches(game: "GameItemBundle", item: MediaItemRead) -> bool:
     return bool(path_keys(item.file_path) & path_keys(leaf.cover_art_path))
 
 
+def assign_cover_path(game: "GameItemBundle", file_path: str) -> "GameItem":
+    """Point the game's effective display disc at *file_path*, without
+    committing. The file must be an image inside the library.
+
+    Raises:
+        HTTPException: 422 if the game has no discs or the file cannot be
+            used as cover art.
+    """
+    leaf = effective_display_leaf(game)
+    if leaf is None:
+        raise HTTPException(status_code=422, detail="This game has no discs.")
+    try:
+        resolved = normalise_path(file_path)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="This media file cannot be used as cover art.") from None
+    require_cover_in_library(resolved, file_path)
+    if resolved.suffix.lower() not in INLINE_IMAGE_TYPES or not resolved.is_file():
+        raise HTTPException(status_code=422, detail="This media file cannot be used as cover art.")
+    leaf.cover_art_path = str(resolved)
+    return leaf
+
+
 def set_cover_from_media_item(
     game: "GameItemBundle", media_item_id: int, viewer: "UserItem", db: "Session"
 ) -> "GameItem":
@@ -65,17 +87,7 @@ def set_cover_from_media_item(
     item = next((i for i in linked_image_items(game.id, viewer, db) if i.id == media_item_id), None)
     if item is None:
         raise HTTPException(status_code=404, detail=_NOT_FOUND)
-    leaf = effective_display_leaf(game)
-    if leaf is None:
-        raise HTTPException(status_code=422, detail="This game has no discs.")
-    try:
-        resolved = normalise_path(item.file_path)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="This media file cannot be used as cover art.") from None
-    require_cover_in_library(resolved, item.file_path)
-    if resolved.suffix.lower() not in INLINE_IMAGE_TYPES or not resolved.is_file():
-        raise HTTPException(status_code=422, detail="This media file cannot be used as cover art.")
-    leaf.cover_art_path = str(resolved)
+    leaf = assign_cover_path(game, item.file_path)
     db.commit()
     db.refresh(leaf)
     return leaf

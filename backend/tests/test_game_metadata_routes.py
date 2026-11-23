@@ -2,7 +2,7 @@
 
 Scoped to the routes themselves, the is_owner gate and the
 rating_change_requires_confirmation wiring (backend/core/dependencies.py);
-test_enrich.py drives enrich_entity() directly. Covers:
+test_enrich.py drives enrich_game_bundle() directly. Covers:
 
     - is_owner gating (403 for non-owner) on all four routes
       (/metadata-search, /metadata-details, /enrich, /{id}/accept-metadata-assets)
@@ -165,8 +165,76 @@ class TestRatingChangeConfirmation:
         )
 
         assert resp.status_code == 409, resp.text
+        detail = resp.json()["detail"]
+        assert detail["error_type"] == "rating_change_requires_confirmation"
+        assert detail["reason"] == "lowered"
+        assert detail["current_rating"] == "M"
+        assert detail["new_rating"] == "E"
         db.refresh(bundle)
         assert bundle.content_rating == "M"
+
+    @pytest.mark.parametrize("sent,reason", [(None, "cleared"), ("PEGI 3", "scheme_changed")])
+    def test_clearing_or_changing_scheme_reports_its_reason(self, http_client, sent, reason):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db, content_rating="M")
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        resp = c.post(
+            "/api/v1/game-items/enrich",
+            json={"entity_type": "game_item_bundle", "entity_id": bundle.id, "content_rating": sent},
+        )
+
+        assert resp.status_code == 409, resp.text
+        assert resp.json()["detail"]["reason"] == reason
+
+    def test_a_409_applies_nothing_but_leaving_the_rating_out_applies_the_rest(self, http_client):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db, content_rating="M", description="old")
+        _set_active_user(app, _make_user(db, is_owner=True))
+        base = {"entity_type": "game_item_bundle", "entity_id": bundle.id, "description": "new"}
+
+        refused = c.post("/api/v1/game-items/enrich", json={**base, "content_rating": "E"})
+        db.refresh(bundle)
+        assert refused.status_code == 409
+        assert bundle.description == "old"
+
+        applied = c.post("/api/v1/game-items/enrich", json=base)
+        db.refresh(bundle)
+        assert applied.status_code == 200, applied.text
+        assert (bundle.description, bundle.content_rating) == ("new", "M")
+
+    def test_a_disc_entity_type_is_rejected_not_read_as_a_bundle_id(self, http_client):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db)
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        resp = c.post(
+            "/api/v1/game-items/enrich",
+            json={"entity_type": "game_item", "entity_id": bundle.id, "title": "Hijack"},
+        )
+
+        assert resp.status_code == 422, resp.text
+        db.refresh(bundle)
+        assert bundle.title == "Doom"
+
+    def test_hidden_bundle_is_the_same_404_as_a_missing_one(self, http_client):
+        c, db, app = http_client
+        hidden = _make_game_bundle(db, content_rating="M", slug="hidden")
+        owner = _make_user(db, is_owner=True)
+        _set_active_user(app, owner)
+        missing = c.post("/api/v1/game-items/enrich", json={"entity_id": 9999, "title": "x"})
+        assert missing.status_code == 404
+
+        # Only an owner can reach the route, and an owner sees everything, so
+        # visibility is exercised through get_filtered_game_item_bundle itself.
+        from fastapi import HTTPException
+        from backend.core.dependencies import get_filtered_game_item_bundle
+
+        capped = _make_user(db, max_content_rating="E", name="kid")
+        with pytest.raises(HTTPException) as exc_info:
+            get_filtered_game_item_bundle(hidden.id, capped, db)
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == missing.json()["detail"]
 
     def test_lowering_rating_with_confirm_succeeds_and_persists(self, http_client):
         c, db, app = http_client
@@ -236,9 +304,7 @@ class TestAcceptMetadataAssetsTypeAllowlist:
         bundle = _make_game_bundle(db)
         _set_active_user(app, _make_user(db, is_owner=True))
         called = []
-        monkeypatch.setattr(
-            media_link_mod, "create_linked_media_from_metadata", lambda *a, **k: called.append(a),
-        )
+        monkeypatch.setattr(media_link_mod, "prepare_apply", lambda *a, **k: called.append(a))
 
         resp = c.post(
             f"/api/v1/game-items/{bundle.id}/accept-metadata-assets",
@@ -290,7 +356,7 @@ class TestAssetFilenameStem:
         import backend.core.settings as core_settings
         import backend.service.utils.asset_fetch as asset_fetch_mod
         import backend.service.utils.settings as utils_settings
-        from backend.service.games.media_link import create_linked_media_from_metadata
+        from backend.service.games.media_link import prepare_apply, run_apply
         from backend.service.metadata_providers import MetadataAsset
 
         class _S:
@@ -318,7 +384,7 @@ class TestAssetFilenameStem:
             for i in range(10)
         ]
 
-        media = create_linked_media_from_metadata(bundle.id, assets, mem_db_session)
+        media = run_apply(prepare_apply(bundle.id, assets, mem_db_session), mem_db_session)
 
         stems = {Path(i.file_path).stem for i in media.items}
         assert len(stems) == 10
@@ -610,10 +676,8 @@ class TestMetadataFetchToggle:
         _set_active_user(app, _make_user(db, is_owner=True))
         reached = []
         monkeypatch.setattr(providers_mod, "get_active_provider", lambda: reached.append("provider"))
-        monkeypatch.setattr(enrich_mod, "enrich_entity", lambda *a, **k: reached.append("enrich"))
-        monkeypatch.setattr(
-            media_link_mod, "create_linked_media_from_metadata", lambda *a, **k: reached.append("accept"),
-        )
+        monkeypatch.setattr(enrich_mod, "enrich_game_bundle", lambda *a, **k: reached.append("enrich"))
+        monkeypatch.setattr(media_link_mod, "prepare_apply", lambda *a, **k: reached.append("accept"))
 
         resp = _call_route(c, route, bundle.id)
 
@@ -667,3 +731,172 @@ class TestMetadataFetchToggle:
         assert resp.status_code == 200, resp.text
         db.refresh(bundle)
         assert bundle.title == "New Title"
+
+
+#
+# Provider failures map to specific responses and never leak a key or URL
+#
+
+_SECRET_URL = "https://api.thegamesdb.net/v1/Games/ByGameName?apikey=SECRET-KEY&name=Doom"
+
+
+def _status_error(status):
+    import httpx2
+
+    request = httpx2.Request("GET", _SECRET_URL)
+    return httpx2.HTTPStatusError(f"boom {_SECRET_URL}", request=request, response=httpx2.Response(status, request=request))
+
+
+def _raising_provider(monkeypatch, exc):
+    import backend.service.metadata_providers as providers_mod
+
+    class _Provider:
+        def search_games(self, name):
+            raise exc
+
+        def get_game_details(self, game_id, db):
+            raise exc
+
+    monkeypatch.setattr(providers_mod, "get_active_provider", lambda: _Provider())
+    monkeypatch.setattr(providers_mod, "active_provider_label", lambda: "TheGamesDB")
+
+
+def _provider_call(c, route):
+    if route == "search":
+        return c.get("/api/v1/game-items/metadata-search", params={"name": "Doom"})
+    return c.get("/api/v1/game-items/metadata-details", params={"game_id": 5})
+
+
+@pytest.mark.usefixtures("metadata_fetch_enabled")
+@pytest.mark.parametrize("route", ["search", "details"])
+class TestProviderErrorMapping:
+    def _client(self, http_client):
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        return c
+
+    def test_provider_error_response_is_502_naming_provider_and_status(self, http_client, monkeypatch, route):
+        _raising_provider(monkeypatch, _status_error(503))
+
+        resp = _provider_call(self._client(http_client), route)
+
+        assert resp.status_code == 502
+        assert resp.json()["detail"] == "TheGamesDB returned 503."
+
+    def test_provider_timeout_is_504(self, http_client, monkeypatch, route):
+        import httpx2
+
+        _raising_provider(monkeypatch, httpx2.ReadTimeout(f"timed out {_SECRET_URL}"))
+
+        resp = _provider_call(self._client(http_client), route)
+
+        assert resp.status_code == 504
+        assert resp.json()["detail"] == "TheGamesDB did not respond in time."
+
+    def test_connection_failure_is_502(self, http_client, monkeypatch, route):
+        import httpx2
+
+        _raising_provider(monkeypatch, httpx2.ConnectError(f"refused {_SECRET_URL}"))
+
+        resp = _provider_call(self._client(http_client), route)
+
+        assert resp.status_code == 502
+        assert resp.json()["detail"] == "Could not reach TheGamesDB."
+
+    def test_unreadable_body_is_502(self, http_client, monkeypatch, route):
+        import json
+
+        _raising_provider(monkeypatch, json.JSONDecodeError("bad", "<html>", 0))
+
+        resp = _provider_call(self._client(http_client), route)
+
+        assert resp.status_code == 502
+        assert resp.json()["detail"] == "TheGamesDB returned an unreadable response."
+
+    @pytest.mark.parametrize("make_exc", [
+        lambda: _status_error(500),
+        lambda: __import__("httpx2").ReadTimeout(f"t {_SECRET_URL}"),
+        lambda: __import__("httpx2").ConnectError(f"c {_SECRET_URL}"),
+    ])
+    def test_no_key_or_url_reaches_the_response(self, http_client, monkeypatch, route, make_exc):
+        _raising_provider(monkeypatch, make_exc())
+
+        resp = _provider_call(self._client(http_client), route)
+
+        for leaked in ("SECRET-KEY", "apikey", "https://", "api.thegamesdb.net"):
+            assert leaked not in resp.text
+
+    def test_missing_credentials_keep_their_clear_503(self, http_client, monkeypatch, route):
+        _raising_provider(monkeypatch, ValueError("THEGAMESDB_API_KEY is not configured."))
+
+        resp = _provider_call(self._client(http_client), route)
+
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "THEGAMESDB_API_KEY is not configured."
+
+
+@pytest.mark.usefixtures("metadata_fetch_enabled")
+class TestDetailsExternalLinks:
+    def test_details_offers_provider_links_and_trailers_http_only(self, http_client, monkeypatch):
+        import backend.service.metadata_providers as providers_mod
+        from backend.service.metadata_providers import GameDetails
+
+        class _Provider:
+            def get_game_details(self, game_id, db):
+                return GameDetails(
+                    game_id=game_id,
+                    video_urls=["https://www.youtube.com/watch?v=abc"],
+                    external_links=[
+                        {"type": "official", "url": "https://example.com/doom", "source": "provider"},
+                        {"type": "store", "url": "javascript:alert(1)", "source": "provider"},
+                    ],
+                )
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        monkeypatch.setattr(providers_mod, "get_active_provider", lambda: _Provider())
+
+        resp = c.get("/api/v1/game-items/metadata-details", params={"game_id": 5})
+
+        assert resp.json()["external_links"] == [
+            {"type": "official", "url": "https://example.com/doom", "source": "provider"},
+            {"type": "trailer", "url": "https://www.youtube.com/watch?v=abc", "source": "provider"},
+        ]
+
+
+#
+# The provider behind a stored external_game_id
+#
+
+
+@pytest.mark.usefixtures("metadata_fetch_enabled")
+class TestStoredGameIdAndProvider:
+    def test_enrich_stores_the_canonical_provider_name(self, http_client):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db)
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        resp = c.post(
+            "/api/v1/game-items/enrich",
+            json={"entity_id": bundle.id, "external_game_id": 525, "metadata_source": "igdb"},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["metadata_source"] == "IGDB"
+        assert resp.json()["external_provider"] == "igdb"
+        assert resp.json()["external_game_id"] == 525
+
+    @pytest.mark.parametrize("source,provider", [
+        ("TheGamesDB", "thegamesdb"), ("IGDB", "igdb"), ("igdb", "igdb"),
+        (None, None), ("", None), ("Manual", None), ("TheGamesDB v2", None),
+    ])
+    def test_reader_tolerates_legacy_and_unknown_sources(self, mem_db_session, source, provider):
+        from backend.models.game import game_item_bundle_to_read
+
+        owner = _make_user(mem_db_session, is_owner=True)
+        bundle = _make_game_bundle(mem_db_session, external_game_id=525, metadata_source=source)
+
+        read = game_item_bundle_to_read(bundle, mem_db_session, viewer=owner)
+
+        assert read.external_game_id == 525
+        assert read.external_provider == provider

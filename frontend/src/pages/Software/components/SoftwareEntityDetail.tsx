@@ -86,7 +86,7 @@ interface SoftwareEntityDetailProps {
   editFormContent?: ReactNode;
   /** Advanced section props, renders AdvancedSection when provided */
   advancedSection?: ComponentProps<typeof AdvancedSection>;
-  /** Metadata actions (Fetch Metadata, Cover Art), rendered inside its own
+  /** Metadata actions (Fetch Metadata), rendered inside its own
    * Metadata card */
   fetchMetadataAction?: ReactNode;
   /** Extra content between the form sections and launch (e.g. disc list for sets) */

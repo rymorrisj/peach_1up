@@ -6,8 +6,23 @@
 export const METADATA_FETCH_DISCLAIMER =
   'Fetched metadata can be wrong. Review and confirm what is retrieved before you keep it, especially titles, ratings and cover art. Ratings affect what restricted accounts can see.';
 
-// Tooltip on Fetch Metadata and Cover Art while the setting is off.
+// Tooltip on Fetch Metadata while the setting is off.
 export const METADATA_FETCH_DISABLED_HINT = 'Enable metadata fetching in Settings';
+
+// Search and details wait on the provider, whose worst case the server bounds
+// at 90 seconds (it answers 502 or 504 with a message before that), so the
+// client must not give up first at apiFetch's 10 second default.
+export const METADATA_LOOKUP_TIMEOUT_MS = 90_000;
+
+// Text for a failed search or details call. The server's 502 and 504 messages
+// name the provider and the cause, so they are shown as they are; only a
+// client-side abort has no server message and gets its own wording.
+export function lookupErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.name === 'TimeoutError') {
+    return 'The provider did not answer within 90 seconds. Try again.';
+  }
+  return err instanceof Error && err.message ? err.message : fallback;
+}
 
 // Fails closed: anything other than a stored `true` (including settings not
 // loaded yet) reads as off.

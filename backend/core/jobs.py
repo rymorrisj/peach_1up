@@ -1,6 +1,7 @@
 """In-memory background-job registry, the entry point for work that outlives
-the request that started it (large upload finalization, large library scans) and
-needs to surface progress in the nav-bell notification centre.
+the request that started it (large upload finalization, large library scans,
+metadata Accept All) and needs to surface progress in the nav-bell notification
+centre.
 
 In-memory only (lost on restart), matching install_registry / process_registry /
 rate_limit, the goal is live progress for the current session, not a durable
@@ -14,7 +15,7 @@ import time
 import uuid
 from typing import Any, Literal
 
-JobKind = Literal["upload", "scan"]
+JobKind = Literal["upload", "scan", "metadata_apply"]
 JobStatus = Literal["processing", "cancelling", "done", "error", "cancelled"]
 
 _lock = threading.Lock()
@@ -30,8 +31,10 @@ _cancel_events: dict[str, threading.Event] = {}
 _RETAIN_SECONDS = 3600.0
 
 
-def create(kind: JobKind, message: str = "") -> str:
-    """Register a new processing job and return its id."""
+def create(kind: JobKind, message: str = "", *, meta: dict[str, Any] | None = None) -> str:
+    """Register a new processing job and return its id. *meta* is free-form
+    per-kind detail (counts, a label, a structured error) that update()
+    merges into."""
     job_id = uuid.uuid4().hex
     now = time.time()
     with _lock:
@@ -44,6 +47,7 @@ def create(kind: JobKind, message: str = "") -> str:
             "message": message,
             "result": None,
             "error": None,
+            "meta": dict(meta) if meta else {},
             "created_at": now,
             "updated_at": now,
         }
@@ -84,9 +88,12 @@ def cancel(job_id: str, message: str | None = None) -> None:
     _finish(job_id, "cancelled", message=message)
 
 
-def update(job_id: str, *, progress: float | None = None, message: str | None = None) -> None:
-    """Update progress (clamped 0..1) and/or the human-readable message. No-op if
-    the job was already swept."""
+def update(
+    job_id: str, *, progress: float | None = None, message: str | None = None,
+    meta: dict[str, Any] | None = None,
+) -> None:
+    """Update progress (clamped 0..1), the human-readable message and/or merge
+    keys into meta. No-op if the job was already swept."""
     with _lock:
         job = _jobs.get(job_id)
         if job is None:
@@ -95,6 +102,8 @@ def update(job_id: str, *, progress: float | None = None, message: str | None = 
             job["progress"] = max(0.0, min(1.0, progress))
         if message is not None:
             job["message"] = message
+        if meta:
+            job["meta"] = {**job["meta"], **meta}
         job["updated_at"] = time.time()
 
 

@@ -126,6 +126,33 @@ class TestRetentionSweep:
         assert finished_id not in jobs._cancel_events
 
 
+class TestMeta:
+    def test_meta_defaults_empty_and_update_merges_keys(self):
+        from backend.core import jobs
+
+        plain = jobs.create("upload")
+        job_id = jobs.create("metadata_apply", meta={"done": 0, "total": 3})
+        assert jobs.get(plain)["meta"] == {}
+
+        snapshot = jobs.get(job_id)
+        jobs.update(job_id, meta={"done": 2, "label": "cover (3 of 3)"})
+        jobs.update(job_id, message="still going")
+
+        assert jobs.get(job_id)["meta"] == {"done": 2, "total": 3, "label": "cover (3 of 3)"}
+        assert snapshot["meta"] == {"done": 0, "total": 3}
+
+    def test_meta_survives_a_failure(self):
+        from backend.core import jobs
+
+        job_id = jobs.create("metadata_apply")
+        jobs.update(job_id, meta={"error": {"code": "disk_full", "message": "The disk is full."}})
+        jobs.fail(job_id, "The disk is full.")
+
+        job = jobs.get(job_id)
+        assert job["status"] == "error"
+        assert job["meta"]["error"]["code"] == "disk_full"
+
+
 # INTEGRATION TEST NEEDED: jobs.py's stated thread-safety, background worker
 # threads mutating a job while the GET /api/v1/jobs poll reads it from the
 # event loop. Every test here is single-threaded, so the _lock discipline

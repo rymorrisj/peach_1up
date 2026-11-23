@@ -17,6 +17,41 @@ export function ratingChangeAffectedCount(err: unknown): number | null {
   return typeof raw.affected_count === 'number' ? raw.affected_count : 0;
 }
 
+/** Detail of the enrich route's own rating-change 409 (enrich.py), which
+ *  carries the reason and both ratings instead of a media count. */
+export interface RatingChangeDetail {
+  reason: string;
+  current_rating: string | null;
+  new_rating: string | null;
+  message: string;
+}
+
+/** The structured detail of an enrich rating-change 409, or null for any other error. */
+export function ratingChangeDetail(err: unknown): RatingChangeDetail | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const raw = err.rawDetail as Partial<RatingChangeDetail> & { error_type?: unknown };
+  if (raw == null || typeof raw !== 'object' || raw.error_type !== RATING_CHANGE_ERROR_TYPE)
+    return null;
+  return {
+    reason: typeof raw.reason === 'string' ? raw.reason : 'unrecognised',
+    current_rating: raw.current_rating ?? null,
+    new_rating: raw.new_rating ?? null,
+    message: typeof raw.message === 'string' ? raw.message : err.detail,
+  };
+}
+
+const RATING_CHANGE_REASON_TEXT: Record<string, string> = {
+  lowered: 'This lowers the current rating, so accounts limited to that rating could see the game.',
+  cleared: 'This clears the current rating, so the game becomes unrated.',
+  scheme_changed:
+    'This switches to a different rating system, which cannot be compared automatically.',
+  unrecognised: 'One of the two ratings is not in the known list, so the change cannot be checked.',
+};
+
+export function ratingChangeReasonText(detail: RatingChangeDetail): string {
+  return RATING_CHANGE_REASON_TEXT[detail.reason] ?? detail.message;
+}
+
 export function ratingChangeMessage(count: number): string {
   return `This changes who can see ${count} media ${count === 1 ? 'item' : 'items'}. Continue?`;
 }

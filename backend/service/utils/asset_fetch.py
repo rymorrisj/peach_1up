@@ -1,14 +1,9 @@
 """Shared server-side image download: SSRF-safe, streamed, size-capped.
 
-Generalized out of backend/service/games/enrich.py's original
-_download_cover_art (the Keep flow's per-leaf cover art fetch), which now
-calls download_remote_image() below instead of carrying its own copy. The
-Accept All flow (backend/service/games/media_link.py) uses it too, for the
-same reason: both are "fetch one image from a provider-supplied https URL
-into a library directory" with identical trust boundaries, only the
-destination filename differs.
+The Accept All flow (backend/service/games/media_link.py) fetches
+provider-supplied https image URLs into the library through it.
 
-Both callers receive the URL from the client, so it is untrusted input.
+The URL comes from the client, so it is untrusted input.
 Every request, including every redirect hop, is validated before it is
 sent (META-4):
 
@@ -119,6 +114,20 @@ def _resolve_host_addresses(host: str, port: int) -> list[str]:
     return [info[4][0] for info in infos]
 
 
+class AssetFetchFailure(HTTPException):
+    """HTTPException tagged with why a download failed, so a background job
+    can report the real reason without parsing the detail text.
+
+    kind is "time_budget" (deadline passed), "upstream" (the CDN answered
+    with *upstream_status*) or "network" (DNS failure).
+    """
+
+    def __init__(self, status_code: int, detail: str, *, kind: str, upstream_status: int | None = None):
+        super().__init__(status_code=status_code, detail=detail)
+        self.kind = kind
+        self.upstream_status = upstream_status
+
+
 def _reject(detail: str) -> HTTPException:
     return HTTPException(status_code=422, detail=detail)
 
@@ -146,10 +155,10 @@ def _validate_request_url(url: str) -> None:
         raise _reject("Asset url must use the default https port")
     try:
         addresses = _resolve_host_addresses(host, _HTTPS_PORT)
-    except OSError as exc:
-        raise HTTPException(status_code=502, detail=f"Asset host could not be resolved: {exc}")
+    except OSError:
+        raise AssetFetchFailure(502, "Asset host could not be resolved.", kind="network")
     if not addresses:
-        raise HTTPException(status_code=502, detail="Asset host resolved to no addresses")
+        raise AssetFetchFailure(502, "Asset host resolved to no addresses.", kind="network")
     for raw in addresses:
         try:
             addr = ipaddress.ip_address(raw.split("%", 1)[0])
@@ -187,7 +196,9 @@ def _require_under_library(path: Path, lib_root: Path, what: str) -> Path:
 
 def _check_deadline(deadline: float | None) -> None:
     if deadline is not None and time.monotonic() > deadline:
-        raise _reject("Asset download exceeded the time budget for this request.")
+        raise AssetFetchFailure(
+            422, "Asset download exceeded the time budget for this request.", kind="time_budget",
+        )
 
 
 def _request_timeout(deadline: float | None) -> float:
@@ -267,7 +278,10 @@ def fetch_image_to_temp(
                         try:
                             resp.raise_for_status()
                         except httpx2.HTTPStatusError as e:
-                            raise HTTPException(status_code=502, detail=f"Asset fetch failed: {e}")
+                            raise AssetFetchFailure(
+                                502, f"Asset fetch failed with status {e.response.status_code}.",
+                                kind="upstream", upstream_status=e.response.status_code,
+                            )
 
                         _check_response_url(resp.url)
 

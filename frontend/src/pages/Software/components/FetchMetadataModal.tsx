@@ -1,245 +1,353 @@
-import { useState, useEffect } from 'react';
-import { Button, Modal, Input, RadioGroup, Radio, Checkbox } from '@/ui';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Button, Modal } from '@/ui';
 import { useToast } from '@/ui/ToastProvider';
 import { apiFetch } from '@/api/client';
+import { parseNaiveUtc } from '@/lib/date';
+import { METADATA_LOOKUP_TIMEOUT_MS, lookupErrorMessage } from '@/lib/metadataFetch';
+import { RATING_CHANGE_ERROR_TYPE, ratingChangeDetail } from '@/hooks/useRatingChangeConfirm';
+import { useMetadataApplyJob, isMetadataJobActive } from '@/hooks/useMetadataApplyJob';
+import type { RatingChangeDetail } from '@/hooks/useRatingChangeConfirm';
+import { FetchApplyStep } from './FetchApplyStep';
+import { FetchReviewStep } from './FetchReviewStep';
+import { FetchSearchStep } from './FetchSearchStep';
+import { PreviousAssetsPanel } from './PreviousAssetsPanel';
 import {
   PREVIOUS_ASSETS_ERROR_TYPE,
-  keepAddedNothing,
   previousAssetsCount,
   type PreviousAssetsChoice,
 } from './previousAssets';
+import { webLinks } from './externalLinks';
+import {
+  buildEnrichPayload,
+  buildReviewFields,
+  countCheckedItems,
+  defaultAssetSelection,
+  defaultCoverUrl,
+  defaultFieldSelection,
+  defaultRatingSelected,
+  uniqueAssets,
+  type CurrentMetadata,
+  type EnrichSelection,
+  type GameDetails,
+  type SearchResult,
+} from './metadataReview';
+import type { GameItemBundleData } from './CollectionCard';
 
-// Accept All downloads every fetched asset (boxart, screenshots, etc.) from
-// the metadata provider server-side before responding, which can take well
-// past the default 10s client abort timeout. see backend/service/games/media_link.py
-const ACCEPT_METADATA_TIMEOUT_MS = 120_000;
+type Phase = 'search' | 'review' | 'apply';
 
-interface SearchResult {
-  game_id: number;
-  title: string;
-  release_date: string | null;
-  /** Absent in results cached by an older build. */
-  platform?: string | null;
+const STEP_LABELS: Record<Phase, string> = {
+  search: 'Step 1 of 3: Search',
+  review: 'Step 2 of 3: Review',
+  apply: 'Step 3 of 3: Apply',
+};
+
+const NO_SELECTION: EnrichSelection = {
+  fields: {
+    title: false,
+    year: false,
+    description: false,
+    genre: false,
+    developer: false,
+    publisher: false,
+  },
+  rating: false,
+  links: true,
+};
+
+function readCachedResults(storageKey: string): SearchResult[] | null {
+  try {
+    const cached = sessionStorage.getItem(storageKey);
+    return cached ? (JSON.parse(cached) as SearchResult[]) : null;
+  } catch {
+    return null;
+  }
 }
 
-interface MetadataAsset {
-  url: string;
-  type: string;
-  thumb_url: string | null;
-}
-
-interface GameDetails {
-  game_id: number;
-  title: string | null;
-  release_date: string | null;
-  overview: string | null;
-  rating: string | null;
-  cover_art_url: string | null;
-  cover_art_thumb_url: string | null;
-  genres: string[] | null;
-  /** TheGamesDB genre ids the provider could not name; they are not applied. */
-  unresolved_genre_ids?: number[];
-  developer: string | null;
-  publisher: string | null;
-  video_urls: string[];
-  assets: MetadataAsset[];
+async function requestDetails(gameId: number): Promise<GameDetails> {
+  const data = await apiFetch<GameDetails>(
+    `/api/v1/game-items/metadata-details?game_id=${gameId}`,
+    {
+      timeoutMs: METADATA_LOOKUP_TIMEOUT_MS,
+    },
+  );
+  return {
+    ...data,
+    assets: uniqueAssets(data.assets ?? []),
+    external_links: webLinks(data.external_links),
+  };
 }
 
 interface FetchMetadataModalProps {
   open: boolean;
   onClose: () => void;
-  entityType: 'game_item_bundle' | 'game_item';
-  entityId: number;
-  entityTitle: string;
+  bundle: GameItemBundleData;
+  /** Key the search results are cached under in sessionStorage. */
   storageKey: string;
+  /** The provider game id already matched to this game by the active provider,
+   *  or null. When set the modal opens on Review instead of Search. */
+  knownMatchId: number | null;
+  /** Called after metadata or images were applied, to refresh the game. */
   onSuccess: () => void;
-  /** Current content_rating on the collection, if any, used to warn when the
-   *  fetched rating would lower or clear it. Only meaningful for entityType
-   *  'game_item_bundle'; game_item has no content_rating field. */
-  currentContentRating?: string | null;
-  /** Notified whenever a search/fetch/apply request is in flight, so the
-   *  trigger button that opens this modal can show its own loading state. */
+  /** Notified while a request or the apply job is in flight, so the trigger
+   *  button can show its own loading state even with the modal closed. */
   onBusyChange?: (busy: boolean) => void;
-  /** Display label for the currently active metadata provider ('TheGamesDB'
-   *  or 'IGDB'), sourced from the DB-backed metadata_provider setting by the
-   *  caller. Recorded as metadata_source on apply, only meaningful for
-   *  entityType 'game_item_bundle'; game_item enrichment has no
-   *  metadata_source field and rejects it. */
+  /** Display label of the active provider ('TheGamesDB' or 'IGDB'), recorded
+   *  as metadata_source when metadata is applied. */
   activeProviderLabel: string;
 }
 
-export function FetchMetadataModal({
-  open,
-  onClose,
-  entityType,
-  entityId,
-  entityTitle,
-  storageKey,
-  onSuccess,
-  currentContentRating = null,
-  onBusyChange,
-  activeProviderLabel,
-}: FetchMetadataModalProps) {
-  const { showToast } = useToast();
-
-  const [query, setQuery] = useState(entityTitle);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [results, setResults] = useState<SearchResult[] | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-
-  const [phase, setPhase] = useState<'search' | 'preview' | 'accept-all'>('search');
-  const [fetching, setFetching] = useState(false);
-  const [details, setDetails] = useState<GameDetails | null>(null);
-
-  const [applying, setApplying] = useState(false);
-  const [applyError, setApplyError] = useState<string | null>(null);
-  const [confirmRatingChange, setConfirmRatingChange] = useState(false);
-
-  const [acceptingAll, setAcceptingAll] = useState(false);
-  const [acceptError, setAcceptError] = useState<string | null>(null);
-  // Set from a previous-assets 409: how many fetched images the linked
-  // media already has, while the Replace / Keep choice is shown.
-  const [existingFetchedCount, setExistingFetchedCount] = useState<number | null>(null);
-
-  // Handles both open-transitions: on open, pre-fill the search field
-  // (editable afterward, not re-applied while it stays open) and restore any
-  // cached results from sessionStorage; on close, reset all transient state.
-  // Adjusted during render (tracking the previous `open`) rather than in
-  // three separate useEffects, since `open` stays at one value across many
-  // renders and every branch here is a plain local setState call with no
-  // external side effect attached besides the sessionStorage read (itself
-  // side-effect-free).
+/**
+ * Hosts the apply job so it outlives the dialog: closing the modal while the
+ * job runs leaves it running, and the flow underneath is rebuilt (reset)
+ * whenever the modal opens or closes with no job in flight.
+ */
+export function FetchMetadataModal(props: FetchMetadataModalProps) {
+  const { open, bundle, onSuccess, onBusyChange } = props;
+  const job = useMetadataApplyJob({ gameTitle: bundle.title, onApplied: onSuccess });
+  const [flowBusy, setFlowBusy] = useState(false);
+  const [episode, setEpisode] = useState(0);
   const [prevOpen, setPrevOpen] = useState(open);
   if (open !== prevOpen) {
     setPrevOpen(open);
-    if (open) {
-      setQuery(entityTitle);
-      const cached = sessionStorage.getItem(storageKey);
-      if (cached) {
-        try {
-          setResults(JSON.parse(cached) as SearchResult[]);
-        } catch {
-          // ignore malformed cache
-        }
-      }
-    } else {
-      setQuery('');
-      setSearching(false);
-      setSearchError(null);
-      setResults(null);
-      setSelectedId(null);
-      setPhase('search');
-      setFetching(false);
-      setDetails(null);
-      setApplying(false);
-      setApplyError(null);
-      setConfirmRatingChange(false);
-      setAcceptingAll(false);
-      setAcceptError(null);
-      setExistingFetchedCount(null);
+    if (!job.active) {
+      job.reset();
+      setEpisode((e) => e + 1);
     }
   }
+
+  const busy = flowBusy || job.active;
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
+
+  return <FetchMetadataFlow key={episode} {...props} job={job} onFlowBusy={setFlowBusy} />;
+}
+
+interface FlowProps extends FetchMetadataModalProps {
+  job: ReturnType<typeof useMetadataApplyJob>;
+  onFlowBusy: (busy: boolean) => void;
+}
+
+function FetchMetadataFlow({
+  open,
+  onClose,
+  bundle,
+  storageKey,
+  knownMatchId,
+  onSuccess,
+  activeProviderLabel,
+  job,
+  onFlowBusy,
+}: FlowProps) {
+  const { showToast } = useToast();
+
+  const [phase, setPhase] = useState<Phase>(
+    job.status ? 'apply' : knownMatchId != null ? 'review' : 'search',
+  );
+  const [query, setQuery] = useState(bundle.title);
+  const [results, setResults] = useState<SearchResult[] | null>(() =>
+    readCachedResults(storageKey),
+  );
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // The flow is rebuilt on every open, so a stored match on a fresh open
+  // loads its details once, from the effect below.
+  const [autoLoadId] = useState(() =>
+    open && !job.status && knownMatchId != null ? knownMatchId : null,
+  );
+  const [searching, setSearching] = useState(false);
+  const [fetching, setFetching] = useState(autoLoadId != null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  const [details, setDetails] = useState<GameDetails | null>(null);
+  const [selection, setSelection] = useState<EnrichSelection>(NO_SELECTION);
+  const [assetSelected, setAssetSelected] = useState<Set<string>>(new Set());
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [ratingConflict, setRatingConflict] = useState<RatingChangeDetail | null>(null);
+  const [confirmRating, setConfirmRating] = useState(false);
+  // Set from a previous-assets 409: how many fetched images the linked media
+  // already holds, while the Replace / Keep choice is shown.
+  const [existingCount, setExistingCount] = useState<number | null>(null);
+  const [previousChoice, setPreviousChoice] = useState<PreviousAssetsChoice | undefined>();
+
+  const current: CurrentMetadata = {
+    title: bundle.title,
+    year: bundle.year,
+    description: bundle.description,
+    genres: bundle.genres,
+    developer: bundle.developer,
+    publisher: bundle.publisher,
+    content_rating: bundle.content_rating,
+  };
+  const fields = details ? buildReviewFields(current, details) : [];
+  const status = job.status;
+
+  function showDetails(loaded: GameDetails) {
+    const picked = defaultAssetSelection(loaded.assets);
+    setDetails(loaded);
+    setSelection({
+      fields: defaultFieldSelection(buildReviewFields(current, loaded)),
+      rating: defaultRatingSelected(bundle.content_rating, loaded),
+      links: true,
+    });
+    setAssetSelected(picked);
+    setCoverUrl(defaultCoverUrl(loaded.assets, picked));
+    setRatingConflict(null);
+    setConfirmRating(false);
+    setApplyError(null);
+    setExistingCount(null);
+    setPhase('review');
+  }
+
+  async function loadDetails(gameId: number) {
+    setFetching(true);
+    setLookupError(null);
+    try {
+      showDetails(await requestDetails(gameId));
+    } catch (err) {
+      setLookupError(lookupErrorMessage(err, 'Failed to fetch details.'));
+    } finally {
+      setFetching(false);
+    }
+  }
+
+  useEffect(() => {
+    if (autoLoadId == null) return;
+    let stale = false;
+    requestDetails(autoLoadId)
+      .then((loaded) => !stale && showDetails(loaded))
+      .catch((err) => !stale && setLookupError(lookupErrorMessage(err, 'Failed to fetch details.')))
+      .finally(() => !stale && setFetching(false));
+    return () => {
+      stale = true;
+    };
+    // One request per fresh open, so the deps stay at the stored id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLoadId]);
 
   async function handleSearch() {
     const q = query.trim();
     if (!q) return;
     setSearching(true);
-    setSearchError(null);
+    setLookupError(null);
     try {
       const data = await apiFetch<{ results: SearchResult[] }>(
         `/api/v1/game-items/metadata-search?name=${encodeURIComponent(q)}`,
+        { timeoutMs: METADATA_LOOKUP_TIMEOUT_MS },
       );
       setResults(data.results);
       setSelectedId(null);
       sessionStorage.setItem(storageKey, JSON.stringify(data.results));
     } catch (err) {
-      setSearchError(err instanceof Error ? err.message : 'Search failed.');
+      setLookupError(lookupErrorMessage(err, 'Search failed.'));
     } finally {
       setSearching(false);
     }
   }
 
-  async function handleFetchNow() {
-    if (selectedId == null) return;
-    setFetching(true);
-    setSearchError(null);
-    try {
-      const data = await apiFetch<GameDetails>(
-        `/api/v1/game-items/metadata-details?game_id=${selectedId}`,
-      );
-      // Normalized here, once, so every downstream read of details.assets/
-      // details.video_urls can rely on the GameDetails type contract (always
-      // an array, never undefined) without re-guarding at each call site,
-      // even against a response shape that predates these two fields.
-      setDetails({ ...data, assets: data.assets ?? [], video_urls: data.video_urls ?? [] });
-      setPhase('preview');
-    } catch (err) {
-      setSearchError(err instanceof Error ? err.message : 'Failed to fetch details.');
-    } finally {
-      setFetching(false);
+  function handleSearchAgain() {
+    setPhase('search');
+    setDetails(null);
+    setLookupError(null);
+    setApplyError(null);
+    setExistingCount(null);
+  }
+
+  function toggleAsset(url: string, on: boolean) {
+    if (!details) return;
+    const next = new Set(assetSelected);
+    if (on) next.add(url);
+    else next.delete(url);
+    setAssetSelected(next);
+    if (coverUrl === url && !on) setCoverUrl(defaultCoverUrl(details.assets, next));
+  }
+
+  function changeSelection(next: EnrichSelection) {
+    setSelection(next);
+    if (!next.rating) {
+      setRatingConflict(null);
+      setConfirmRating(false);
     }
   }
 
-  async function handleKeep() {
+  async function startJob(previous?: PreviousAssetsChoice) {
     if (!details) return;
-    if (ratingChanged && !confirmRatingChange) return;
+    const chosen = details.assets.filter((a) => assetSelected.has(a.url));
+    try {
+      const started = await apiFetch<{ job_id: string }>(
+        `/api/v1/game-items/${bundle.id}/accept-metadata-assets`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            assets: chosen,
+            ...(previous ? { previous_assets: previous } : {}),
+            ...(coverUrl ? { cover_asset_url: coverUrl } : {}),
+          }),
+          quietErrorTypes: [PREVIOUS_ASSETS_ERROR_TYPE],
+        },
+      );
+      setPreviousChoice(previous);
+      setExistingCount(null);
+      job.track(started.job_id, chosen.length);
+      setPhase('apply');
+    } catch (err) {
+      const existing = previousAssetsCount(err);
+      if (existing === null || previous !== undefined) throw err;
+      setExistingCount(existing);
+    }
+  }
+
+  async function handleChoose(previous?: PreviousAssetsChoice) {
     setApplying(true);
     setApplyError(null);
-
-    const payload: Record<string, unknown> = {
-      entity_type: entityType,
-      entity_id: entityId,
-    };
-
-    if (entityType === 'game_item_bundle') {
-      // Metadata lives on the collection, cover_art_url is not supported here.
-      // metadata_source only belongs here: enrich.py rejects any metadata_fields
-      // (including metadata_source) for entityType 'game_item'.
-      payload.metadata_source = activeProviderLabel;
-      payload.external_game_id = details.game_id;
-      if (details.title) payload.title = details.title;
-      if (details.overview) payload.description = details.overview;
-      if (details.rating) payload.content_rating = details.rating;
-      if (ratingChanged) payload.confirm_rating_change = confirmRatingChange;
-      if (details.release_date) {
-        const year = parseInt(details.release_date.split('-')[0], 10);
-        if (!isNaN(year)) payload.year = year;
-      }
-      if (details.developer) payload.developer = details.developer;
-      if (details.publisher) payload.publisher = details.publisher;
-      if (details.genres && details.genres.length > 0) payload.genre = details.genres;
-      if (details.video_urls && details.video_urls.length > 0) {
-        payload.external_links = details.video_urls.map((url) => ({ type: 'trailer', url }));
-      }
-    } else if (entityType === 'game_item') {
-      // Leaf: only per-disc cover_art_url is supported.
-      if (details.cover_art_url) payload.cover_art_url = details.cover_art_url;
-    }
-
     try {
-      await apiFetch('/api/v1/game-items/enrich', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      sessionStorage.removeItem(storageKey);
-      showToast(`Metadata applied: ${details.title ?? entityTitle}`, 'success');
-      onSuccess();
+      await startJob(previous);
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : 'Failed to start applying images.');
+    } finally {
+      setApplying(false);
+    }
+  }
 
-      // Accept All only applies at the game_item_bundle level (that's the
-      // side the entity-link table's game_item_bundle<->media_item_bundle
-      // link attaches to) and only when there is something downloadable to
-      // offer. Otherwise this is unchanged from before: close immediately,
-      // identical to today's Keep-only behavior.
-      const hasAcceptables =
-        entityType === 'game_item_bundle' &&
-        ((details.assets && details.assets.length > 0) ||
-          (details.video_urls && details.video_urls.length > 0));
-      if (hasAcceptables) {
-        setPhase('accept-all');
-      } else {
-        onClose();
+  async function handleApply() {
+    if (!details) return;
+    setApplying(true);
+    setApplyError(null);
+    try {
+      const payload = buildEnrichPayload({
+        bundleId: bundle.id,
+        providerLabel: activeProviderLabel,
+        details,
+        fields,
+        selection,
+        confirmRatingChange: confirmRating,
+      });
+      if (payload) {
+        try {
+          await apiFetch('/api/v1/game-items/enrich', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            quietErrorTypes: [RATING_CHANGE_ERROR_TYPE],
+          });
+        } catch (err) {
+          const conflict = ratingChangeDetail(err);
+          if (!conflict) throw err;
+          setRatingConflict(conflict);
+          setConfirmRating(false);
+          return;
+        }
+        sessionStorage.removeItem(storageKey);
+        setRatingConflict(null);
+        onSuccess();
       }
+      if (assetSelected.size === 0) {
+        showToast(`Metadata applied: ${details.title ?? bundle.title}`, 'success');
+        onClose();
+        return;
+      }
+      await startJob(previousChoice);
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : 'Failed to apply metadata.');
     } finally {
@@ -247,453 +355,220 @@ export function FetchMetadataModal({
     }
   }
 
-  async function handleAcceptAll(previousAssets?: PreviousAssetsChoice) {
-    if (!details || details.assets.length === 0) return;
-    setAcceptingAll(true);
-    setAcceptError(null);
-    try {
-      const bundle = await apiFetch<{ items?: { source_url?: string | null }[] }>(
-        `/api/v1/game-items/${entityId}/accept-metadata-assets`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            assets: details.assets,
-            ...(previousAssets ? { previous_assets: previousAssets } : {}),
-          }),
-          timeoutMs: ACCEPT_METADATA_TIMEOUT_MS,
-          quietErrorTypes: [PREVIOUS_ASSETS_ERROR_TYPE],
-        },
-      );
-      const nothingNew = keepAddedNothing(previousAssets, existingFetchedCount, bundle);
-      setExistingFetchedCount(null);
-      if (nothingNew) {
-        showToast('No new media to add', 'info');
-      } else {
-        showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success');
-      }
-      // Same call handleKeep() makes above: the accepted assets can change
-      // bundle-level fields (cover art, linked_items), and onSuccess's
-      // refetchEntity()/resyncFromCollection() (see gameConfig.tsx) pulls a
-      // full fresh copy of the bundle rather than patching individual
-      // fields, so it picks up whatever accept-metadata-assets changed just
-      // as correctly as it does for Keep's changes, no divergence needed.
-      onSuccess();
-      onClose();
-    } catch (err) {
-      const existing = previousAssetsCount(err);
-      if (existing !== null && previousAssets === undefined) {
-        setExistingFetchedCount(existing);
-      } else {
-        setAcceptError(err instanceof Error ? err.message : 'Failed to create linked media.');
-      }
-    } finally {
-      setAcceptingAll(false);
+  function handleRetry() {
+    job.reset();
+    setPhase('review');
+    void handleChoose(previousChoice);
+  }
+
+  const lookingUp = searching || fetching;
+  const blocking = lookingUp || applying;
+  useEffect(() => {
+    onFlowBusy(blocking);
+  }, [blocking, onFlowBusy]);
+  useEffect(() => () => onFlowBusy(false), [onFlowBusy]);
+
+  const checkedCount = details ? countCheckedItems(fields, details, selection) : 0;
+  const imageCount = assetSelected.size;
+  const needsRatingConfirm = ratingConflict != null && selection.rating && !confirmRating;
+  const nothingToApply = checkedCount === 0 && imageCount === 0;
+
+  function summary(): string {
+    if (nothingToApply) return 'Nothing is selected to apply.';
+    const parts: string[] = [];
+    if (checkedCount > 0)
+      parts.push(`update ${checkedCount} field${checkedCount === 1 ? '' : 's'}`);
+    if (imageCount > 0) {
+      parts.push(`save ${imageCount} image${imageCount === 1 ? '' : 's'} to this game's media`);
+      if (coverUrl) parts.push('set the game cover to the chosen image');
     }
+    const last = parts.pop();
+    return `Apply will ${parts.length > 0 ? `${parts.join(', ')} and ` : ''}${last}.`;
   }
 
-  function handleSkipAcceptAll() {
-    // Zero additional calls, Keep already applied core metadata + cover art
-    // above, this step only ever offers to go further than that.
-    onClose();
+  let footer: ReactNode;
+  if (phase === 'search') {
+    footer = (
+      <>
+        <Button variant="secondary" onClick={onClose} disabled={lookingUp}>
+          Cancel
+        </Button>
+        <Button
+          onClick={() => selectedId != null && void loadDetails(selectedId)}
+          disabled={selectedId == null || lookingUp}
+          loading={fetching}
+        >
+          Fetch Now
+        </Button>
+      </>
+    );
+  } else if (phase === 'review' && !details) {
+    footer = (
+      <>
+        <Button variant="secondary" onClick={onClose} disabled={fetching}>
+          Cancel
+        </Button>
+        {lookupError && (
+          <>
+            <Button variant="secondary" onClick={handleSearchAgain}>
+              Search instead
+            </Button>
+            <Button
+              onClick={() => knownMatchId != null && void loadDetails(knownMatchId)}
+              loading={fetching}
+            >
+              Retry
+            </Button>
+          </>
+        )}
+      </>
+    );
+  } else if (phase === 'review' && existingCount !== null) {
+    footer = (
+      <>
+        <Button variant="secondary" onClick={() => setExistingCount(null)} disabled={applying}>
+          Back
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => void handleChoose('keep')}
+          disabled={applying}
+          loading={applying}
+        >
+          Keep and add new
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={() => void handleChoose('replace')}
+          disabled={applying}
+          loading={applying}
+        >
+          Replace
+        </Button>
+      </>
+    );
+  } else if (phase === 'review') {
+    footer = (
+      <>
+        <Button variant="secondary" onClick={onClose} disabled={applying}>
+          Cancel
+        </Button>
+        <Button
+          onClick={() => void handleApply()}
+          disabled={applying || nothingToApply || needsRatingConfirm}
+          loading={applying}
+        >
+          Apply
+        </Button>
+      </>
+    );
+  } else {
+    footer = (
+      <>
+        <Button variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+        {isMetadataJobActive(status) && (
+          <Button
+            variant="destructive"
+            onClick={() => void job.cancel()}
+            disabled={status?.cancel_requested}
+          >
+            {status?.cancel_requested ? 'Cancelling' : 'Cancel apply'}
+          </Button>
+        )}
+        {status && (status.state === 'failed' || status.state === 'cancelled') && (
+          <Button onClick={handleRetry}>Retry</Button>
+        )}
+      </>
+    );
   }
-
-  function handleRedo() {
-    setPhase('search');
-    setDetails(null);
-    setApplyError(null);
-    // results stay in state (and sessionStorage), no re-search needed
-  }
-
-  const unresolvedGenreIds = details?.unresolved_genre_ids ?? [];
-  const showCoverArt = entityType === 'game_item';
-  const showMetadata = entityType === 'game_item_bundle';
-  const busy =
-    phase === 'search' ? searching || fetching : phase === 'accept-all' ? acceptingAll : applying;
-
-  useEffect(() => {
-    onBusyChange?.(busy);
-  }, [busy, onBusyChange]);
-
-  useEffect(() => {
-    if (!open) onBusyChange?.(false);
-  }, [open, onBusyChange]);
-  // Coarse string comparison against the raw provider rating (not the normalized
-  // form the backend will store), this can flag changes the backend later decides
-  // don't need confirmation (e.g. a same-rating restated differently, or a raise),
-  // but it can never miss a real lower/clear. The backend's normalized comparison
-  // in enrich.py is the actual safety gate; this is just visibility for the user.
-  const ratingChanged = Boolean(
-    showMetadata &&
-    details?.rating &&
-    currentContentRating &&
-    details.rating !== currentContentRating,
-  );
 
   return (
     <Modal
       open={open}
       title="Fetch Metadata"
       onClose={onClose}
-      busy={busy}
-      footer={
-        phase === 'search' ? (
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" onClick={onClose} disabled={searching || fetching}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleFetchNow}
-              disabled={selectedId == null || searching || fetching}
-              loading={fetching}
-            >
-              Fetch Now
-            </Button>
-          </div>
-        ) : phase === 'preview' ? (
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" onClick={handleRedo} disabled={applying}>
-              Redo
-            </Button>
-            <Button
-              onClick={handleKeep}
-              disabled={applying || (ratingChanged && !confirmRatingChange)}
-              loading={applying}
-            >
-              Keep
-            </Button>
-          </div>
-        ) : existingFetchedCount !== null ? (
-          <div className="flex items-center gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => setExistingFetchedCount(null)}
-              disabled={acceptingAll}
-            >
-              Back
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void handleAcceptAll('keep')}
-              disabled={acceptingAll}
-              loading={acceptingAll}
-            >
-              Keep and add new
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => void handleAcceptAll('replace')}
-              disabled={acceptingAll}
-              loading={acceptingAll}
-            >
-              Replace
-            </Button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" onClick={handleSkipAcceptAll} disabled={acceptingAll}>
-              Skip
-            </Button>
-            <Button
-              onClick={() => void handleAcceptAll()}
-              disabled={acceptingAll || !details || details.assets.length === 0}
-              loading={acceptingAll}
-            >
-              Accept All
-            </Button>
-          </div>
-        )
-      }
+      busy={blocking}
+      footer={<div className="flex items-center gap-3">{footer}</div>}
     >
-      {phase === 'search' ? (
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleSearch();
-              }}
-              placeholder="Search game title…"
-              disabled={searching}
-              className="min-w-0 flex-1"
-            />
-            <Button
-              onClick={() => void handleSearch()}
-              disabled={!query.trim() || searching}
-              loading={searching}
-              size="sm"
-            >
-              Search
-            </Button>
-          </div>
+      <p className="text-xs text-neutral-400">{STEP_LABELS[phase]}</p>
 
-          {searchError && (
-            <p role="alert" className="text-sm text-red-400">
-              {searchError}
-            </p>
-          )}
+      {phase !== 'apply' && bundle.metadata_fetched_at && (
+        <p
+          role="note"
+          className="rounded-md border border-neutral-700 bg-neutral-800/50 p-3 text-xs text-neutral-300"
+        >
+          Metadata was last fetched on {parseNaiveUtc(bundle.metadata_fetched_at).toLocaleString()}.
+          Fetching again uses additional provider API credits.
+        </p>
+      )}
 
-          {results !== null && results.length === 0 && (
-            <p className="text-sm text-neutral-400">No results found.</p>
-          )}
+      {phase === 'search' && (
+        <FetchSearchStep
+          query={query}
+          onQueryChange={setQuery}
+          onSearch={() => void handleSearch()}
+          searching={searching}
+          results={results}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
+      )}
 
-          {results !== null && results.length > 0 && (
-            <fieldset>
-              <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                Select a match
-              </legend>
-              <RadioGroup
-                value={selectedId != null ? String(selectedId) : ''}
-                onValueChange={(v) => setSelectedId(parseInt(v, 10))}
-                className="max-h-64 space-y-1 overflow-y-auto"
-              >
-                {results.map((r) => (
-                  <Radio
-                    key={r.game_id}
-                    value={String(r.game_id)}
-                    wrapperClassName="cursor-pointer rounded-md border border-neutral-700 bg-neutral-800/50 px-3 py-2 text-sm hover:border-accent/60 has-[[data-state=checked]]:border-accent has-[[data-state=checked]]:bg-accent/10"
-                    label={
-                      <span className="flex flex-1 items-center gap-3">
-                        <span className="flex-1 font-medium text-neutral-100">{r.title}</span>
-                        {r.platform && (
-                          <span
-                            className="max-w-[40%] shrink truncate text-xs text-neutral-400"
-                            title={r.platform}
-                          >
-                            {r.platform}
-                          </span>
-                        )}
-                        {r.release_date && (
-                          <span className="shrink-0 text-xs text-neutral-400">
-                            {r.release_date.split('-')[0]}
-                          </span>
-                        )}
-                      </span>
-                    }
-                  />
-                ))}
-              </RadioGroup>
-            </fieldset>
-          )}
-        </div>
-      ) : phase === 'preview' ? (
-        <div className="space-y-4">
-          {details && (
-            <>
-              {showCoverArt && details.cover_art_thumb_url && (
-                <div className="flex justify-center">
-                  <img
-                    src={details.cover_art_thumb_url}
-                    alt={details.title ?? 'Cover art'}
-                    className="max-h-48 rounded-md border border-neutral-700 object-contain"
-                  />
-                </div>
-              )}
+      {phase === 'review' && !details && fetching && (
+        <p className="text-sm text-neutral-400">Loading details…</p>
+      )}
 
-              {showCoverArt && !details.cover_art_thumb_url && (
-                <p className="text-sm text-neutral-400 italic">No cover art found.</p>
-              )}
-
-              <dl className="space-y-1.5 text-sm">
-                {showMetadata && details.title && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Title</dt>
-                    <dd className="text-neutral-100">{details.title}</dd>
-                  </div>
-                )}
-                {details.release_date && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Release</dt>
-                    <dd className="text-neutral-100">{details.release_date}</dd>
-                  </div>
-                )}
-                {showMetadata && details.overview && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Overview</dt>
-                    <dd className="line-clamp-4 text-neutral-100">{details.overview}</dd>
-                  </div>
-                )}
-                {showMetadata && details.rating && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Rating</dt>
-                    <dd className="text-neutral-100">
-                      {ratingChanged ? (
-                        <span>
-                          <span className="text-neutral-400 line-through">
-                            {currentContentRating}
-                          </span>
-                          {' → '}
-                          <span className="font-medium text-amber-400">{details.rating}</span>
-                        </span>
-                      ) : (
-                        details.rating
-                      )}
-                    </dd>
-                  </div>
-                )}
-                {showMetadata && details.genres && details.genres.length > 0 && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Genre</dt>
-                    <dd className="text-neutral-100">{details.genres.join(', ')}</dd>
-                  </div>
-                )}
-                {showMetadata && details.developer && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Developer</dt>
-                    <dd className="text-neutral-100">{details.developer}</dd>
-                  </div>
-                )}
-                {showMetadata && details.publisher && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Publisher</dt>
-                    <dd className="text-neutral-100">{details.publisher}</dd>
-                  </div>
-                )}
-                {showMetadata && details.assets.length > 0 && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Images found</dt>
-                    <dd className="text-neutral-100">{details.assets.length}</dd>
-                  </div>
-                )}
-                {showMetadata && details.video_urls.length > 0 && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Trailer</dt>
-                    <dd className="text-neutral-100">{details.video_urls.length} link(s) found</dd>
-                  </div>
-                )}
-              </dl>
-
-              {showMetadata && (details.assets.length > 0 || details.video_urls.length > 0) && (
-                <p className="text-xs text-neutral-400">
-                  Keep applies title/cover art now, you'll be offered a separate Accept All step
-                  afterward to create a linked Media item from the images above.
-                </p>
-              )}
-
-              {showMetadata && unresolvedGenreIds.length > 0 && (
-                <div
-                  role="alert"
-                  className="rounded-md border border-amber-600/50 bg-amber-950/30 p-3"
-                >
-                  <p className="text-sm text-amber-300">
-                    {unresolvedGenreIds.length === 1
-                      ? '1 genre'
-                      : `${unresolvedGenreIds.length} genres`}{' '}
-                    could not be matched and will not be applied. Unmatched provider genre ids:{' '}
-                    <strong>{unresolvedGenreIds.join(', ')}</strong>.
-                  </p>
-                </div>
-              )}
-
-              {ratingChanged && (
-                <div className="rounded-md border border-amber-600/50 bg-amber-950/30 p-3">
-                  <p className="text-sm text-amber-300">
-                    The content rating is changing from <strong>{currentContentRating}</strong> to{' '}
-                    <strong>{details.rating}</strong>. If this lowers or clears an existing rating,
-                    it can affect what sub-accounts are allowed to see.
-                  </p>
-                  <div className="mt-2">
-                    <Checkbox
-                      checked={confirmRatingChange}
-                      onCheckedChange={setConfirmRatingChange}
-                      label="I understand and want to apply this rating change"
-                      labelClassName="text-amber-200"
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {applyError && (
-            <p role="alert" className="text-sm text-red-400">
-              {applyError}
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
+      {phase === 'review' && details && (
+        <>
           <p className="text-sm text-neutral-300">
-            Metadata applied. Create a linked Media item from the images and links below, or skip.
-          </p>
-
-          {details && details.assets.length > 0 && (
-            <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                Images ({details.assets.length})
-              </h3>
-              <div className="grid grid-cols-4 gap-2">
-                {details.assets.map((asset, i) => (
-                  <div key={`${asset.type}-${i}`} className="space-y-1">
-                    <img
-                      src={asset.thumb_url ?? asset.url}
-                      alt={asset.type}
-                      className="aspect-square w-full rounded-md border border-neutral-700 object-cover"
-                    />
-                    <p className="truncate text-center text-[0.625rem] text-neutral-400">
-                      {asset.type}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {details && details.video_urls.length > 0 && (
-            <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                Trailer link{details.video_urls.length > 1 ? 's' : ''}
-              </h3>
-              <ul className="space-y-1 text-sm">
-                {details.video_urls.map((url) => (
-                  <li key={url}>
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-accent hover:underline"
-                    >
-                      {url}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-1 text-xs text-neutral-400">
-                Already saved on the game (applied by Keep), Accept All only affects the images
-                above.
-              </p>
-            </div>
-          )}
-
-          {existingFetchedCount !== null && (
-            <div
-              role="alertdialog"
-              aria-label="Previously fetched images"
-              className="rounded-md border border-amber-600/50 bg-amber-950/30 p-3"
+            Matched <strong className="text-neutral-100">{details.title ?? bundle.title}</strong>.{' '}
+            <button
+              type="button"
+              onClick={handleSearchAgain}
+              disabled={applying}
+              className="text-accent hover:underline disabled:opacity-50"
             >
-              <p className="text-sm text-amber-300">
-                This game's linked media already has {existingFetchedCount} fetched image
-                {existingFetchedCount === 1 ? '' : 's'}.
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-200">
-                <li>
-                  Replace removes {existingFetchedCount === 1 ? 'it' : 'them'}, deletes{' '}
-                  {existingFetchedCount === 1 ? 'its file' : 'their files'} when nothing else uses{' '}
-                  {existingFetchedCount === 1 ? 'it' : 'them'}, clears covers that point at{' '}
-                  {existingFetchedCount === 1 ? 'it' : 'them'}, then adds these images.
-                </li>
-                <li>Keep and add new leaves them and adds only images not already saved.</li>
-                <li>Media you added yourself is never touched.</li>
-              </ul>
-            </div>
+              Wrong match? Search again
+            </button>
+          </p>
+          <FetchReviewStep
+            details={details}
+            fields={fields}
+            currentRating={bundle.content_rating}
+            currentLinks={bundle.external_links}
+            selection={selection}
+            onSelectionChange={changeSelection}
+            ratingConflict={ratingConflict}
+            confirmRating={confirmRating}
+            onConfirmRating={setConfirmRating}
+            assetSelected={assetSelected}
+            onToggleAsset={toggleAsset}
+            coverUrl={coverUrl}
+            onCoverChange={setCoverUrl}
+            disabled={applying || existingCount !== null}
+          />
+          {existingCount !== null && (
+            <PreviousAssetsPanel count={existingCount} coverChosen={coverUrl != null} />
           )}
+          <p className="text-xs text-neutral-400">{summary()}</p>
+        </>
+      )}
 
-          {acceptError && (
-            <p role="alert" className="text-sm text-red-400">
-              {acceptError}
-            </p>
-          )}
-        </div>
+      {phase === 'apply' && status && (
+        <FetchApplyStep status={status} cancelError={job.cancelError} />
+      )}
+
+      {lookupError && phase !== 'apply' && (
+        <p role="alert" className="text-sm text-red-400">
+          {lookupError}
+        </p>
+      )}
+      {applyError && (
+        <p role="alert" className="text-sm text-red-400">
+          {applyError}
+        </p>
       )}
     </Modal>
   );

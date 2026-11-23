@@ -8,6 +8,7 @@ import {
 import { resolveDisplayLeaf, type EntityBundleBase } from '../types';
 import type { PlatformReview } from './platformReview';
 import { CoverImage } from './CoverImage';
+import type { ExternalLink } from './externalLinks';
 
 // Leaf (per-disc) record within a bundle. Renamed from the former
 // LibrarySetItemData; single-disc games are bundles-of-one.
@@ -23,7 +24,6 @@ export interface GameItemData {
   folder_path: string | null;
   detection_reason: string | null;
   file_size_bytes: number | null;
-  metadata_fetched_at: string | null;
   verification_status: 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked';
   verification_similarity: number | null;
   created_at?: string | null;
@@ -39,6 +39,10 @@ export interface GameItemBundleData extends EntityBundleBase {
   genres: string[];
   year: number | null;
   external_game_id: number | null;
+  /** Key of the provider that issued external_game_id, null when unknown. */
+  external_provider?: 'igdb' | 'thegamesdb' | null;
+  /** Provider links and trailers; omitted for restricted viewers. */
+  external_links?: ExternalLink[] | null;
   metadata_source: string | null;
   content_rating: string | null;
   launch_commands: string[] | null;

@@ -51,7 +51,7 @@ function persistDismissedJobIds(ids: string[]) {
 
 export interface BackgroundJob {
   id: string;
-  kind: 'upload' | 'scan';
+  kind: 'upload' | 'scan' | 'metadata_apply';
   status: 'processing' | 'cancelling' | 'done' | 'error' | 'cancelled';
   progress: number;
   message: string;

@@ -1,16 +1,21 @@
-from typing import Literal, Optional
+import json
+from typing import Callable, Literal, Optional, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.core import rate_limit
+from backend.core import jobs, rate_limit
 from backend.core.database import get_db
-from backend.core.dependencies import require_permission
-from backend.models.game import GameItemRead, game_item_bundle_to_read
+from backend.core.dependencies import get_filtered_game_item_bundle, require_permission
+from backend.models.game import game_item_bundle_to_read
 from backend.models.user import UserItem
+from backend.service.games import accept_all_job, media_link
 from backend.service.games import enrich as enrich_svc
-from backend.service.metadata_providers import AssetType
+from backend.service.metadata_providers import AssetType, MetadataProvider
+from backend.service.metadata_providers.links import clean_provider_links, trailer_links
+
+_T = TypeVar("_T")
 
 router = APIRouter(prefix="/api/v1/game-items", tags=["games"])
 
@@ -50,7 +55,13 @@ def _require_metadata_fetch_enabled() -> None:
 
 
 class EnrichBody(BaseModel):
-    entity_type: Literal["game_item_bundle", "game_item"]
+    """Only the fields present in the request are applied (exclude_unset);
+    to apply the rest without a rating that needs confirmation, leave
+    content_rating out."""
+
+    # Only bundles carry metadata. A leaf (game_item) id must be rejected,
+    # never read as a bundle id.
+    entity_type: Literal["game_item_bundle"] = "game_item_bundle"
     entity_id: int
     title: Optional[str] = None
     description: Optional[str] = None
@@ -60,7 +71,6 @@ class EnrichBody(BaseModel):
     year: Optional[int] = None
     content_rating: Optional[str] = None
     metadata_source: Optional[str] = None
-    cover_art_url: Optional[str] = None
     external_links: Optional[list[dict]] = None
     external_game_id: Optional[int] = None
     confirm_rating_change: bool = False
@@ -79,6 +89,32 @@ class AcceptMetadataAssetsBody(BaseModel):
     # Required once the linked media already holds fetched images (409
     # otherwise). replace swaps them for this set, keep adds new URLs only.
     previous_assets: Optional[Literal["replace", "keep"]] = None
+    # Optional game cover, one of the submitted assets' urls. Absent leaves
+    # the game's cover alone.
+    cover_asset_url: Optional[str] = None
+
+
+def _call_provider(call: Callable[[MetadataProvider], _T]) -> _T:
+    """Run *call* against the active provider, mapping its failures to
+    specific responses that name the provider and the cause but never carry
+    a key, a URL or raw exception text. Missing credentials keep their
+    own clear 503."""
+    import httpx2
+    from backend.service.metadata_providers import active_provider_label, get_active_provider
+
+    label = active_provider_label()
+    try:
+        return call(get_active_provider())
+    except httpx2.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"{label} returned {exc.response.status_code}.")
+    except httpx2.TimeoutException:
+        raise HTTPException(status_code=504, detail=f"{label} did not respond in time.")
+    except httpx2.RequestError:
+        raise HTTPException(status_code=502, detail=f"Could not reach {label}.")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=502, detail=f"{label} returned an unreadable response.")
+    except (NotImplementedError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @router.get("/metadata-search")
@@ -90,23 +126,7 @@ def search_metadata(
     _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
-    import httpx2
-    from backend.service.metadata_providers import get_active_provider
-
-    try:
-        provider = get_active_provider()
-        results = provider.search_games(name)
-    except NotImplementedError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except ValueError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except httpx2.HTTPStatusError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Metadata provider API error: {exc.response.status_code}",
-        )
-    except httpx2.TimeoutException:
-        raise HTTPException(status_code=504, detail="Metadata provider API request timed out.")
+    results = _call_provider(lambda provider: provider.search_games(name))
 
     return {
         "results": [
@@ -126,23 +146,7 @@ def get_metadata_details(
     _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
-    import httpx2
-    from backend.service.metadata_providers import get_active_provider
-
-    try:
-        provider = get_active_provider()
-        details = provider.get_game_details(game_id, db)
-    except NotImplementedError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except ValueError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except httpx2.HTTPStatusError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Metadata provider API error: {exc.response.status_code}",
-        )
-    except httpx2.TimeoutException:
-        raise HTTPException(status_code=504, detail="Metadata provider API request timed out.")
+    details = _call_provider(lambda provider: provider.get_game_details(game_id, db))
 
     return {
         "game_id": details.game_id,
@@ -158,6 +162,7 @@ def get_metadata_details(
         "developer": details.developer,
         "publisher": details.publisher,
         "video_urls": details.video_urls,
+        "external_links": clean_provider_links([*details.external_links, *trailer_links(details.video_urls)]),
         "assets": [
             {"url": a.url, "type": a.type, "thumb_url": a.thumb_url}
             for a in details.assets
@@ -175,54 +180,67 @@ def enrich_library_entity(
     _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-enrich", request, _ENRICH_RATE_LIMIT, _ENRICH_RATE_WINDOW_SECONDS)
 
-    entity, entity_type = enrich_svc.enrich_entity(
-        body.entity_type,
-        body.entity_id,
-        title=body.title,
-        description=body.description,
-        publisher=body.publisher,
-        developer=body.developer,
-        genre=body.genre,
-        year=body.year,
-        content_rating=body.content_rating,
-        metadata_source=body.metadata_source,
-        cover_art_url=body.cover_art_url,
-        external_links=body.external_links,
-        external_game_id=body.external_game_id,
-        confirm_rating_change=body.confirm_rating_change,
-        db=db,
+    bundle = get_filtered_game_item_bundle(body.entity_id, active_user, db)
+    fields = body.model_dump(exclude_unset=True, exclude={"entity_type", "entity_id", "confirm_rating_change"})
+    entity = enrich_svc.enrich_game_bundle(
+        bundle.id, fields, confirm_rating_change=body.confirm_rating_change, db=db,
     )
-    if entity_type == "game_item_bundle":
-        return game_item_bundle_to_read(entity, db, viewer=active_user)
-    return GameItemRead.model_validate(entity)
+    return game_item_bundle_to_read(entity, db, viewer=active_user)
 
 
-@router.post("/{id}/accept-metadata-assets")
+@router.post("/{id}/accept-metadata-assets", status_code=202)
 def accept_metadata_assets(
     id: int,
     request: Request,
     body: AcceptMetadataAssetsBody,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("is_owner"),
 ):
-    """Accept All step of the Fetch Metadata flow: downloads every asset the
-    frontend already fetched via /metadata-details (no second round trip to
-    the provider here) and attaches them to a linked Media item bundle for
-    the GameItemBundle named by *id*. Same permission level as the rest of
-    this flow (/metadata-search, /metadata-details, /enrich all gate on
-    is_owner) and the same rate-limit bucket as /enrich, since both are
-    write operations against this game.
+    """Accept All step of the Fetch Metadata flow: starts a background job
+    that downloads every asset the frontend already fetched via
+    /metadata-details (no second round trip to the provider here) and
+    attaches them to a linked Media item bundle for the GameItemBundle named
+    by *id*. Same permission level as the rest of this flow and the same
+    rate-limit bucket as /enrich, since both are write operations against
+    this game.
+
+    Every pre-check (setting, visibility, asset cap, Replace/Keep decision,
+    running apply) answers here; once they pass the response is 202 with a
+    job id to poll at /metadata-jobs/{job_id}.
     """
     _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-enrich", request, _ENRICH_RATE_LIMIT, _ENRICH_RATE_WINDOW_SECONDS)
 
-    from backend.models.media import media_item_bundle_to_read
-    from backend.service.games.media_link import create_linked_media_from_metadata
     from backend.service.metadata_providers import MetadataAsset
 
-    assets = [
-        MetadataAsset(url=a.url, type=a.type, thumb_url=a.thumb_url)
-        for a in body.assets
-    ]
-    bundle = create_linked_media_from_metadata(id, assets, db, previous_assets=body.previous_assets)
-    return media_item_bundle_to_read(bundle, db, viewer=active_user)
+    game = get_filtered_game_item_bundle(id, active_user, db)
+    assets = [MetadataAsset(url=a.url, type=a.type, thumb_url=a.thumb_url) for a in body.assets]
+    plan = media_link.prepare_apply(
+        game.id, assets, db,
+        previous_assets=body.previous_assets, cover_asset_url=body.cover_asset_url,
+    )
+    return {"job_id": accept_all_job.start(plan, background_tasks), "state": "queued"}
+
+
+@router.get("/metadata-jobs/{job_id}")
+def get_metadata_job(job_id: str, _: UserItem = require_permission("is_owner")):
+    """Status of an Accept All job: state (queued, running, done, failed,
+    cancelled), done/total asset counts, the current asset label and, on
+    failure, {code, message}."""
+    job = accept_all_job.status(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job
+
+
+@router.post("/metadata-jobs/{job_id}/cancel")
+def cancel_metadata_job(job_id: str, _: UserItem = require_permission("is_owner")):
+    """Cooperative cancel through core.jobs, same as the scan cancel: the job
+    stops before its next download or before its commit, removes everything
+    it created and reaches 'cancelled'. Poll the status route to see it."""
+    if accept_all_job.status(job_id) is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if jobs.request_cancel(job_id) is None:
+        raise HTTPException(status_code=409, detail="This job is not running.")
+    return accept_all_job.status(job_id)

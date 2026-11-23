@@ -1198,9 +1198,11 @@ describe('CollectionDetail (mutation path)', () => {
       await user.click(screen.getByRole('button', { name: 'Fetch Now' }));
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Keep' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled();
       });
-      await user.click(screen.getByRole('button', { name: 'Keep' }));
+      // The game already has a different title, so the Title row starts unchecked.
+      await user.click(screen.getByRole('checkbox', { name: 'Title' }));
+      await user.click(screen.getByRole('button', { name: 'Apply' }));
 
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -1250,7 +1252,9 @@ describe('CollectionDetail (mutation path)', () => {
       expect(warning).toHaveTextContent(/2 genres could not be matched/);
       expect(warning).toHaveTextContent('99, 100');
 
-      await user.click(screen.getByRole('button', { name: 'Keep' }));
+      // The game already has other genres, so the Genres row starts unchecked.
+      await user.click(screen.getByRole('checkbox', { name: 'Genres' }));
+      await user.click(screen.getByRole('button', { name: 'Apply' }));
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       });
@@ -1286,8 +1290,8 @@ describe('CollectionDetail (mutation path)', () => {
       await user.click(screen.getByRole('button', { name: 'Search' }));
       await user.click(await screen.findByRole('radio'));
       await user.click(screen.getByRole('button', { name: 'Fetch Now' }));
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Keep' })).toBeEnabled());
-      await user.click(screen.getByRole('button', { name: 'Keep' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Apply' }));
 
       await waitFor(() => {
         expect(screen.getByRole('alert')).toHaveTextContent('Enrich failed.');
@@ -1304,7 +1308,7 @@ describe('CollectionDetail (mutation path)', () => {
       respond: () => fullCollection(),
     };
 
-    it('disables Fetch Metadata and Cover Art with the Settings tooltip when off', async () => {
+    it('disables Fetch Metadata with the Settings tooltip when off', async () => {
       setupApi(adminUser, [
         collectionHandler,
         { match: '/api/v1/settings', respond: () => ({ metadata_provider: 'thegamesdb' }) },
@@ -1313,11 +1317,8 @@ describe('CollectionDetail (mutation path)', () => {
       await waitForLoaded();
 
       const fetchButton = await screen.findByRole('button', { name: 'Fetch Metadata' });
-      const coverButton = screen.getByRole('button', { name: 'Cover Art' });
-      for (const button of [fetchButton, coverButton]) {
-        expect(button).toBeDisabled();
-        expect(button).toHaveAttribute('title', 'Enable metadata fetching in Settings');
-      }
+      expect(fetchButton).toBeDisabled();
+      expect(fetchButton).toHaveAttribute('title', 'Enable metadata fetching in Settings');
     });
 
     it('the off state takes precedence over the missing-credentials tooltip', async () => {
@@ -1336,14 +1337,10 @@ describe('CollectionDetail (mutation path)', () => {
       await waitFor(() => {
         expect(fetchButton).toHaveAttribute('title', 'Enable metadata fetching in Settings');
       });
-      expect(screen.getByRole('button', { name: 'Cover Art' })).toHaveAttribute(
-        'title',
-        'Enable metadata fetching in Settings',
-      );
       expect(screen.queryByText(/Requires TheGamesDB credentials/)).not.toBeInTheDocument();
     });
 
-    it('enables both buttons when the setting is on and credentials are configured', async () => {
+    it('enables the button when the setting is on and credentials are configured', async () => {
       setupApi(adminUser, [collectionHandler]);
       renderPage();
       await waitForLoaded();
@@ -1351,7 +1348,178 @@ describe('CollectionDetail (mutation path)', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Fetch Metadata' })).toBeEnabled();
       });
-      expect(screen.getByRole('button', { name: 'Cover Art' })).toBeEnabled();
+    });
+
+    it('has no per-disc Cover Art button on a single-disc game', async () => {
+      setupApi(adminUser, [collectionHandler]);
+      renderPage();
+      await waitForLoaded();
+      await screen.findByRole('button', { name: 'Fetch Metadata' });
+      expect(screen.queryByRole('button', { name: 'Cover Art' })).not.toBeInTheDocument();
+    });
+
+    it('has no per-disc Cover Art button on a multi-disc game', async () => {
+      const disc = (id: number, n: number) => ({
+        id,
+        game_item_bundle_id: 1,
+        disc_number: n,
+        file_path: `/images/doom-${n}.iso`,
+        executable_path: null,
+        cover_art_path: null,
+        cover_art_url: null,
+        verification_status: 'unchecked',
+      });
+      setupApi(adminUser, [
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () =>
+            fullCollection({
+              items: [disc(100, 1), disc(101, 2)],
+              launch_disk_id: 100,
+              display_disk_id: 100,
+            }),
+        },
+      ]);
+      renderPage();
+      await waitForLoaded();
+      await screen.findByRole('button', { name: 'Fetch Metadata' });
+      expect(screen.queryByRole('button', { name: 'Cover Art' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Fetch metadata entry point', () => {
+    const search = {
+      match: /^\/api\/v1\/game-items\/metadata-search/,
+      respond: () => ({ results: [{ game_id: 501, title: 'Doom', release_date: '1993' }] }),
+    };
+    const detailsHandler = {
+      match: /^\/api\/v1\/game-items\/metadata-details/,
+      respond: () => ({
+        game_id: 501,
+        title: 'Doom',
+        release_date: '1993-12-10',
+        overview: null,
+        rating: null,
+        genres: [],
+        developer: null,
+        publisher: null,
+        external_links: [],
+        assets: [],
+      }),
+    };
+    const bundleWith = (overrides: Record<string, unknown>) => ({
+      match: '/api/v1/game-item-bundle/by-slug/doom',
+      method: 'GET',
+      respond: () => fullCollection(overrides),
+    });
+
+    it('opens on Review when the stored provider matches the active one', async () => {
+      const user = userEvent.setup();
+      const calls = setupApi(adminUser, [
+        bundleWith({ external_provider: 'thegamesdb', external_game_id: 501 }),
+        search,
+        detailsHandler,
+      ]);
+      renderPage();
+      await waitForLoaded();
+      await user.click(await screen.findByRole('button', { name: 'Fetch Metadata' }));
+
+      expect(await screen.findByRole('button', { name: 'Apply' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Wrong match? Search again' })).toBeInTheDocument();
+      expect(calls.some((c) => c.url.startsWith('/api/v1/game-items/metadata-search'))).toBe(false);
+      expect(calls.some((c) => c.url === '/api/v1/game-items/metadata-details?game_id=501')).toBe(
+        true,
+      );
+    });
+
+    it('opens on Search when the stored provider is not the active one', async () => {
+      const user = userEvent.setup();
+      const calls = setupApi(adminUser, [
+        bundleWith({ external_provider: 'igdb', external_game_id: 501 }),
+        search,
+        detailsHandler,
+      ]);
+      renderPage();
+      await waitForLoaded();
+      await user.click(await screen.findByRole('button', { name: 'Fetch Metadata' }));
+
+      expect(await screen.findByRole('button', { name: 'Search' })).toBeInTheDocument();
+      expect(calls.some((c) => c.url.startsWith('/api/v1/game-items/metadata-details'))).toBe(
+        false,
+      );
+    });
+
+    it('opens on Search when the stored provider is unknown', async () => {
+      const user = userEvent.setup();
+      setupApi(adminUser, [
+        bundleWith({ external_provider: null, external_game_id: 501 }),
+        search,
+        detailsHandler,
+      ]);
+      renderPage();
+      await waitForLoaded();
+      await user.click(await screen.findByRole('button', { name: 'Fetch Metadata' }));
+
+      expect(await screen.findByRole('button', { name: 'Search' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
+    });
+
+    it('shows the last fetch time in the modal instead of a native confirm', async () => {
+      const user = userEvent.setup();
+      const confirmSpy = vi.spyOn(window, 'confirm');
+      setupApi(adminUser, [
+        bundleWith({ metadata_fetched_at: '2026-01-02T03:04:05' }),
+        search,
+        detailsHandler,
+      ]);
+      renderPage();
+      await waitForLoaded();
+      await user.click(await screen.findByRole('button', { name: 'Fetch Metadata' }));
+
+      expect(await screen.findByRole('note')).toHaveTextContent('Metadata was last fetched on');
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('External links', () => {
+    it('lists provider and trailer links, skipping non-http(s) entries', async () => {
+      setupApi(adminUser, [
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () =>
+            fullCollection({
+              external_links: [
+                { type: 'trailer', url: 'https://youtu.be/abc', source: 'provider' },
+                { type: 'official', url: 'javascript:alert(1)', source: 'provider' },
+              ],
+            }),
+        },
+      ]);
+      renderPage();
+      await waitForLoaded();
+
+      expect(await screen.findByRole('link', { name: 'https://youtu.be/abc' })).toHaveAttribute(
+        'rel',
+        'noopener noreferrer',
+      );
+      expect(screen.queryByRole('link', { name: /javascript/ })).not.toBeInTheDocument();
+    });
+
+    it('renders no Links section when the server omits the links', async () => {
+      setupApi(adminUser, [
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () => fullCollection(),
+        },
+      ]);
+      renderPage();
+      await waitForLoaded();
+      await screen.findByRole('button', { name: 'Fetch Metadata' });
+
+      expect(screen.queryByRole('heading', { name: 'Links' })).not.toBeInTheDocument();
     });
   });
 });

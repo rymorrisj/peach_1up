@@ -3,7 +3,9 @@ import { ApiError } from '@/api/client';
 import {
   RATING_CHANGE_ERROR_TYPE,
   ratingChangeAffectedCount,
+  ratingChangeDetail,
   ratingChangeMessage,
+  ratingChangeReasonText,
   useRatingChangeConfirm,
 } from '@/hooks/useRatingChangeConfirm';
 
@@ -35,6 +37,52 @@ describe('ratingChangeAffectedCount', () => {
       ),
     ).toBeNull();
     expect(ratingChangeAffectedCount(new Error('network'))).toBeNull();
+  });
+});
+
+describe('ratingChangeDetail', () => {
+  const enrichConflict = (reason: string) =>
+    new ApiError(409, 'server text', {
+      error_type: RATING_CHANGE_ERROR_TYPE,
+      reason,
+      current_rating: 'M',
+      new_rating: 'E',
+      message: 'server text',
+    });
+
+  it('reads reason and both ratings from the enrich rating 409', () => {
+    expect(ratingChangeDetail(enrichConflict('lowered'))).toEqual({
+      reason: 'lowered',
+      current_rating: 'M',
+      new_rating: 'E',
+      message: 'server text',
+    });
+  });
+
+  it('returns null for other errors', () => {
+    expect(ratingChangeDetail(new ApiError(409, 'plain', 'plain'))).toBeNull();
+    expect(
+      ratingChangeDetail(new ApiError(422, 'x', { error_type: RATING_CHANGE_ERROR_TYPE })),
+    ).toBeNull();
+    expect(ratingChangeDetail(new Error('network'))).toBeNull();
+  });
+
+  it('words each reason, and falls back to the server message for an unknown one', () => {
+    expect(ratingChangeReasonText(ratingChangeDetail(enrichConflict('lowered'))!)).toMatch(
+      /lowers the current rating/,
+    );
+    expect(ratingChangeReasonText(ratingChangeDetail(enrichConflict('cleared'))!)).toMatch(
+      /clears the current rating/,
+    );
+    expect(ratingChangeReasonText(ratingChangeDetail(enrichConflict('scheme_changed'))!)).toMatch(
+      /different rating system/,
+    );
+    expect(ratingChangeReasonText(ratingChangeDetail(enrichConflict('unrecognised'))!)).toMatch(
+      /not in the known list/,
+    );
+    expect(ratingChangeReasonText(ratingChangeDetail(enrichConflict('new_reason'))!)).toBe(
+      'server text',
+    );
   });
 });
 

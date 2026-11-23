@@ -1509,10 +1509,10 @@ def delete_library_collection(
     db.delete(collection)  # ON DELETE CASCADE removes the leaf rows
     db.commit()
 
-    # App-owned fetched disc covers only (MEDIA_PATH/_game_covers), so a
+    # Legacy app-owned disc covers only (MEDIA_PATH/_game_covers), so a
     # reused leaf id never inherits a stale file.
     from backend.service.games.leaf_covers import remove_app_owned_leaf_covers
-    remove_app_owned_leaf_covers(leaf_covers, db, sweep=True)
+    remove_app_owned_leaf_covers(leaf_covers, db)
 
 
 def _mark_leaves_platform_user_selected(collection: GameItemBundle) -> None:

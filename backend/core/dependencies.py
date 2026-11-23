@@ -81,12 +81,15 @@ def normalize_content_rating(raw: str | None) -> str | None:
     return canonical.get(lead.casefold())
 
 
-def rating_change_requires_confirmation(old: str | None, new: str | None) -> bool:
-    """Return True if moving content_rating from *old* to *new* lowers or clears
-    an already-set rating, and therefore must not be written without explicit
-    confirmation (an item moving below a sub-account's max_content_rating, or
-    an unrated-visible gap, is a parental-control filter opening silently).
+def rating_change_reason(old: str | None, new: str | None) -> str | None:
+    """Why moving content_rating from *old* to *new* needs explicit
+    confirmation, or None when it does not. The reasons are "cleared",
+    "scheme_changed", "unrecognised" (a value missing from the scheme or
+    ordinal maps) and "lowered".
 
+    A change that lowers or clears an already-set rating must not be written
+    silently (an item moving below a sub-account's max_content_rating, or an
+    unrated-visible gap, is a parental-control filter opening silently).
     ``old is None`` means there was nothing to protect yet, so any value is
     allowed through. Ratings from different schemes (ESRB vs PEGI) or any
     value missing from the known scheme/ordinal maps are not provably
@@ -94,19 +97,26 @@ def rating_change_requires_confirmation(old: str | None, new: str | None) -> boo
     confirmation too.
     """
     if old is None or new == old:
-        return False
+        return None
     if new is None:
-        return True
+        return "cleared"
     old_scheme = _BASE_RATING_SCHEMES.get(old)
     new_scheme = _BASE_RATING_SCHEMES.get(new)
-    if old_scheme is None or new_scheme is None or old_scheme != new_scheme:
-        return True
+    if old_scheme is None or new_scheme is None:
+        return "unrecognised"
+    if old_scheme != new_scheme:
+        return "scheme_changed"
     ordinals = _load_rating_ordinals()
     old_ord = ordinals.get(old)
     new_ord = ordinals.get(new)
     if old_ord is None or new_ord is None:
-        return True
-    return new_ord < old_ord
+        return "unrecognised"
+    return "lowered" if new_ord < old_ord else None
+
+
+def rating_change_requires_confirmation(old: str | None, new: str | None) -> bool:
+    """True when rating_change_reason says the change needs confirmation."""
+    return rating_change_reason(old, new) is not None
 
 
 def validate_max_content_rating(value: str | None) -> str | None:
@@ -285,6 +295,20 @@ def content_rating_visible(rating_column, active_user: UserItem):
         )
 
     return and_(true(), *clauses)
+
+
+def is_restricted_account(active_user: UserItem, db: Session) -> bool:
+    """True for a non-owner account under parental controls: one the
+    filters above can narrow, i.e. with a ``max_content_rating`` ceiling,
+    ``block_unrated_media``, or any MediaRestriction blocklist row. Uses the
+    same fields and table as get_filtered_game_item_bundles, nothing else.
+    Owners are never restricted.
+    """
+    if active_user.is_owner:
+        return False
+    if active_user.block_unrated_media or active_user.max_content_rating:
+        return True
+    return db.query(MediaRestriction.id).filter(MediaRestriction.user_item_id == active_user.id).first() is not None
 
 
 def get_filtered_game_item_bundle(id_or_slug: int | str, active_user: UserItem, db: Session) -> GameItemBundle:

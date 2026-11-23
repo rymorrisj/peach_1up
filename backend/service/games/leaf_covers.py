@@ -1,9 +1,11 @@
-"""App-owned per-disc cover art (META-2).
+"""Display-disc lookup, the cover library guard, and cleanup of app-owned
+per-disc cover art (META-2).
 
-A fetched disc cover is written to MEDIA_PATH/_game_covers/game-item-{id}{ext},
-never into a game's own folder or a loose file's parent directory, so it
-can never overwrite another disc's cover or a user's own cover.jpg. Covers
-stored anywhere else (older fetches, user-set paths) are left untouched.
+Earlier versions wrote fetched disc covers to
+MEDIA_PATH/_game_covers/game-item-{id}{ext}. Nothing writes there now (a game
+cover comes from Accept All, see cover_from_media.py), but game delete still
+removes those files so a reused leaf id never inherits one. Covers stored
+anywhere else (user-set paths, linked media) are left untouched.
 """
 
 from __future__ import annotations
@@ -105,15 +107,13 @@ def _all_covers_for(leaf_id: int) -> list[Path]:
     return [p for p in root.iterdir() if p.is_file() and p.stem == stem]
 
 
-def remove_app_owned_leaf_covers(
-    leaves: Iterable[tuple[int, Optional[str]]], db: "Session", *, sweep: bool = False,
-) -> None:
+def remove_app_owned_leaf_covers(leaves: Iterable[tuple[int, Optional[str]]], db: "Session") -> None:
     """Unlink each (leaf id, cover_art_path) cover that app_owned_leaf_cover
-    accepts and no remaining row references; with *sweep* (the leaf row is
-    gone), every game-item-{id}.* file too. Run after the commit that dropped
-    or repointed the leaf. Never raises."""
+    accepts and no remaining row references, plus every game-item-{id}.* file
+    of those leaves. Run after the commit that dropped the leaves. Never
+    raises."""
     for leaf_id, raw in leaves:
-        candidates = [str(p) for p in _all_covers_for(leaf_id)] if sweep else []
+        candidates = [str(p) for p in _all_covers_for(leaf_id)]
         if raw and raw not in candidates:
             candidates.append(raw)
         for candidate in candidates:

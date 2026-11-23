@@ -22,6 +22,7 @@ import { canOfferPlatformConfirm } from '../components/platformReview';
 import type { GameItemBundleData } from '../components/CollectionCard';
 import { getGameCoverArt } from '../components/gameCoverArt';
 import { LinkedItemsSection } from '../components/LinkedItemsSection';
+import { ExternalLinksSection } from '../components/ExternalLinksSection';
 import { GameCoverPicker } from '../components/GameCoverPicker';
 import { LaunchNote } from '../components/LaunchNote';
 import { useUserEnvironmentCount } from '@/hooks/useUserEnvironmentCount';
@@ -52,19 +53,6 @@ function gameBundleApiPath(slug: string): string {
 
 function formIsReady<T>(form: T | null): form is T {
   return form != null;
-}
-
-// Fires only when opening/triggering a Fetch Metadata search (a real call to
-// the provider, costing API credits/allowance) for an item that already has
-// metadata_fetched_at set. Accept All never calls this: it only reuses
-// state a search already fetched into the modal, it never calls the
-// provider again, so it needs no warning of its own.
-function confirmRefetchIfAlreadyFetched(metadataFetchedAt: string | null | undefined): boolean {
-  if (!metadataFetchedAt) return true;
-  return window.confirm(
-    'Metadata was already fetched for this item. Fetching again will use additional ' +
-      'API credits/allowance. Continue?',
-  );
 }
 
 // Composes every game-only concern (disc reorder, DOS-install, xiso convert,
@@ -108,14 +96,7 @@ function useGameDetailExtras(
   const metadataActionsEnabled = metadataFetchEnabled && metadataProviderEnabled;
 
   const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false);
-  const [fetchDiscId, setFetchDiscId] = useState<number | null>(null);
-  // Two independent instances of <FetchMetadataModal> mount below (one for
-  // the whole bundle, one per-disc), each needs its own busy flag so a
-  // per-disc fetch doesn't show as loading on the bundle-level button
-  // (and vice versa). Not currently reachable since fetchMetadataOpen and
-  // fetchDiscId are mutually exclusive, but the flags must stay independent.
   const [bundleMetadataBusy, setBundleMetadataBusy] = useState(false);
-  const [discMetadataBusy, setDiscMetadataBusy] = useState(false);
 
   const { data: libraryDefaults } = useQuery<{
     delete_media_on_removal: boolean;
@@ -380,8 +361,9 @@ function useGameDetailExtras(
   );
 
   const storageKey = `fetch_metadata_${window.location.pathname}_${activeProvider}`;
-  const activeDisc =
-    fetchDiscId != null ? sortedItems.find((d) => d.id === fetchDiscId) : undefined;
+  // A stored match is only reusable with the provider that issued its id.
+  const knownMatchId =
+    bundle.external_provider === activeProvider ? (bundle.external_game_id ?? null) : null;
 
   return {
     platform: bundle.platform,
@@ -539,10 +521,7 @@ function useGameDetailExtras(
           <Button
             variant="primary"
             size="sm"
-            onClick={() => {
-              if (confirmRefetchIfAlreadyFetched(bundle.metadata_fetched_at))
-                setFetchMetadataOpen(true);
-            }}
+            onClick={() => setFetchMetadataOpen(true)}
             disabled={!metadataActionsEnabled || bundleMetadataBusy}
             loading={bundleMetadataBusy}
             title={metadataActionTitle(
@@ -553,26 +532,6 @@ function useGameDetailExtras(
           >
             Fetch Metadata
           </Button>
-          {!isMultiDisc && sortedItems[0] && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                if (confirmRefetchIfAlreadyFetched(sortedItems[0].metadata_fetched_at))
-                  setFetchDiscId(sortedItems[0].id);
-              }}
-              disabled={!metadataActionsEnabled || discMetadataBusy}
-              loading={discMetadataBusy && fetchDiscId === sortedItems[0].id}
-              title={metadataActionTitle(
-                metadataFetchEnabled,
-                metadataProviderEnabled,
-                `${activeProviderLabel} credentials not configured`,
-                'Fetch cover art for this disc',
-              )}
-            >
-              Cover Art
-            </Button>
-          )}
           {!metadataFetchEnabled ? (
             <span className="text-xs text-neutral-400">{METADATA_FETCH_DISABLED_HINT}</span>
           ) : (
@@ -607,27 +566,6 @@ function useGameDetailExtras(
                       its own row, not just folded into the bundle rollup
                       badge above (Part B, every disc is verified independently). */}
                   <StatusBadge status={disc.verification_status} />
-                  {isOwner ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (confirmRefetchIfAlreadyFetched(disc.metadata_fetched_at))
-                          setFetchDiscId(disc.id);
-                      }}
-                      disabled={!metadataActionsEnabled || discMetadataBusy}
-                      loading={discMetadataBusy && fetchDiscId === disc.id}
-                      title={metadataActionTitle(
-                        metadataFetchEnabled,
-                        metadataProviderEnabled,
-                        `${activeProviderLabel} credentials not configured`,
-                        'Fetch cover art for this disc',
-                      )}
-                      className="shrink-0"
-                    >
-                      Cover Art
-                    </Button>
-                  ) : null}
                 </>
               )}
             />
@@ -702,14 +640,14 @@ function useGameDetailExtras(
           />
         )}
 
+        <ExternalLinksSection links={bundle.external_links} />
+
         <FetchMetadataModal
           open={fetchMetadataOpen}
           onClose={() => setFetchMetadataOpen(false)}
-          entityType="game_item_bundle"
-          entityId={bundle.id}
-          entityTitle={bundle.title}
-          currentContentRating={bundle.content_rating}
+          bundle={bundle}
           storageKey={storageKey}
+          knownMatchId={knownMatchId}
           activeProviderLabel={activeProviderLabel}
           onSuccess={async () => {
             queryClient.invalidateQueries({ queryKey: detailQueryKey });
@@ -718,6 +656,8 @@ function useGameDetailExtras(
             // ['library'] key, which stopped matching anything once Games.tsx
             // moved onto EntityListPage's ['game', 'list', ...] list query.
             queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
+            // Accepted images land in the game's linked media.
+            queryClient.invalidateQueries({ queryKey: ['media'] });
             // Fetch fresh data directly and resync the edit form, the form is only
             // built from `bundle` once (see the formIsReady guard above), so it
             // would otherwise show stale publisher/description/category/rating/
@@ -728,26 +668,6 @@ function useGameDetailExtras(
           }}
           onBusyChange={setBundleMetadataBusy}
         />
-
-        {fetchDiscId != null && activeDisc != null && (
-          <FetchMetadataModal
-            open={fetchDiscId != null}
-            onClose={() => setFetchDiscId(null)}
-            entityType="game_item"
-            entityId={fetchDiscId}
-            entityTitle={activeDisc.file_path.split(/[\\/]/).pop() ?? bundle.title}
-            storageKey={`${storageKey}#disc-${fetchDiscId}`}
-            activeProviderLabel={activeProviderLabel}
-            onSuccess={async () => {
-              queryClient.invalidateQueries({ queryKey: detailQueryKey });
-              queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
-              const fresh = await refetchEntity();
-              resyncFromCollection(fresh);
-              setFetchDiscId(null);
-            }}
-            onBusyChange={setDiscMetadataBusy}
-          />
-        )}
 
         <ConfirmModal
           open={installedConfirmOpen}

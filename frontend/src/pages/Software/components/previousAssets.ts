@@ -16,18 +16,3 @@ export function previousAssetsCount(err: unknown): number | null {
     return null;
   return typeof raw.existing_count === 'number' ? raw.existing_count : 0;
 }
-
-/**
- * True when a Keep and add new apply added nothing: the linked media holds
- * no more fetched images (items with a source_url) than the *priorCount* the
- * 409 reported. Null prior count (not a Keep retry) is never "nothing new".
- */
-export function keepAddedNothing(
-  choice: PreviousAssetsChoice | undefined,
-  priorCount: number | null,
-  bundle: { items?: { source_url?: string | null }[] } | null | undefined,
-): boolean {
-  if (choice !== 'keep' || priorCount === null) return false;
-  const fetched = (bundle?.items ?? []).filter((item) => item.source_url).length;
-  return fetched <= priorCount;
-}

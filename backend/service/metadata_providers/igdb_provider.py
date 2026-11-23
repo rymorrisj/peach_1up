@@ -21,8 +21,10 @@ from typing import TYPE_CHECKING
 
 import httpx2
 
+from backend.core.logger import get_logger
 from backend.models.metadata_lookup import get_or_create_developer, get_or_create_genre, get_or_create_publisher
 from backend.service.metadata_providers import GameDetails, MetadataAsset, SearchResult
+from backend.service.metadata_providers.links import clean_provider_links, igdb_link_type
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -31,6 +33,7 @@ _TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 _IGDB_BASE_URL = "https://api.igdb.com/v4"
 _TIMEOUT = 15.0
 _PROVIDER = "igdb"
+_log = get_logger(__name__)
 
 # Refresh proactively once less than this much time remains, rather than
 # waiting for the token to actually expire mid-request.
@@ -200,6 +203,24 @@ def _resolve_igdb_content_rating(age_ratings: list[dict] | None) -> str | None:
     return by_org.get("ESRB") or by_org.get("PEGI")
 
 
+def _fetch_website_links(game_id: int) -> list[dict]:
+    """The game's websites as provider link entries. A separate, best-effort
+    query: a field IGDB no longer serves, or any provider error here, must
+    not fail the whole details fetch, so it logs and returns no links."""
+    try:
+        sites = _post("websites", f"fields url,category,type.type; where game = {int(game_id)}; limit 50;")
+    except (httpx2.HTTPError, ValueError) as exc:
+        _log.warning("IGDB websites not fetched for game %s: %s", game_id, type(exc).__name__)
+        return []
+    links = []
+    for site in sites if isinstance(sites, list) else []:
+        if not isinstance(site, dict):
+            continue
+        type_name = (site.get("type") or {}).get("type") if isinstance(site.get("type"), dict) else None
+        links.append({"type": igdb_link_type(site.get("category"), type_name), "url": site.get("url")})
+    return clean_provider_links(links)
+
+
 class IGDBProvider:
     def search_games(self, name: str) -> list[SearchResult]:
         query = f'fields name,first_release_date,platforms.name; search "{_escape_apicalypse_string(name)}"; limit 20;'
@@ -281,6 +302,8 @@ class IGDBProvider:
             result.assets.append(
                 MetadataAsset(url=result.cover_art_url, type="cover", thumb_url=result.cover_art_thumb_url)
             )
+
+        result.external_links = _fetch_website_links(game_id)
 
         for video in game.get("videos") or []:
             video_id = video.get("video_id")

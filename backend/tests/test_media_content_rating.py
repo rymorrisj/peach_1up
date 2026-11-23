@@ -421,7 +421,7 @@ class TestAcceptAllLeavesRatingNull:
     def test_new_linked_bundle_has_no_own_rating(self, mem_db_session, tmp_path, monkeypatch):
         import backend.core.settings as core_settings
         import backend.service.utils.asset_fetch as asset_fetch_mod
-        from backend.service.games.media_link import create_linked_media_from_metadata
+        from backend.service.games.media_link import prepare_apply, run_apply
         from backend.service.metadata_providers import MetadataAsset
 
         class _S:
@@ -452,11 +452,8 @@ class TestAcceptAllLeavesRatingNull:
         monkeypatch.setattr(asset_fetch_mod, "fetch_image_to_temp", _fake_fetch)
         game = _game(mem_db_session, "m", "M")
 
-        bundle = create_linked_media_from_metadata(
-            game.id,
-            [MetadataAsset(url="https://cdn.thegamesdb.net/images/original/b.jpg", type="boxart_front")],
-            mem_db_session,
-        )
+        assets = [MetadataAsset(url="https://cdn.thegamesdb.net/images/original/b.jpg", type="boxart_front")]
+        bundle = run_apply(prepare_apply(game.id, assets, mem_db_session), mem_db_session)
 
         assert bundle.content_rating is None
         assert _visible_bundle_ids(mem_db_session, _capped()) == set()

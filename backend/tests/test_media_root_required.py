@@ -2,7 +2,7 @@
 working directory: path_utils.media_root(), POST /api/v1/media-items/upload,
 the chunked software_media upload root (software_media._root) and its
 /complete route (which must also mark the upload's job failed), and the Fetch
-Metadata Accept All step (media_link.create_linked_media_from_metadata).
+Metadata Accept All step (media_link.prepare_apply).
 """
 
 import io
@@ -186,7 +186,7 @@ class TestAcceptAllMediaRoot:
 
         import backend.service.utils.asset_fetch as asset_fetch_mod
         from backend.models.media import MediaItemBundle
-        from backend.service.games.media_link import create_linked_media_from_metadata
+        from backend.service.games.media_link import prepare_apply
         from backend.service.metadata_providers import MetadataAsset
 
         media_settings(value)
@@ -197,7 +197,7 @@ class TestAcceptAllMediaRoot:
         assets = [MetadataAsset(url="https://cdn.thegamesdb.net/images/original/box.jpg", type="boxart_front")]
 
         with pytest.raises(HTTPException) as exc_info:
-            create_linked_media_from_metadata(game.id, assets, db)
+            prepare_apply(game.id, assets, db)
 
         assert exc_info.value.status_code == 503
         assert "MEDIA_PATH" in exc_info.value.detail

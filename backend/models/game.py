@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional, TYPE_CHECKING
 
-from pydantic import model_validator
+from pydantic import computed_field, model_validator
 from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import validates
 from sqlmodel import Field, Relationship, SQLModel
@@ -76,12 +76,9 @@ class GameItem(SQLModel, table=True):
     # None covers rows written before this column existed, treated the same as
     # False. See _delete_leaf_media_folders.
     folder_owned: Optional[bool] = None
-    # Set when a Fetch Metadata Keep last successfully applied cover art to
-    # this leaf (see enrich_entity(), backend/service/games/enrich.py). None
-    # means never fetched. Leaf-level Fetch Metadata only ever applies
-    # cover_art_url, never the full metadata fields a bundle-level fetch
-    # applies, but it is a real, currently-supported fetch path, so it gets
-    # its own tracking column rather than being folded into the bundle's.
+    # Legacy: stamped when a per-disc cover was fetched for this leaf. That
+    # flow is gone (the game cover now comes from Accept All, see
+    # media_link.py), so nothing writes this column any more.
     metadata_fetched_at: Optional[datetime] = None
     # Set automatically at ingest time from formatscout.classify()
     # (see _prepare_item / _prepare_multi_disc in
@@ -232,7 +229,7 @@ class GameItemBundle(SQLModel, table=True):
     # JSON-column pattern as launch_commands above.
     external_links: Optional[list[dict]] = Field(default=None, sa_column=Column(JSON))
     # Set when a Fetch Metadata Keep last successfully applied metadata to
-    # this bundle (see enrich_entity(), backend/service/games/enrich.py).
+    # this bundle (see enrich_game_bundle(), backend/service/games/enrich.py).
     # None means never fetched. Surfaced on the detail page and used to warn
     # before a re-fetch, since every fetch call costs the user's provider
     # API credits/allowance.
@@ -389,6 +386,7 @@ class GameItemBundleRead(SQLModel):
     metadata_source: Optional[str] = None
     content_rating: Optional[str] = None
     launch_commands: Optional[list[str]] = None
+    # Hidden (None) for restricted accounts by the two read builders below.
     external_links: Optional[list[dict]] = None
     metadata_fetched_at: Optional[datetime] = None
     installed: bool = False
@@ -439,6 +437,17 @@ class GameItemBundleRead(SQLModel):
     # would otherwise pay one query per bundle (launch_count and
     # last_launched_at are never written, so they are no usable source).
     has_launched: Optional[bool] = None
+
+    @computed_field
+    @property
+    def external_provider(self) -> Optional[str]:
+        """Provider key that issued external_game_id, read from
+        metadata_source; None when it is blank or not a known provider (an
+        id stored before the provider was recorded), so the client searches
+        instead of looking the id up."""
+        from backend.service.metadata_providers import provider_key_for
+
+        return provider_key_for(self.metadata_source)
 
 
 # Worst-wins severity order for the bundle-level rollup, highest number is
@@ -620,9 +629,12 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session", *, viewer: "Use
     from backend.models.metadata_lookup import get_genres_for_game_item_bundle
     from backend.service.utils.platform_defaults import resolve_environment_for_launch_gate
 
+    from backend.core.dependencies import is_restricted_account
     from backend.models.media import _linked_items_for
 
     read = GameItemBundleRead.model_validate(c)
+    if is_restricted_account(viewer, db):
+        read.external_links = None
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("game_item_bundle", c.id, db)
     read.genres = get_genres_for_game_item_bundle(c.id, db)
@@ -677,9 +689,14 @@ def game_item_bundles_to_read_bulk(
     pc_bundles = [c for c in bundles if c.item_type == "pc"]
     environment_by_bundle_id = resolve_environments_for_launch_gate_bulk(pc_bundles, db)
 
+    from backend.core.dependencies import is_restricted_account
+
+    hide_links = is_restricted_account(viewer, db)
     reads: list[GameItemBundleRead] = []
     for c in bundles:
         read = GameItemBundleRead.model_validate(c)
+        if hide_links:
+            read.external_links = None
         read.items = leaves_by_bundle.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
         read.genres = genre_map.get(c.id, [])

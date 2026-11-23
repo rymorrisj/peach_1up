@@ -44,10 +44,14 @@ ASSET_TYPES: frozenset[str] = frozenset(get_args(AssetType))
 # images.igdb.com (igdb_provider._cover_url); TheGamesDB returns
 # base_url.original/thumb on cdn.thegamesdb.net. Adding a provider means
 # adding its image CDN host here.
-ASSET_CDN_HOSTS: frozenset[str] = frozenset({
-    "images.igdb.com",
-    "cdn.thegamesdb.net",
-})
+ASSET_HOST_PROVIDER_LABELS: dict[str, str] = {
+    "images.igdb.com": "IGDB",
+    "cdn.thegamesdb.net": "TheGamesDB",
+}
+ASSET_CDN_HOSTS: frozenset[str] = frozenset(ASSET_HOST_PROVIDER_LABELS)
+
+# Display name per metadata_provider settings value, used in user-facing errors.
+PROVIDER_LABELS: dict[str, str] = {"thegamesdb": "TheGamesDB", "igdb": "IGDB"}
 
 
 @dataclass
@@ -86,6 +90,8 @@ class GameDetails:
     developer: Optional[str] = None
     publisher: Optional[str] = None
     video_urls: list[str] = field(default_factory=list)
+    # Provider website links as {"type", "url", "source"}; trailers stay in video_urls.
+    external_links: list[dict] = field(default_factory=list)
     assets: list[MetadataAsset] = field(default_factory=list)
 
 
@@ -110,6 +116,27 @@ def is_metadata_fetch_enabled() -> bool:
         return _s.get("metadata_fetch_enabled", False) is True
     except RuntimeError:
         return False
+
+
+def provider_key_for(source: Optional[str]) -> Optional[str]:
+    """The provider key (a metadata_provider settings value) that a stored
+    metadata_source names, matching its display name or key case
+    insensitively; None for blank or unrecognised text. external_game_id is
+    only meaningful to the provider that issued it, so a None here means the
+    client must search again instead of looking the id up."""
+    wanted = (source or "").strip().casefold()
+    return wanted if wanted in PROVIDER_LABELS else None
+
+
+def active_provider_label() -> str:
+    """Display name of the active provider, falling back to a neutral name
+    when the setting is unreadable or unrecognised."""
+    from backend.service.utils import settings as _s
+
+    try:
+        return PROVIDER_LABELS.get(_s.get("metadata_provider", "thegamesdb"), "The metadata provider")
+    except RuntimeError:
+        return "The metadata provider"
 
 
 def get_active_provider() -> MetadataProvider:

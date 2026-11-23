@@ -70,7 +70,7 @@ def get_or_create_genre(
     """Resolve a Genre row, creating one if no match exists.
 
     Two call shapes: a provider's ID-resolution loop passes provider+external_id
-    for a true cache-hit lookup; enrich_entity() (which only has a name, no
+    for a true cache-hit lookup; enrich_game_bundle() (which only has a name, no
     provider bookkeeping) passes name only. Both paths fall back to a name
     match before creating a new row, so the same genre never duplicates across
     providers or call sites.
@@ -149,7 +149,7 @@ def get_genres_for_game_item_bundles(bundle_ids: list[int], db: "Session") -> di
 def set_genres_for_game_item_bundle(db: "Session", bundle_id: int, names: list[str], *, provider: Optional[str] = None) -> None:
     """Replace-all write: delete this bundle's existing genre links, then
     re-link to (get-or-create) a Genre row for each name. Matches how every
-    other enrich_entity() field is a full overwrite, not a merge."""
+    other enrich_game_bundle() field is a full overwrite, not a merge."""
     db.query(GameItemBundleGenre).filter(
         GameItemBundleGenre.game_item_bundle_id == bundle_id
     ).delete()

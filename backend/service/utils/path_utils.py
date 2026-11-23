@@ -278,8 +278,9 @@ APP_INTERNAL_MEDIA_DIRNAMES: frozenset[str] = frozenset({GAME_COVERS_DIRNAME, AS
 
 
 def game_covers_root() -> Path:
-    """MEDIA_PATH/_game_covers, where per-disc fetched cover art lives
-    (META-2). Not created here.
+    """MEDIA_PATH/_game_covers, where per-disc fetched cover art used to
+    live (META-2). Nothing writes there now; it is kept so game delete can
+    still sweep covers an earlier version left. Not created here.
 
     Raises:
         ValueError: If MEDIA_PATH is unset or blank.

@@ -10,9 +10,15 @@ import type { BackgroundJob } from '@/context/_AppContext';
 const isActiveStatus = (status: BackgroundJob['status']) =>
   status === 'processing' || status === 'cancelling';
 
+const JOB_KIND_LABELS: Record<BackgroundJob['kind'], string> = {
+  upload: 'Upload',
+  scan: 'Library scan',
+  metadata_apply: 'Fetched images',
+};
+
 function JobRow({ job, onDismiss }: { job: BackgroundJob; onDismiss: (id: string) => void }) {
   const pct = Math.round((job.progress ?? 0) * 100);
-  const kindLabel = job.kind === 'scan' ? 'Library scan' : 'Upload';
+  const kindLabel = JOB_KIND_LABELS[job.kind];
   const color =
     job.status === 'error'
       ? 'rgb(var(--error))'
