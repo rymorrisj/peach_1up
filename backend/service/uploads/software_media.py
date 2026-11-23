@@ -10,9 +10,10 @@ is left without a row. This supersedes the earlier locked decision that
 finalize only staged bytes; the single-shot POST /api/v1/media-items/upload
 still only stages.
 
-The kind comes from the file extension. An archive (.zip, .7z) is allowed
-for every kind, so its kind cannot be inferred: init rejects it before any
-bytes move, and finalize re-checks rather than guessing.
+The kind comes from the file extension, or from the media_kind the client
+chose at init. An archive (.zip, .7z) is allowed for every kind, so its kind
+cannot be inferred: init rejects an archive sent without media_kind before
+any bytes move, and finalize re-checks rather than guessing.
 
 Storage root is MEDIA_PATH (library/software/media/), the same setting the
 existing single-shot archive upload uses, not library_domain_root("media"),
@@ -35,16 +36,41 @@ from backend.core import jobs
 from backend.core.logger import get_logger
 from backend.service.uploads import core as cu
 from backend.service.uploads.registry import UploadDomain, register_domain
-from backend.service.utils.media_extensions import MEDIA_KIND_INFERABLE_EXTENSIONS, media_kind_for_extension
+from backend.service.utils.media_extensions import (
+    ARCHIVE_EXTENSIONS,
+    MEDIA_KIND_INFERABLE_EXTENSIONS,
+    check_media_extension,
+    media_extension,
+    media_kind_for_extension,
+)
 
 logger = get_logger(__name__)
+
+
+def check_manifest(names: list[str], media_kind: str | None) -> None:
+    """Init-time check of the declared file names against the chosen kind.
+
+    Raises:
+        ValueError: If a file's extension is not allowed, or an archive
+            arrives without a media_kind.
+    """
+    for name in names:
+        if media_kind is not None:
+            check_media_extension(name, media_kind)
+            continue
+        ext = media_extension(name)
+        if ext in ARCHIVE_EXTENSIONS:
+            raise ValueError(f"'{ext}' archives need a media kind (image, audio, video or text).")
+        if ext not in MEDIA_KIND_INFERABLE_EXTENSIONS:
+            raise ValueError(f"File extension '{ext or '(none)'}' is not allowed for this domain.")
 
 
 def finalize_reassembled(reasm: cu.ReassembledUpload, db: Session) -> dict:
     """Create the MediaItem and its bundle for a reassembled upload.
 
     Raises:
-        ValueError: If the media kind cannot be inferred from the extension.
+        ValueError: If the supplied media kind does not fit the file, or no
+            kind was supplied and none can be inferred from the extension.
     """
     from backend.models.media import MediaItem, MediaItemBundle, unique_media_slug
 
@@ -52,11 +78,15 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, db: Session) -> dict:
         if len(reasm.paths) != 1:
             raise ValueError(f"A media upload holds exactly one file, got {len(reasm.paths)}.")
         path = reasm.paths[0]
-        media_kind = media_kind_for_extension(path.name)
+        if reasm.media_kind is not None:
+            check_media_extension(path.name, reasm.media_kind)
+            media_kind = reasm.media_kind
+        else:
+            media_kind = media_kind_for_extension(path.name)
         if media_kind is None:
             raise ValueError(
                 f"Cannot tell the media kind of '{path.name}' from its extension. "
-                "Archives (.zip, .7z) need their kind chosen; upload the files themselves instead."
+                "Archives (.zip, .7z) need their media kind chosen."
             )
         title = reasm.title or reasm.dest_dir.name
         item_slug = unique_media_slug(title, db)
@@ -134,8 +164,8 @@ def register() -> None:
             allowed_kinds=frozenset({"file"}),
             root_resolver=_root,
             finalize_background=finalize_background,
-            # The MED-11 allowlist minus archives, whose kind cannot be
-            # inferred; rejected at init, before any bytes move.
-            allowed_extensions=MEDIA_KIND_INFERABLE_EXTENSIONS,
+            # The MED-11 allowlist; an archive needs media_kind, rejected at
+            # init, before any bytes move.
+            check_manifest=check_manifest,
         )
     )

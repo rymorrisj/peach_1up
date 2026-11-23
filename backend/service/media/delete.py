@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import BaseModel
 
 from backend.service.media.file_cleanup import (
-    clear_cover_references, path_variants, removable_media_files, remove_files,
+    clear_cover_references, matching_row_ids, path_keys, removable_media_files, remove_files,
 )
 
 if TYPE_CHECKING:
@@ -54,18 +54,15 @@ def delete_preview(
     ids = {i.id for i in items}
     paths = {i.file_path for i in items if i.file_path}
     removable = removable_media_files(paths, ids, db)
-    variants: set[str] = set()
+    targets: set[str] = set()
     for raw in removable:
-        variants |= path_variants(raw)
-    game_covers = app_covers = media_covers = 0
-    if variants:
-        game_covers = db.query(GameItem.id).filter(GameItem.cover_art_path.in_(variants)).count()
-        app_covers = db.query(AppItem.id).filter(AppItem.cover_art_path.in_(variants)).count()
-        bundle_q = db.query(MediaItemBundle.id).filter(MediaItemBundle.cover_art_path.in_(variants))
-        if bundle is not None:
-            bundle_q = bundle_q.filter(MediaItemBundle.id != bundle.id)
-        item_q = db.query(MediaItem.id).filter(MediaItem.cover_art_path.in_(variants), MediaItem.id.notin_(ids))
-        media_covers = bundle_q.count() + item_q.count()
+        targets |= path_keys(raw)
+    game_covers = len(matching_row_ids(db, GameItem, ("cover_art_path",), targets))
+    app_covers = len(matching_row_ids(db, AppItem, ("cover_art_path",), targets))
+    bundle_ids = matching_row_ids(db, MediaItemBundle, ("cover_art_path",), targets)
+    if bundle is not None:
+        bundle_ids.discard(bundle.id)
+    media_covers = len(bundle_ids) + len(matching_row_ids(db, MediaItem, ("cover_art_path",), targets) - ids)
     return MediaDeletePreview(
         file_count=len(paths),
         removable_file_count=len(removable),

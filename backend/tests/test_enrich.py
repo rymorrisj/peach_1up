@@ -41,6 +41,41 @@ class TestEnrichEntity:
             enrich_entity("game_item", 9999, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
         assert exc_info.value.status_code == 404
 
+    def test_second_cover_refetch_of_the_same_disc_is_409(self, mem_session, monkeypatch):
+        from fastapi import HTTPException
+        import backend.service.games.media_link as media_link_mod
+        from backend.service.games.enrich import enrich_entity
+
+        monkeypatch.setattr(media_link_mod, "_running_applies", {("game_item_cover", 7)})
+
+        with pytest.raises(HTTPException) as exc_info:
+            enrich_entity("game_item", 7, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
+
+        assert exc_info.value.status_code == 409
+        assert "already running" in exc_info.value.detail
+
+    def test_cover_refetch_of_another_disc_is_not_blocked(self, mem_session, monkeypatch):
+        from fastapi import HTTPException
+        import backend.service.games.media_link as media_link_mod
+        from backend.service.games.enrich import enrich_entity
+
+        monkeypatch.setattr(media_link_mod, "_running_applies", {("game_item_cover", 7)})
+
+        with pytest.raises(HTTPException) as exc_info:
+            enrich_entity("game_item", 8, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
+
+        assert exc_info.value.status_code == 404
+
+    def test_cover_refetch_lock_is_released_afterwards(self, mem_session):
+        from fastapi import HTTPException
+        import backend.service.games.media_link as media_link_mod
+        from backend.service.games.enrich import enrich_entity
+
+        with pytest.raises(HTTPException):
+            enrich_entity("game_item", 9999, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
+
+        assert ("game_item_cover", 9999) not in media_link_mod._running_applies
+
     def test_library_collection_with_cover_art_url_raises_422(self, mem_session):
         """Collections don't support direct cover art, must be applied to individual discs."""
         from fastapi import HTTPException

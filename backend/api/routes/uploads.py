@@ -27,11 +27,11 @@ from pydantic import BaseModel
 
 from backend.core import jobs, rate_limit
 from backend.core.dependencies import require_permission
+from backend.constants_generated import MediaKind
 from backend.core.logger import get_logger
 from backend.models.user import UserItem
 from backend.service.uploads import core as cu
 from backend.service.uploads import registry
-from backend.service.utils.path_utils import safe_basename
 from backend.service.utils.upload_utils import DEFAULT_CHUNK_MAX_BYTES
 
 logger = get_logger(__name__)
@@ -55,6 +55,10 @@ class InitFile(BaseModel):
 class InitBody(BaseModel):
     kind: Literal["file", "folder", "set"]
     title: Optional[str] = None
+    # software_media only. Required when a file is an archive (.zip, .7z),
+    # whose media kind cannot be read from its extension; any other file
+    # must still fit the kind chosen. Rejected for the other domains.
+    media_kind: Optional[MediaKind] = None
     files: list[InitFile]
 
 
@@ -84,14 +88,13 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
                 status_code=422,
                 detail=f"Upload kind '{body.kind}' is not supported for this domain.",
             )
-        if domain.allowed_extensions is not None:
-            for f in body.files:
-                ext = Path(safe_basename(f.name)).suffix.lower()
-                if ext not in domain.allowed_extensions:
-                    raise HTTPException(
-                        status_code=422,
-                        detail=f"File extension '{ext or '(none)'}' is not allowed for this domain.",
-                    )
+        if domain.check_manifest is not None:
+            try:
+                domain.check_manifest([f.name for f in body.files], body.media_kind)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        elif body.media_kind is not None:
+            raise HTTPException(status_code=422, detail="media_kind is not supported for this domain.")
         client_ip = request.client.host if request.client else "unknown"
         rate_limit.enforce("library-upload", client_ip, _INIT_RATE_LIMIT, _INIT_RATE_WINDOW_SECONDS)
 
@@ -108,6 +111,7 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
                     for f in body.files
                 ],
                 chunk_max_bytes,
+                media_kind=body.media_kind,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

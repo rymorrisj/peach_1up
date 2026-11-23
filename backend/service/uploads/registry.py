@@ -33,10 +33,11 @@ class UploadDomain:
     allowed_kinds: frozenset[str]  # subset of {"file", "folder", "set"}
     root_resolver: Callable[[], Path]
     finalize_background: FinalizeBackground
-    # Lowercased extensions (".mp3") every manifest file must have after
-    # safe_basename sanitisation, checked at /init before a session exists.
-    # None means no extension restriction (games and apps).
-    allowed_extensions: frozenset[str] | None = None
+    # Checked at /init before a session exists: called with the manifest's
+    # file names and the optional media_kind the client chose, raises
+    # ValueError (reported as 422) to reject. None means no restriction
+    # and no media_kind accepted (games and apps).
+    check_manifest: Callable[[list[str], str | None], None] | None = None
 
 
 _domains: dict[str, UploadDomain] = {}

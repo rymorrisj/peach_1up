@@ -35,7 +35,8 @@ if TYPE_CHECKING:
     from backend.models.media import MediaItemBundle
     from backend.service.metadata_providers import MetadataAsset
 
-# Per-apply limits (META-5). 30 assets at the 20 MB per-image cap bounds one
+# Per-apply limits (META-5), Accept All only: no upload path reads these.
+# 30 assets at the 20 MB per-image cap bounds one
 # apply at 600 MB on disk; 90 s stays inside the frontend's 120 s Accept All
 # timeout so the server answers before the client gives up.
 ACCEPT_ALL_MAX_ASSETS = 30
@@ -66,16 +67,17 @@ def asset_filename_stem(asset_type: str, index: int) -> str:
 
 
 @contextmanager
-def _single_apply(key: tuple[str, int]) -> Iterator[None]:
-    """One Accept All per game, and per media bundle (several games can
-    share one), at a time in this process, so two concurrent applies cannot
-    both pass the dedupe check or replace the same rows."""
+def single_apply(
+    key: tuple[str, int],
+    detail: str = "An Accept All for this game's media is already running. Wait for it to finish.",
+) -> Iterator[None]:
+    """One apply per *key* at a time in this process (409 with *detail*
+    otherwise). Accept All keys per game and per media bundle (several games
+    can share one), so two concurrent applies cannot both pass the dedupe
+    check or replace the same rows; the per-disc cover enrich keys per disc."""
     with _running_guard:
         if key in _running_applies:
-            raise HTTPException(
-                status_code=409,
-                detail="An Accept All for this game's media is already running. Wait for it to finish.",
-            )
+            raise HTTPException(status_code=409, detail=detail)
         _running_applies.add(key)
     try:
         yield
@@ -148,7 +150,11 @@ def create_linked_media_from_metadata(
     if len(assets) > ACCEPT_ALL_MAX_ASSETS:
         raise HTTPException(
             status_code=413,
-            detail=f"Too many assets in one Accept All: {len(assets)} (limit {ACCEPT_ALL_MAX_ASSETS}).",
+            detail=(
+                f"This metadata offers {len(assets)} images, but Accept All can apply at most "
+                f"{ACCEPT_ALL_MAX_ASSETS} per apply (limit {ACCEPT_ALL_MAX_ASSETS}). "
+                "Nothing was downloaded."
+            ),
         )
     # Resolved before any lookup, download or write: an unset or blank
     # MEDIA_PATH is a 503, never Path("").resolve() (the working directory),
@@ -158,11 +164,11 @@ def create_linked_media_from_metadata(
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=503, detail="MEDIA_PATH is not configured.") from exc
 
-    with _single_apply(("game", game_item_bundle_id)):
+    with single_apply(("game", game_item_bundle_id)):
         bundle = _linked_bundle(game_item_bundle_id, db)
         if bundle is None:
             return _apply(game, bundle, assets, root, previous_assets, db)
-        with _single_apply(("media_bundle", bundle.id)):
+        with single_apply(("media_bundle", bundle.id)):
             return _apply(game, bundle, assets, root, previous_assets, db)
 
 
@@ -175,7 +181,9 @@ def _apply(
     db: "Session",
 ) -> "MediaItemBundle":
     from backend.models.media import MediaItem, MediaItemBundle, delete_links_for, make_entity_link, unique_media_slug
-    from backend.service.media.file_cleanup import clear_cover_references, remove_files, removable_media_files
+    from backend.service.media.file_cleanup import (
+        clear_cover_references, path_keys, remove_files, removable_media_files,
+    )
     from backend.service.utils.asset_fetch import commit_temp_image, fetch_image_to_temp, final_image_path
     from backend.service.utils.upload_utils import begin_upload
 
@@ -223,7 +231,7 @@ def _apply(
             # Covers on files that stay (another row uses them) keep working;
             # only this bundle's own cover moves to the new set.
             clear_cover_references(old_files, db)
-            if bundle.cover_art_path in replaced_paths:
+            if path_keys(bundle.cover_art_path) & {k for raw in replaced_paths for k in path_keys(raw)}:
                 bundle.cover_art_path = None
             for item in replaced:
                 delete_links_for("media_item", item.id, db)

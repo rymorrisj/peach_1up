@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from backend.core.logger import get_logger
 from backend.models.game import GameItemBundle, GameItem
+from backend.service.games.media_link import single_apply
 from backend.service.utils.asset_fetch import commit_temp_image, fetch_image_to_temp, final_image_path
 
 if TYPE_CHECKING:
@@ -69,7 +70,42 @@ def enrich_entity(
     db: "Session",
 ) -> tuple:
     """Apply fetched metadata. metadata_fetched_at is stamped only when a
-    stored value actually changed (META-23)."""
+    stored value actually changed (META-23). A per-disc cover re-fetch holds
+    the same in-process lock Accept All uses, keyed by disc, so two
+    concurrent re-fetches of one disc return 409 instead of racing on its
+    cover file."""
+    fields = dict(
+        title=title, description=description, publisher=publisher, developer=developer,
+        genre=genre, year=year, content_rating=content_rating, metadata_source=metadata_source,
+        cover_art_url=cover_art_url, external_links=external_links,
+        confirm_rating_change=confirm_rating_change, db=db,
+    )
+    if entity_type == "game_item" and cover_art_url:
+        with single_apply(
+            ("game_item_cover", entity_id),
+            detail="A cover re-fetch for this disc is already running. Wait for it to finish.",
+        ):
+            return _enrich_entity(entity_type, entity_id, **fields)
+    return _enrich_entity(entity_type, entity_id, **fields)
+
+
+def _enrich_entity(
+    entity_type: Literal["game_item_bundle", "game_item"],
+    entity_id: int,
+    *,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    publisher: Optional[str] = None,
+    developer: Optional[str] = None,
+    genre: Optional[list[str]] = None,
+    year: Optional[int] = None,
+    content_rating: Optional[str] = None,
+    metadata_source: Optional[str] = None,
+    cover_art_url: Optional[str] = None,
+    external_links: Optional[list[dict]] = None,
+    confirm_rating_change: bool = False,
+    db: "Session",
+) -> tuple:
     metadata_fields = {k: v for k, v in {
         "title": title,
         "description": description,

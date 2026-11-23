@@ -10,6 +10,11 @@ A file is removable only when all of these hold:
   no game or app leaf has it as file_path or executable_path (checked
   again just before the unlink)
 
+Every path comparison here goes through a normalised key (normcase and
+normpath of the path, plus of its resolved form when it is safe to
+resolve), never a raw string match, so case, slash direction and a trailing
+separator cannot hide a reference. UNC and device paths are never resolved.
+
 Removal is unlink only. An emptied parent directory is removed with rmdir,
 never rmtree, and only when it sits inside MEDIA_PATH.
 
@@ -19,8 +24,11 @@ commit never loses a file that rows still point at.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
+
+from sqlalchemy import or_
 
 from backend.core.logger import get_logger
 
@@ -29,22 +37,47 @@ if TYPE_CHECKING:
 
 _log = get_logger(__name__)
 
+_CHUNK = 500
 
-def path_variants(raw: str | None) -> set[str]:
-    """The stored string plus its resolved form, so a reference written in
-    a different but equivalent spelling still matches. A UNC or device path
-    is never resolved."""
+
+def lexical_key(raw: str) -> str:
+    """Case-insensitive (on Windows), slash-insensitive comparison key with
+    no trailing separator. Never touches the filesystem."""
+    return os.path.normcase(os.path.normpath(raw))
+
+
+def path_keys(raw: str | None) -> set[str]:
+    """Every comparison key for *raw*: its lexical key, plus the key of its
+    resolved form so a junction, mapped drive or short name still matches.
+    A UNC or device path is never resolved."""
     if not raw:
         return set()
     from backend.service.utils.path_utils import is_untrusted_remote_path
 
-    variants = {raw}
+    keys = {lexical_key(raw)}
     if not is_untrusted_remote_path(raw):
         try:
-            variants.add(str(Path(raw).resolve()))
+            keys.add(lexical_key(str(Path(raw).resolve())))
         except (OSError, ValueError):
             pass
-    return variants
+    return keys
+
+
+def _keys_of(paths: Iterable[str | None]) -> set[str]:
+    keys: set[str] = set()
+    for raw in paths:
+        keys |= path_keys(raw)
+    return keys
+
+
+def matching_row_ids(db: "Session", model, columns: tuple[str, ...], targets: set[str]) -> set[int]:
+    """Ids of *model* rows where any of *columns* is a path matching one of
+    the *targets* keys."""
+    if not targets:
+        return set()
+    cols = [getattr(model, name) for name in columns]
+    rows = db.query(model.id, *cols).filter(or_(*[c.isnot(None) for c in cols]))
+    return {row[0] for row in rows if any(path_keys(value) & targets for value in row[1:])}
 
 
 def _owned_path(raw: str, root: Path) -> Path | None:
@@ -56,54 +89,62 @@ def _owned_path(raw: str, root: Path) -> Path | None:
         resolved = Path(raw).resolve()
     except (OSError, ValueError):
         return None
-    if resolved == root or not resolved.is_relative_to(root):
+    prefix = lexical_key(str(root)).rstrip(os.sep) + os.sep
+    key = lexical_key(str(resolved))
+    if not key.startswith(prefix) or len(key) == len(prefix):
         return None
-    if resolved.relative_to(root).parts[0] in APP_INTERNAL_MEDIA_DIRNAMES:
+    internal = {os.path.normcase(name) for name in APP_INTERNAL_MEDIA_DIRNAMES}
+    if key[len(prefix):].split(os.sep, 1)[0] in internal:
         return None
     return resolved if resolved.is_file() else None
 
 
-def _referenced_elsewhere(raw: str, excluded_item_ids: set[int], db: "Session") -> bool:
-    """True when a MediaItem outside *excluded_item_ids*, or any game or app
-    leaf, uses *raw* as its file (file_path or executable_path)."""
+def _referenced_keys(excluded_item_ids: set[int], db: "Session") -> set[str]:
+    """Keys of every file a MediaItem outside *excluded_item_ids*, or any
+    game or app leaf, uses (file_path or executable_path)."""
     from backend.models.app import AppItem
     from backend.models.game import GameItem
     from backend.models.media import MediaItem
 
-    variants = path_variants(raw)
-    q = db.query(MediaItem.id).filter(MediaItem.file_path.in_(variants))
-    if excluded_item_ids:
-        q = q.filter(MediaItem.id.notin_(excluded_item_ids))
-    if q.first() is not None:
-        return True
+    keys: set[str] = set()
+    for item_id, file_path in db.query(MediaItem.id, MediaItem.file_path).filter(MediaItem.file_path.isnot(None)):
+        if item_id not in excluded_item_ids:
+            keys |= path_keys(file_path)
     for model in (GameItem, AppItem):
-        hit = db.query(model.id).filter(
-            model.file_path.in_(variants) | model.executable_path.in_(variants)
-        ).first()
-        if hit is not None:
-            return True
-    return False
+        for file_path, executable_path in db.query(model.file_path, model.executable_path):
+            keys |= path_keys(file_path)
+            keys |= path_keys(executable_path)
+    return keys
 
 
 def removable_media_files(
     file_paths: Iterable[str], excluded_item_ids: set[int], db: "Session",
 ) -> list[str]:
     """The subset of *file_paths* safe to unlink once the MediaItem rows in
-    *excluded_item_ids* are gone. Returns the stored strings, deduplicated.
-    Returns nothing when MEDIA_PATH is not configured."""
+    *excluded_item_ids* are gone. Returns the stored strings, deduplicated
+    by resolved file. Returns nothing when MEDIA_PATH is not configured."""
     from backend.service.utils.path_utils import media_root
 
     try:
         root = media_root()
     except ValueError:
         return []
+    referenced: set[str] | None = None
     result: list[str] = []
     seen: set[str] = set()
     for raw in file_paths:
-        if not raw or raw in seen:
+        if not raw:
             continue
-        seen.add(raw)
-        if _owned_path(raw, root) is None or _referenced_elsewhere(raw, excluded_item_ids, db):
+        resolved = _owned_path(raw, root)
+        if resolved is None:
+            continue
+        key = lexical_key(str(resolved))
+        if key in seen:
+            continue
+        seen.add(key)
+        if referenced is None:
+            referenced = _referenced_keys(excluded_item_ids, db)
+        if path_keys(raw) & referenced:
             continue
         result.append(raw)
     return result
@@ -117,18 +158,18 @@ def clear_cover_references(file_paths: Iterable[str], db: "Session") -> int:
     from backend.models.game import GameItem
     from backend.models.media import MediaItem, MediaItemBundle
 
-    variants: set[str] = set()
-    for raw in file_paths:
-        variants |= path_variants(raw)
-    if not variants:
+    targets = _keys_of(file_paths)
+    if not targets:
         return 0
     cleared = 0
     for model in (GameItem, AppItem, MediaItemBundle, MediaItem):
-        cleared += (
-            db.query(model)
-            .filter(model.cover_art_path.in_(variants))
-            .update({model.cover_art_path: None}, synchronize_session="fetch")
-        )
+        ids = sorted(matching_row_ids(db, model, ("cover_art_path",), targets))
+        for start in range(0, len(ids), _CHUNK):
+            cleared += (
+                db.query(model)
+                .filter(model.id.in_(ids[start:start + _CHUNK]))
+                .update({model.cover_art_path: None}, synchronize_session="fetch")
+            )
     return cleared
 
 
@@ -144,13 +185,17 @@ def remove_files(file_paths: Iterable[str], db: "Session") -> list[str]:
         root = media_root()
     except ValueError:
         return []
+    root_key = lexical_key(str(root))
     removed: list[str] = []
+    referenced: set[str] | None = None
     for raw in file_paths:
         resolved = _owned_path(raw, root)
         if resolved is None:
             continue
         try:
-            if _referenced_elsewhere(raw, set(), db):
+            if referenced is None:
+                referenced = _referenced_keys(set(), db)
+            if path_keys(raw) & referenced:
                 _log.info("Kept media file still in use: %s", resolved)
                 continue
         except Exception as exc:  # noqa: BLE001, never delete on a failed check
@@ -164,7 +209,8 @@ def remove_files(file_paths: Iterable[str], db: "Session") -> list[str]:
             _log.warning("Could not delete media file %s: %s", resolved, exc)
             continue
         parent = resolved.parent
-        if parent != root and parent.is_relative_to(root):
+        parent_key = lexical_key(str(parent))
+        if parent_key != root_key and parent_key.startswith(root_key.rstrip(os.sep) + os.sep):
             try:
                 parent.rmdir()
             except OSError:

@@ -78,6 +78,7 @@ class ReassembledUpload:
     dest_dir: Path
     paths: list[Path]
     total_bytes: int
+    media_kind: str | None = None  # software_media only, chosen at init
 
 
 def tmp_root() -> Path:
@@ -88,7 +89,9 @@ def tmp_root() -> Path:
     return library_root() / TMP_CHUNKS_DIRNAME
 
 
-def init_session(kind: str, title: str, files: list[dict], chunk_max_bytes: int) -> str:
+def init_session(
+    kind: str, title: str, files: list[dict], chunk_max_bytes: int, *, media_kind: str | None = None,
+) -> str:
     """Validate the declared manifest, create the staging dir, and return an
     unguessable upload_id. Raises ValueError on a malformed manifest."""
     import math
@@ -169,6 +172,7 @@ def init_session(kind: str, title: str, files: list[dict], chunk_max_bytes: int)
             "id": upload_id,
             "kind": kind,
             "title": title,
+            "media_kind": media_kind,
             "dir": session_dir,
             "files": slots,
             "created_at": time.time(),
@@ -276,6 +280,7 @@ def reassemble(upload_id: str, domain_root: Path, job_id: str | None = None) -> 
             raise KeyError(upload_id)
         kind = session["kind"]
         title = session["title"]
+        media_kind = session.get("media_kind")
         session_dir: Path = session["dir"]
         files = session["files"]
 
@@ -342,7 +347,8 @@ def reassemble(upload_id: str, domain_root: Path, job_id: str | None = None) -> 
 
     _discard(upload_id, session_dir)
     return ReassembledUpload(
-        kind=kind, title=base_title, dest_dir=dest_dir, paths=written_paths, total_bytes=total_bytes
+        kind=kind, title=base_title, dest_dir=dest_dir, paths=written_paths, total_bytes=total_bytes,
+        media_kind=media_kind,
     )
 
 

@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import type { DragEvent } from 'react';
 import { UploadCloud } from 'lucide-react';
 import type { BackgroundJob } from '@/context/_AppContext';
+import type { MediaKind } from '@/generated/constants';
+import ArchiveKindPicker from './ArchiveKindPicker';
 import ProgressBar from './ProgressBar';
 import type { UploadEntry } from './types';
 
@@ -12,6 +14,8 @@ interface SingleFileModeProps {
   onFiles: (fileList: FileList) => void;
   entries: UploadEntry[];
   backgroundJobs: BackgroundJob[];
+  onChooseKind: (entryId: string, kind: MediaKind) => void;
+  onRemoveEntry: (entryId: string) => void;
 }
 
 export default function SingleFileMode({
@@ -21,6 +25,8 @@ export default function SingleFileMode({
   onFiles,
   entries,
   backgroundJobs,
+  onChooseKind,
+  onRemoveEntry,
 }: SingleFileModeProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +120,12 @@ export default function SingleFileMode({
                     {entry.status === 'error' && <span className="text-red-500">Failed</span>}
                   </span>
                 </div>
+                {entry.status === 'needs_kind' && (
+                  <ArchiveKindPicker
+                    onConfirm={(kind) => onChooseKind(entry.id, kind)}
+                    onCancel={() => onRemoveEntry(entry.id)}
+                  />
+                )}
                 {entry.status === 'uploading' && (
                   <div className="mt-1.5">
                     <ProgressBar pct={entry.progress} />

@@ -26,6 +26,9 @@ DEFAULT_CHUNK_MAX_BYTES = 64 * 1024 ** 2             # 64 MB, largest single chu
 DEFAULT_UPLOAD_TMP_TTL_SECONDS = 24 * 3600           # orphaned tmp_chunks dirs older than this are swept
 TMP_CHUNKS_DIRNAME = "tmp_chunks"
 
+# begin_upload retries after losing a directory-name race to a concurrent upload.
+_ALLOCATE_ATTEMPTS = 20
+
 
 def begin_upload(base_dir: Path, filename: str) -> tuple[Path, Path]:
     """Allocate a fresh, traversal-safe destination for an uploaded file.
@@ -43,25 +46,39 @@ def begin_upload(base_dir: Path, filename: str) -> tuple[Path, Path]:
     Returns:
         (dest_dir, dest_path), dest_dir has already been created on disk.
 
+    The exists() check and the mkdir are not atomic, so two requests with the
+    same name can both pick one slug. mkdir(exist_ok=False) is the atomic step:
+    the loser re-picks a slug and tries again instead of failing.
+
     Raises:
         HTTPException(400): If the resolved destination would escape base_dir.
+        HTTPException(409): If no free directory could be claimed after
+            repeated collisions.
     """
     safe_name = safe_basename(filename)
     safe_stem = Path(safe_name).stem
 
     base_dir.mkdir(parents=True, exist_ok=True)
-    unique_stem = unique_slug(safe_stem, lambda s: (base_dir / s).exists())
+    for _ in range(_ALLOCATE_ATTEMPTS):
+        unique_stem = unique_slug(safe_stem, lambda s: (base_dir / s).exists())
 
-    try:
-        dest_dir = resolve_under(base_dir, unique_stem)
-        dest_path = resolve_under(dest_dir, safe_name)
-    except ValueError as exc:
-        from backend.core.logger import get_logger
-        get_logger(__name__).warning("Upload rejected, path escapes base directory: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid filename.") from exc
+        try:
+            dest_dir = resolve_under(base_dir, unique_stem)
+            dest_path = resolve_under(dest_dir, safe_name)
+        except ValueError as exc:
+            from backend.core.logger import get_logger
+            get_logger(__name__).warning("Upload rejected, path escapes base directory: %s", exc)
+            raise HTTPException(status_code=400, detail="Invalid filename.") from exc
 
-    dest_dir.mkdir(parents=True, exist_ok=False)
-    return dest_dir, dest_path
+        try:
+            dest_dir.mkdir(exist_ok=False)
+        except FileExistsError:
+            continue
+        return dest_dir, dest_path
+    raise HTTPException(
+        status_code=409,
+        detail="Another upload with the same name was created at the same time. Please try again.",
+    )
 
 
 async def stream_upload_to_disk(file: UploadFile, dest_path: Path, max_bytes: int) -> int:

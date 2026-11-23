@@ -1,5 +1,10 @@
 import type { StagedDisc } from './types';
 
+// Archives fit every media kind, so the server cannot infer one for them.
+export function isArchiveFile(file: File): boolean {
+  return /\.(zip|7z)$/i.test(file.name);
+}
+
 export function newEntryId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

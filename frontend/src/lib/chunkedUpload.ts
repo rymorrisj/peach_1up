@@ -1,4 +1,5 @@
 import { getCsrfToken } from '@/api/client';
+import type { MediaKind } from '@/generated/constants';
 
 const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 
@@ -25,22 +26,12 @@ export interface ChunkedUploadResult {
   /** Always 202, every upload finalizes as a background job now. */
   status: number;
   body: {
-    // The finalize result itself (result_type/id/title/disc_count/
-    // reused_existing_media for software_games/software_apps, path/slug/
-    // size_bytes for software_media) no longer comes back in this response,
-    // it lands in the job's own `result` once GET /api/v1/jobs/{job_id}
-    // reports it done, since finalize always runs after this call returns.
-    // These fields are kept optional here only so callers that still read
-    // them (pending their own follow-up update to read from the job
-    // instead) don't hit a type error, they will always be undefined.
-    result_type?: 'game_item_bundle' | 'app_item_bundle' | 'media_upload';
-    id?: number;
-    title?: string;
-    disc_count?: number;
-    reused_existing_media?: boolean;
-    path?: string;
-    slug?: string;
-    size_bytes?: number;
+    // /complete only acknowledges the upload: the finalize result lands in
+    // the job's own `result` once GET /api/v1/jobs/{job_id} reports it done.
+    // For software_media that result is { result_type: 'media_upload', id
+    // (the new bundle), media_item_id, path, slug, title, size_bytes }; the
+    // other domains' results are described by their own finalize modules.
+    // Nothing but job_id and status is read from this response.
     job_id: string;
     status: string;
   };
@@ -109,6 +100,10 @@ async function asError(res: Response): Promise<Error> {
  * software_apps accepts "file"/"folder" (no "set"), software_games accepts
  * all three. The server enforces this (422 on an unsupported kind); this
  * function does not duplicate that check.
+ *
+ * mediaKind is for software_media only: it is required when the file is an
+ * archive (.zip, .7z), whose kind the server cannot infer, and is rejected
+ * (422) by the other domains.
  */
 export function chunkedUpload(
   kind: 'file' | 'folder' | 'set',
@@ -118,6 +113,7 @@ export function chunkedUpload(
   domain: UploadDomain,
   onJobId?: (jobId: string) => void,
   chunkSize: number = DEFAULT_CHUNK_SIZE,
+  mediaKind?: MediaKind,
 ): ChunkedUploadHandle {
   const controller = new AbortController();
   const uploadsBase = `${baseURL}/api/v1/uploads/${DOMAIN_PATH[domain]}`;
@@ -147,7 +143,12 @@ export function chunkedUpload(
       method: 'POST',
       credentials: 'include',
       headers: { ...headers(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind, title, files: manifest }),
+      body: JSON.stringify({
+        kind,
+        title,
+        files: manifest,
+        ...(mediaKind ? { media_kind: mediaKind } : {}),
+      }),
       signal: controller.signal,
     });
     if (!initRes.ok) throw await asError(initRes);

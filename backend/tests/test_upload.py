@@ -106,6 +106,37 @@ class TestBeginUpload:
         assert dest_dir1.exists()
         assert dest_dir2.exists()
 
+    def test_losing_a_name_race_retries_with_a_new_slug(self, tmp_path, monkeypatch):
+        """A concurrent upload took the slug between unique_slug's exists()
+        check and mkdir: the loser gets the next free slug, not a 500."""
+        import backend.service.utils.upload_utils as upload_utils
+
+        (tmp_path / "doom").mkdir()
+        real = upload_utils.unique_slug
+        picks = iter(["doom"])
+        monkeypatch.setattr(
+            upload_utils, "unique_slug", lambda name, query_fn, **kw: next(picks, None) or real(name, query_fn, **kw),
+        )
+
+        dest_dir, dest_path = upload_utils.begin_upload(tmp_path, "doom.iso")
+
+        assert dest_dir.name == "doom-2"
+        assert dest_dir.is_dir()
+        assert dest_path.parent == dest_dir
+
+    def test_persistent_collisions_are_a_409_not_a_500(self, tmp_path, monkeypatch):
+        from fastapi import HTTPException
+
+        import backend.service.utils.upload_utils as upload_utils
+
+        (tmp_path / "doom").mkdir()
+        monkeypatch.setattr(upload_utils, "unique_slug", lambda name, query_fn, **kw: "doom")
+
+        with pytest.raises(HTTPException) as exc_info:
+            upload_utils.begin_upload(tmp_path, "doom.iso")
+
+        assert exc_info.value.status_code == 409
+
 
 # ---------------------------------------------------------------------------
 # Route-level tests, shared fixture plumbing
@@ -730,11 +761,11 @@ class TestChunkedMediaUploadExtensionAllowlist:
             cu.abort(upload_id)
 
     @staticmethod
-    def _init(c, name: str):
-        return c.post(
-            "/api/v1/uploads/software-media/init",
-            json={"kind": "file", "title": None, "files": [{"name": name, "size": 4, "chunks": 1}]},
-        )
+    def _init(c, name: str, media_kind: str | None = None):
+        body = {"kind": "file", "title": None, "files": [{"name": name, "size": 4, "chunks": 1}]}
+        if media_kind is not None:
+            body["media_kind"] = media_kind
+        return c.post("/api/v1/uploads/software-media/init", json=body)
 
     @pytest.mark.parametrize("name", ["page.html", "art.svg", "script.js", "noext", "evil.ht ml"])
     def test_disallowed_extension_is_422_and_no_session_is_created(self, client, name):
@@ -758,3 +789,30 @@ class TestChunkedMediaUploadExtensionAllowlist:
         resp = self._init(c, name)
         assert resp.status_code == 200, resp.text
         assert len(created) == 1
+
+    @pytest.mark.parametrize("name", ["pack.zip", "scans.7z", "PACK.ZIP"])
+    @pytest.mark.parametrize("media_kind", ["image", "audio", "video", "text"])
+    def test_archive_with_a_media_kind_is_accepted(self, client, name, media_kind):
+        c, created = client
+        resp = self._init(c, name, media_kind)
+        assert resp.status_code == 200, resp.text
+        assert len(created) == 1
+
+    def test_unknown_media_kind_is_422(self, client):
+        c, created = client
+        resp = self._init(c, "pack.zip", "software")
+        assert resp.status_code == 422, resp.text
+        assert created == []
+
+    def test_media_kind_must_fit_the_file(self, client):
+        c, created = client
+        resp = self._init(c, "track.mp3", "image")
+        assert resp.status_code == 422, resp.text
+        assert created == []
+
+    def test_media_kind_is_stored_on_the_session(self, client):
+        from backend.service.uploads import core as cu
+
+        c, created = client
+        assert self._init(c, "pack.zip", "audio").status_code == 200
+        assert cu.get_session(created[0])["media_kind"] == "audio"

@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { chunkedUpload } from '@/lib/chunkedUpload';
+import type { MediaKind } from '@/generated/constants';
 import { apiFetch, ApiError } from '@/api/client';
 import { useAppContext } from '@/context/useAppContext';
 import { useConfirm } from '@/hooks/useConfirm';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import { Button, Modal, Checkbox } from '@/ui';
-import { newEntryId, stageFolderFiles } from './helpers';
+import { isArchiveFile, newEntryId, stageFolderFiles } from './helpers';
 import { defaultUploadTitle } from './defaultUploadTitle';
 import SingleFileMode from './SingleFileMode';
 import MultiDiscMode from './MultiDiscMode';
@@ -168,7 +169,7 @@ export default function UploadBody({
       : discSetTitle.trim();
   const effectiveFolderName = folderNameTouched ? folderName : derivedFolderName;
 
-  function startUpload(entry: UploadEntry) {
+  function startUpload(entry: UploadEntry, mediaKind?: MediaKind) {
     const title = entry.file.name
       .replace(/\.[^/.]+$/, '')
       .replace(/[-_]/g, ' ')
@@ -197,6 +198,8 @@ export default function UploadBody({
         });
         setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, jobId } : e)));
       },
+      undefined,
+      mediaKind,
     );
     entryAbortsRef.current.set(entry.id, abort);
     promise
@@ -231,14 +234,31 @@ export default function UploadBody({
       return;
     }
 
+    // Media archives wait for the user to pick their kind; the server cannot
+    // infer one from .zip or .7z.
     const next: UploadEntry[] = files.map((file) => ({
       id: newEntryId(),
       file,
       progress: 0,
-      status: 'uploading',
+      status:
+        config.uploadDomain === 'software_media' && isArchiveFile(file)
+          ? 'needs_kind'
+          : 'uploading',
     }));
     setEntries((prev) => [...prev, ...next]);
-    next.forEach(startUpload);
+    next.filter((e) => e.status === 'uploading').forEach((e) => startUpload(e));
+  }
+
+  function chooseArchiveKind(entryId: string, mediaKind: MediaKind) {
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry || entry.status !== 'needs_kind') return;
+    const started: UploadEntry = { ...entry, status: 'uploading' };
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? started : e)));
+    startUpload(started, mediaKind);
+  }
+
+  function removeEntry(entryId: string) {
+    setEntries((prev) => prev.filter((e) => e.id !== entryId));
   }
 
   // Multi-disc + folder-upload combo: the picked folder's files are already
@@ -680,6 +700,8 @@ export default function UploadBody({
             onFiles={handleFiles}
             entries={entries}
             backgroundJobs={state.backgroundJobs}
+            onChooseKind={chooseArchiveKind}
+            onRemoveEntry={removeEntry}
           />
         )}
 

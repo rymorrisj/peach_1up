@@ -3,7 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/ui/ToastProvider';
 import { apiFetch, ApiError } from '@/api/client';
 import { FetchMetadataModal } from './FetchMetadataModal';
-import { PREVIOUS_ASSETS_ERROR_TYPE, previousAssetsCount } from './previousAssets';
+import {
+  PREVIOUS_ASSETS_ERROR_TYPE,
+  keepAddedNothing,
+  previousAssetsCount,
+} from './previousAssets';
 
 // Accept All's previous-assets 409 (META-7): the modal shows a Replace /
 // Keep choice with the server's count and retries with previous_assets set.
@@ -50,7 +54,16 @@ interface AcceptCall {
   previous_assets?: string;
 }
 
-function mockApi(acceptResponses: Array<'conflict' | 'ok'>, existingCount = 3): AcceptCall[] {
+type AcceptResponse = 'conflict' | 'ok' | 'ok-nothing-new' | 'ok-added' | 'too-many';
+
+const TOO_MANY_DETAIL =
+  'This metadata offers 31 images, but Accept All can apply at most 30 per apply (limit 30). Nothing was downloaded.';
+
+function fetchedItems(count: number) {
+  return { items: Array.from({ length: count }, (_, i) => ({ source_url: `https://x/${i}.jpg` })) };
+}
+
+function mockApi(acceptResponses: AcceptResponse[], existingCount = 3): AcceptCall[] {
   const acceptCalls: AcceptCall[] = [];
   vi.mocked(apiFetch).mockImplementation((url: unknown, init?: RequestInit) => {
     const u = typeof url === 'string' ? url : '';
@@ -71,6 +84,9 @@ function mockApi(acceptResponses: Array<'conflict' | 'ok'>, existingCount = 3): 
           }),
         );
       }
+      if (next === 'too-many') return Promise.reject(new ApiError(413, TOO_MANY_DETAIL));
+      if (next === 'ok-nothing-new') return Promise.resolve(fetchedItems(existingCount));
+      if (next === 'ok-added') return Promise.resolve(fetchedItems(existingCount + 1));
       return Promise.resolve({});
     }
     return Promise.resolve({});
@@ -160,6 +176,46 @@ describe('FetchMetadataModal previous assets choice', () => {
     expect(acceptCalls).toHaveLength(1);
   });
 
+  it('Keep and add new with nothing new says so instead of "Linked media created"', async () => {
+    const user = userEvent.setup();
+    mockApi(['conflict', 'ok-nothing-new']);
+    const { onClose } = renderModal();
+
+    await reachAcceptAll(user);
+    await user.click(screen.getByRole('button', { name: 'Accept All' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep and add new' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(await screen.findByText('No new media to add')).toBeInTheDocument();
+    expect(screen.queryByText(/Linked media created/)).not.toBeInTheDocument();
+  });
+
+  it('Keep and add new that adds images still says "Linked media created"', async () => {
+    const user = userEvent.setup();
+    mockApi(['conflict', 'ok-added']);
+    const { onClose } = renderModal();
+
+    await reachAcceptAll(user);
+    await user.click(screen.getByRole('button', { name: 'Accept All' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep and add new' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(await screen.findByText(/Linked media created/)).toBeInTheDocument();
+    expect(screen.queryByText('No new media to add')).not.toBeInTheDocument();
+  });
+
+  it('shows the over-the-cap 413 as readable text in the modal', async () => {
+    const user = userEvent.setup();
+    mockApi(['too-many']);
+    const { onClose } = renderModal();
+
+    await reachAcceptAll(user);
+    await user.click(screen.getByRole('button', { name: 'Accept All' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(TOO_MANY_DETAIL);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('a first apply sends no previous_assets', async () => {
     const user = userEvent.setup();
     const acceptCalls = mockApi(['ok']);
@@ -190,5 +246,28 @@ describe('previousAssetsCount', () => {
       previousAssetsCount(new ApiError(422, 'x', { error_type: PREVIOUS_ASSETS_ERROR_TYPE })),
     ).toBeNull();
     expect(previousAssetsCount(new Error('network'))).toBeNull();
+  });
+});
+
+describe('keepAddedNothing', () => {
+  const bundle = (fetched: number, manual = 1) => ({
+    items: [
+      ...Array.from({ length: fetched }, () => ({ source_url: 'https://x/a.jpg' })),
+      ...Array.from({ length: manual }, () => ({ source_url: null })),
+    ],
+  });
+
+  it('is true when Keep leaves the fetched count unchanged', () => {
+    expect(keepAddedNothing('keep', 3, bundle(3))).toBe(true);
+  });
+
+  it('is false when Keep adds fetched images', () => {
+    expect(keepAddedNothing('keep', 3, bundle(4))).toBe(false);
+  });
+
+  it('is false for Replace, a first apply, or an unknown prior count', () => {
+    expect(keepAddedNothing('replace', 3, bundle(3))).toBe(false);
+    expect(keepAddedNothing(undefined, null, bundle(3))).toBe(false);
+    expect(keepAddedNothing('keep', null, bundle(3))).toBe(false);
   });
 });

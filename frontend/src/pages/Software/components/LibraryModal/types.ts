@@ -38,7 +38,9 @@ export interface UploadEntry {
   id: string;
   file: File;
   progress: number;
-  status: 'uploading' | 'success' | 'reused' | 'error';
+  // 'needs_kind': a Media archive (.zip, .7z) waiting for the user to pick its
+  // media kind; nothing is uploaded until they do.
+  status: 'needs_kind' | 'uploading' | 'success' | 'reused' | 'error';
   error?: string;
   // Set only when the finalize step went to a background job (202 response).
   // While set, the entry's live progress/message are read from

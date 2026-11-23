@@ -207,7 +207,9 @@ class TestLimits:
             _apply(db, game, assets)
 
         assert exc_info.value.status_code == 413
-        assert str(ACCEPT_ALL_MAX_ASSETS) in exc_info.value.detail
+        detail = exc_info.value.detail
+        assert f"{ACCEPT_ALL_MAX_ASSETS + 1} images" in detail
+        assert f"at most {ACCEPT_ALL_MAX_ASSETS} per apply" in detail
         assert env.fetched == []
         assert _counts(db) == (0, 0, 0)
 

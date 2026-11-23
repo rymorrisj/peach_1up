@@ -4,6 +4,7 @@ import { useToast } from '@/ui/ToastProvider';
 import { apiFetch } from '@/api/client';
 import {
   PREVIOUS_ASSETS_ERROR_TYPE,
+  keepAddedNothing,
   previousAssetsCount,
   type PreviousAssetsChoice,
 } from './previousAssets';
@@ -246,17 +247,25 @@ export function FetchMetadataModal({
     setAcceptingAll(true);
     setAcceptError(null);
     try {
-      await apiFetch(`/api/v1/game-items/${entityId}/accept-metadata-assets`, {
-        method: 'POST',
-        body: JSON.stringify({
-          assets: details.assets,
-          ...(previousAssets ? { previous_assets: previousAssets } : {}),
-        }),
-        timeoutMs: ACCEPT_METADATA_TIMEOUT_MS,
-        quietErrorTypes: [PREVIOUS_ASSETS_ERROR_TYPE],
-      });
+      const bundle = await apiFetch<{ items?: { source_url?: string | null }[] }>(
+        `/api/v1/game-items/${entityId}/accept-metadata-assets`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            assets: details.assets,
+            ...(previousAssets ? { previous_assets: previousAssets } : {}),
+          }),
+          timeoutMs: ACCEPT_METADATA_TIMEOUT_MS,
+          quietErrorTypes: [PREVIOUS_ASSETS_ERROR_TYPE],
+        },
+      );
+      const nothingNew = keepAddedNothing(previousAssets, existingFetchedCount, bundle);
       setExistingFetchedCount(null);
-      showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success');
+      if (nothingNew) {
+        showToast('No new media to add', 'info');
+      } else {
+        showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success');
+      }
       // Same call handleKeep() makes above: the accepted assets can change
       // bundle-level fields (cover art, linked_items), and onSuccess's
       // refetchEntity()/resyncFromCollection() (see gameConfig.tsx) pulls a

@@ -27,6 +27,7 @@ def app_owned_leaf_cover(raw: Optional[str], leaf_id: int) -> Optional[Path]:
     """*raw* resolved, when it is this leaf's own file directly inside
     _game_covers; None for anything else (including when MEDIA_PATH is not
     configured)."""
+    from backend.service.media.file_cleanup import lexical_key
     from backend.service.utils.path_utils import game_covers_root, is_untrusted_remote_path
 
     if not raw or is_untrusted_remote_path(raw):
@@ -36,7 +37,7 @@ def app_owned_leaf_cover(raw: Optional[str], leaf_id: int) -> Optional[Path]:
         resolved = Path(raw).resolve()
     except (OSError, ValueError):
         return None
-    if resolved.parent != root or resolved.stem != leaf_cover_stem(leaf_id):
+    if lexical_key(str(resolved.parent)) != lexical_key(str(root)) or resolved.stem != leaf_cover_stem(leaf_id):
         return None
     return resolved
 
@@ -44,15 +45,16 @@ def app_owned_leaf_cover(raw: Optional[str], leaf_id: int) -> Optional[Path]:
 def _still_referenced(raw: str, db: "Session") -> bool:
     from backend.models.game import GameItem
     from backend.models.media import MediaItem, MediaItemBundle
-    from backend.service.media.file_cleanup import path_variants
+    from backend.service.media.file_cleanup import matching_row_ids, path_keys
 
-    variants = path_variants(raw)
-    return (
-        db.query(GameItem.id).filter(GameItem.cover_art_path.in_(variants)).first() is not None
-        or db.query(MediaItem.id).filter(
-            MediaItem.file_path.in_(variants) | MediaItem.cover_art_path.in_(variants)
-        ).first() is not None
-        or db.query(MediaItemBundle.id).filter(MediaItemBundle.cover_art_path.in_(variants)).first() is not None
+    targets = path_keys(raw)
+    return any(
+        matching_row_ids(db, model, columns, targets)
+        for model, columns in (
+            (GameItem, ("cover_art_path",)),
+            (MediaItem, ("file_path", "cover_art_path")),
+            (MediaItemBundle, ("cover_art_path",)),
+        )
     )
 
 

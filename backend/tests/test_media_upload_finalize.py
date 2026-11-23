@@ -18,14 +18,16 @@ def db():
         yield session
 
 
-def _reassembled(tmp_path, name: str, body: bytes = b"ID3data", title: str = "Doom OST"):
+def _reassembled(tmp_path, name: str, body: bytes = b"ID3data", title: str = "Doom OST", media_kind=None):
     from backend.service.uploads.core import ReassembledUpload
 
     dest_dir = tmp_path / "media" / "doom-ost"
     dest_dir.mkdir(parents=True)
     path = dest_dir / name
     path.write_bytes(body)
-    return ReassembledUpload(kind="file", title=title, dest_dir=dest_dir, paths=[path], total_bytes=len(body))
+    return ReassembledUpload(
+        kind="file", title=title, dest_dir=dest_dir, paths=[path], total_bytes=len(body), media_kind=media_kind
+    )
 
 
 class TestFinalizeCreatesRow:
@@ -109,6 +111,31 @@ class TestFinalizeRollsBack:
         reasm.paths.append(extra)
 
         with pytest.raises(ValueError, match="exactly one file"):
+            finalize_reassembled(reasm, db)
+
+        assert not reasm.dest_dir.exists()
+        assert db.query(MediaItem).count() == 0
+
+    @pytest.mark.parametrize("media_kind", ["image", "audio", "video", "text"])
+    def test_archive_takes_the_supplied_kind(self, db, tmp_path, media_kind):
+        from backend.models.media import MediaItem, MediaItemBundle
+        from backend.service.uploads.software_media import finalize_reassembled
+
+        reasm = _reassembled(tmp_path, "pack.zip", body=b"PK\x03\x04", media_kind=media_kind)
+
+        result = finalize_reassembled(reasm, db)
+
+        assert db.get(MediaItem, result["media_item_id"]).media_kind == media_kind
+        assert db.get(MediaItemBundle, result["id"]).media_kind == media_kind
+        assert reasm.paths[0].exists()
+
+    def test_supplied_kind_that_does_not_fit_the_file_is_refused_and_removed(self, db, tmp_path):
+        from backend.models.media import MediaItem
+        from backend.service.uploads.software_media import finalize_reassembled
+
+        reasm = _reassembled(tmp_path, "theme.mp3", media_kind="image")
+
+        with pytest.raises(ValueError, match="not allowed"):
             finalize_reassembled(reasm, db)
 
         assert not reasm.dest_dir.exists()
