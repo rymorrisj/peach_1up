@@ -1,3 +1,4 @@
+import { resolveDisplayLeaf } from '../types';
 import type { BaseSoftwareForm } from './softwareForm';
 
 // is_pc stays boolean, not string, unlike platform/environment_item_id below,
@@ -30,8 +31,7 @@ export interface EditableAppCollection {
 // in ../types.ts), confirmed against backend/models/app.py rather than
 // assumed, since Media's cover_art_path lives directly on the bundle instead.
 export function formFromCollection(c: EditableAppCollection): SoftwareAppForm {
-  const effectiveLeafId = c.display_disk_id ?? c.launch_disk_id;
-  const leaf = c.items.find((i) => i.id === effectiveLeafId) ?? c.items[0];
+  const leaf = resolveDisplayLeaf(c.items, c.display_disk_id, c.launch_disk_id);
   return {
     title: c.title,
     description: c.description ?? '',

@@ -398,6 +398,7 @@ def apply_cover_art_to_linked_games(
         raise HTTPException(status_code=422, detail="file_path does not belong to this media item.")
 
     from backend.models.game import GameItemBundle
+    from backend.service.games.leaf_covers import effective_display_leaf
 
     linked_game_ids = [
         ref.entity_id
@@ -420,10 +421,9 @@ def apply_cover_art_to_linked_games(
     try:
         for game_id in linked_game_ids:
             bundle = db.get(GameItemBundle, game_id)
-            if not bundle or not bundle.items:
+            leaf = effective_display_leaf(bundle) if bundle else None
+            if leaf is None:
                 continue
-            target_leaf_id = bundle.display_disk_id or bundle.launch_disk_id
-            leaf = next((i for i in bundle.items if i.id == target_leaf_id), None) or bundle.items[0]
             leaf.cover_art_path = str(cover_path)
             updated.append(game_id)
         db.commit()

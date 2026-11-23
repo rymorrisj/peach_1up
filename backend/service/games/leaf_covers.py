@@ -16,7 +16,20 @@ from backend.core.logger import get_logger
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from backend.models.game import GameItem, GameItemBundle
+
 _log = get_logger(__name__)
+
+
+def effective_display_leaf(bundle: "GameItemBundle") -> Optional["GameItem"]:
+    """The disc whose cover the card shows: display_disk_id, else
+    launch_disk_id, else the first disc by disc_number. None when the bundle
+    has no discs. Mirrors resolveLeafCoverArt (frontend/src/pages/Software/types.ts)."""
+    wanted = bundle.display_disk_id or bundle.launch_disk_id
+    leaf = next((i for i in bundle.items if i.id == wanted), None)
+    if leaf is None and bundle.items:
+        return bundle.items[0]
+    return leaf
 
 
 def leaf_cover_stem(leaf_id: int) -> str:

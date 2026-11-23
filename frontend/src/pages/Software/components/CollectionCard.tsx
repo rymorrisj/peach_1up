@@ -5,7 +5,7 @@ import {
   PLATFORM_PLACEHOLDER,
   PLATFORM_PLACEHOLDER_DEFAULT,
 } from '@/types/platform';
-import type { EntityBundleBase } from '../types';
+import { resolveDisplayLeaf, type EntityBundleBase } from '../types';
 import type { PlatformReview } from './platformReview';
 import { CoverImage } from './CoverImage';
 
@@ -212,9 +212,11 @@ interface CollectionCardProps {
 }
 
 export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: CollectionCardProps) {
-  // Effective display disc, display_disk_id overrides, falls back to launch_disk_id
-  const effectiveDisplayId = bundle.display_disk_id ?? bundle.launch_disk_id;
-  const displayDisc = bundle.items.find((d) => d.id === effectiveDisplayId) ?? bundle.items[0];
+  const displayDisc = resolveDisplayLeaf(
+    bundle.items,
+    bundle.display_disk_id,
+    bundle.launch_disk_id,
+  );
   const launchDisc = bundle.items.find((d) => d.id === bundle.launch_disk_id) ?? bundle.items[0];
   const launchDiffersFromDisplay =
     !!displayDisc && !!launchDisc && displayDisc.id !== launchDisc.id;

@@ -1630,23 +1630,43 @@ _EXISTENCE_FIELDS = {"executable_path", "cover_art_path"}
 # executable_path is what coordinator.py prefers over media_path when
 # building a LaunchSpec (see _launch_entity), so it is the one field here
 # that can steer a launch outside the library entirely if left unchecked.
-# cover_art_path only ever gets read for display, never passed to a
-# backend's launch(), so it is deliberately left out of this containment
-# check, same reasoning ingest already applies to media_src at
-# ~line 340-348 (games-only, directory case).
 _CONTAINMENT_FIELDS = {"executable_path"}
 
 
+def _require_cover_in_library(resolved: Path, raw: str) -> None:
+    """A cover renders from /media/<path relative to LIBRARY_PATH>, the same
+    root GameItemRead resolves cover_art_url against, so a path outside it
+    would save and then show a blank card. Checked before any existence test,
+    so the 422 says nothing about whether the path exists."""
+    from backend.core.logger import get_logger
+    from backend.core.settings import get_settings
+
+    library = get_settings().get("LIBRARY_PATH", "") or ""
+    if library and resolved.is_relative_to(Path(library).resolve()):
+        return
+    get_logger(__name__).warning("Rejected game cover_art_path %r: outside LIBRARY_PATH", raw)
+    raise HTTPException(
+        status_code=422,
+        detail="cover_art_path must be inside the library folder (its software or media folders).",
+    )
+
+
 def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, db: Session) -> GameItem:
+    """Only fields present in the body are written; an explicit null clears
+    the column. Clearing a cover never deletes the file."""
     leaf = db.get(GameItem, leaf_id)
     if not leaf or leaf.game_item_bundle_id != collection_id:
         raise HTTPException(status_code=404, detail="Software item not found.")
-    fields = body.model_dump(exclude_none=True)
+    fields = body.model_dump(exclude_unset=True)
     for key in _PATH_FIELDS & fields.keys():
+        if fields[key] is None:
+            continue
         try:
             resolved = normalise_path(fields[key])
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"{key}: {e}")
+        if key == "cover_art_path":
+            _require_cover_in_library(resolved, fields[key])
         if key in _EXISTENCE_FIELDS and not resolved.exists():
             raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
         if key in _CONTAINMENT_FIELDS:

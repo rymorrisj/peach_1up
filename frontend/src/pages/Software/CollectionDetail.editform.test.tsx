@@ -623,6 +623,89 @@ describe('CollectionDetail edit form (field-level)', () => {
   });
 });
 
+describe('CollectionDetail edit form cover art target', () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  // Launch disc 100, display disc 101: the card shows disc 101's cover.
+  function twoDiscApi() {
+    const disc = (id: number, n: number, cover: string) => ({
+      id,
+      game_item_bundle_id: 1,
+      disc_number: n,
+      file_path: `/images/disc${n}.iso`,
+      executable_path: null,
+      cover_art_path: cover,
+      cover_art_url: null,
+    });
+    return setupApi([
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () =>
+          fullCollection({
+            launch_disk_id: 100,
+            display_disk_id: 101,
+            items: [disc(100, 1, 'C:/lib/launch.png'), disc(101, 2, 'C:/lib/display.png')],
+          }),
+      },
+      { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
+      {
+        match: /\/api\/v1\/game-item-bundle\/1\/items\/10[01]$/,
+        method: 'PATCH',
+        respond: () => ({}),
+      },
+    ]);
+  }
+
+  it('shows the display disc cover and saves an edit to the display disc only', async () => {
+    const user = userEvent.setup();
+    const calls = twoDiscApi();
+    renderPage();
+    await waitForLoaded();
+
+    const input = screen.getByLabelText('Cover Art Path');
+    expect(input).toHaveValue('C:/lib/display.png');
+    await user.clear(input);
+    await user.type(input, 'C:/lib/new.png');
+    await saveAndWait(user);
+
+    const display = callsTo(calls, '/api/v1/game-item-bundle/1/items/101', 'PATCH');
+    expect(display).toHaveLength(1);
+    expect(display[0].body).toEqual({ cover_art_path: 'C:/lib/new.png' });
+    const launch = callsTo(calls, '/api/v1/game-item-bundle/1/items/100', 'PATCH');
+    expect(launch[0].body).not.toHaveProperty('cover_art_path');
+  });
+
+  it('sends an explicit null when the cover is cleared', async () => {
+    const user = userEvent.setup();
+    const calls = twoDiscApi();
+    renderPage();
+    await waitForLoaded();
+
+    await user.clear(screen.getByLabelText('Cover Art Path'));
+    await saveAndWait(user);
+
+    const display = callsTo(calls, '/api/v1/game-item-bundle/1/items/101', 'PATCH');
+    expect(display[0].body).toEqual({ cover_art_path: null });
+  });
+
+  it('does not resend an unchanged cover', async () => {
+    const user = userEvent.setup();
+    const calls = twoDiscApi();
+    renderPage();
+    await waitForLoaded();
+
+    await user.type(screen.getByLabelText('Sort Title'), 'Doom, The');
+    await saveAndWait(user);
+
+    expect(callsTo(calls, '/api/v1/game-item-bundle/1/items/101', 'PATCH')).toHaveLength(0);
+    const launch = callsTo(calls, '/api/v1/game-item-bundle/1/items/100', 'PATCH');
+    expect(launch[0].body).not.toHaveProperty('cover_art_path');
+  });
+});
+
 describe('CollectionDetail platform confirmation', () => {
   afterEach(() => {
     vi.resetAllMocks();

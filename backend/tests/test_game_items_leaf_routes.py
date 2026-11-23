@@ -216,3 +216,106 @@ class TestVerifyLeafVisibilityFilter:
         resp = c.post(f"/api/v1/game-item/{leaf.id}/verify")
 
         assert resp.status_code == 403, resp.text
+
+
+# PATCH /game-item/{leaf_id}: unset vs null, and cover_art_path confinement
+
+
+@pytest.fixture
+def library(tmp_path, monkeypatch):
+    root = tmp_path / "library"
+    (root / "media").mkdir(parents=True)
+
+    import backend.core.settings as core_settings
+    from backend.service.utils import settings as settings_mod
+
+    monkeypatch.setattr(
+        settings_mod, "get", lambda key, default=None: str(root) if key == "LIBRARY_PATH" else default,
+    )
+    monkeypatch.setattr(core_settings, "get_settings", lambda: settings_mod)
+    return root
+
+
+class TestLeafPatchCover:
+    def _owner_and_leaf(self, http_client, **leaf_fields):
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        leaf = _make_leaf(db, _make_game_bundle(db), **leaf_fields)
+        return c, db, leaf
+
+    def test_cover_inside_the_library_is_saved(self, http_client, library):
+        cover = library / "media" / "cover.png"
+        cover.write_bytes(b"png")
+        c, _, leaf = self._owner_and_leaf(http_client)
+
+        resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": str(cover)})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["cover_art_url"] == "/media/media/cover.png"
+
+    def test_cover_outside_the_library_is_422_and_not_saved(self, http_client, library, tmp_path):
+        outside = tmp_path / "elsewhere" / "cover.png"
+        outside.parent.mkdir()
+        outside.write_bytes(b"png")
+        c, db, leaf = self._owner_and_leaf(http_client)
+
+        resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": str(outside)})
+
+        assert resp.status_code == 422, resp.text
+        assert "library" in resp.json()["detail"]
+        db.refresh(leaf)
+        assert leaf.cover_art_path is None
+
+    def test_outside_path_gives_the_same_answer_whether_or_not_it_exists(self, http_client, library, tmp_path):
+        existing = tmp_path / "elsewhere.png"
+        existing.write_bytes(b"png")
+        missing = tmp_path / "missing.png"
+        c, _, leaf = self._owner_and_leaf(http_client)
+
+        a = c.patch(f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": str(existing)})
+        b = c.patch(f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": str(missing)})
+
+        assert a.status_code == b.status_code == 422
+        assert a.json()["detail"] == b.json()["detail"]
+        assert str(tmp_path) not in a.json()["detail"]
+
+    def test_explicit_null_clears_cover_and_executable_but_keeps_the_file(self, http_client, library):
+        cover = library / "media" / "cover.png"
+        cover.write_bytes(b"png")
+        c, db, leaf = self._owner_and_leaf(
+            http_client, cover_art_path=str(cover), executable_path=str(library / "game.exe"),
+        )
+
+        resp = c.patch(
+            f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": None, "executable_path": None},
+        )
+
+        assert resp.status_code == 200, resp.text
+        db.refresh(leaf)
+        assert leaf.cover_art_path is None
+        assert leaf.executable_path is None
+        assert cover.read_bytes() == b"png"
+
+    def test_omitted_fields_are_left_alone(self, http_client, library):
+        cover = library / "media" / "cover.png"
+        cover.write_bytes(b"png")
+        c, db, leaf = self._owner_and_leaf(
+            http_client, cover_art_path=str(cover), executable_path=str(library / "game.exe"),
+        )
+
+        resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": None})
+
+        assert resp.status_code == 200, resp.text
+        db.refresh(leaf)
+        assert leaf.cover_art_path is None
+        assert leaf.executable_path == str(library / "game.exe")
+
+    def test_existing_cover_outside_the_library_survives_an_unrelated_patch(self, http_client, library, tmp_path):
+        stored = str(tmp_path / "old" / "cover.png")
+        c, db, leaf = self._owner_and_leaf(http_client, cover_art_path=stored)
+
+        resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={})
+
+        assert resp.status_code == 200, resp.text
+        db.refresh(leaf)
+        assert leaf.cover_art_path == stored

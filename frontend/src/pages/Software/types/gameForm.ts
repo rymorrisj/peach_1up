@@ -1,3 +1,4 @@
+import { resolveDisplayLeaf } from '../types';
 import type { BaseSoftwareForm } from './softwareForm';
 
 export interface SoftwareGameForm extends BaseSoftwareForm {
@@ -30,15 +31,18 @@ export interface EditableCollection {
   environment_item_id: number | null;
   profile_item_id: number | null;
   launch_disk_id: number | null;
+  display_disk_id: number | null;
   items: EditableItem[];
 }
 
-// Games-specific derivation, including the launch-disc lookup for
-// cover_art_path/executable_path. Media/App items have no such traversal
-// (no launch-disc indirection), so this stays colocated with SoftwareGameForm
-// rather than folded into the generalized useEditForm hook.
+// Games-specific derivation: executable_path comes from the launch disc and
+// cover_art_path from the display disc, the one the card actually shows.
+// Media/App items have no such traversal (no launch-disc indirection), so
+// this stays colocated with SoftwareGameForm rather than folded into the
+// generalized useEditForm hook.
 export function formFromCollection(c: EditableCollection): SoftwareGameForm {
   const launchDisc = c.items.find((i) => i.id === c.launch_disk_id) ?? c.items[0];
+  const displayDisc = resolveDisplayLeaf(c.items, c.display_disk_id, c.launch_disk_id);
   return {
     title: c.title,
     sort_title: c.sort_title ?? '',
@@ -46,7 +50,7 @@ export function formFromCollection(c: EditableCollection): SoftwareGameForm {
     publisher: c.publisher ?? '',
     year: c.year?.toString() ?? '',
     category: c.category ?? '',
-    cover_art_path: launchDisc?.cover_art_path ?? '',
+    cover_art_path: displayDisc?.cover_art_path ?? '',
     content_rating: c.content_rating ?? '',
     platform: c.platform && c.platform !== 'unknown' ? c.platform : '',
     environment_item_id: c.environment_item_id?.toString() ?? '',

@@ -25,7 +25,12 @@ import { LinkedItemsSection } from '../components/LinkedItemsSection';
 import { LaunchNote } from '../components/LaunchNote';
 import { useUserEnvironmentCount } from '@/hooks/useUserEnvironmentCount';
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types';
-import { launchGateFromReason, SOFTWARE_SORT_OPTIONS, GAME_ROUTE_BASE } from '../types';
+import {
+  launchGateFromReason,
+  resolveDisplayLeaf,
+  SOFTWARE_SORT_OPTIONS,
+  GAME_ROUTE_BASE,
+} from '../types';
 import type { LibraryModalConfig } from '../components/LibraryModal';
 import { parseNaiveUtc } from '@/lib/date';
 import {
@@ -232,17 +237,39 @@ function useGameDetailExtras(
         });
       }
 
-      const launchDiscId = reorderStaged
-        ? discOrder![0]
-        : (bundle?.launch_disk_id ?? bundle?.items[0]?.id);
-      if (launchDiscId != null && bundleId != null) {
-        await apiFetch(`/api/v1/game-item-bundle/${bundleId}/items/${launchDiscId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            executable_path: f.executable_path.trim() || null,
-            cover_art_path: f.cover_art_path.trim() || null,
-          }),
+      // executable_path belongs to the launch disc, cover_art_path to the
+      // display disc (the one the card shows). They are often the same disc,
+      // then one PATCH carries both. The cover is only sent when edited, so
+      // saving other fields never re-validates a stored cover.
+      const items = bundle?.items ?? [];
+      const launchDiscId = reorderStaged ? discOrder![0] : (bundle?.launch_disk_id ?? items[0]?.id);
+      const seededCover = resolveDisplayLeaf(
+        items,
+        bundle?.display_disk_id ?? null,
+        bundle?.launch_disk_id ?? null,
+      )?.cover_art_path;
+      const displayDiscId = resolveDisplayLeaf(
+        items,
+        bundle?.display_disk_id ?? null,
+        launchDiscId ?? null,
+      )?.id;
+      const patches = new Map<number, Record<string, string | null>>();
+      if (launchDiscId != null) {
+        patches.set(launchDiscId, { executable_path: f.executable_path.trim() || null });
+      }
+      if (displayDiscId != null && f.cover_art_path.trim() !== (seededCover ?? '').trim()) {
+        patches.set(displayDiscId, {
+          ...patches.get(displayDiscId),
+          cover_art_path: f.cover_art_path.trim() || null,
         });
+      }
+      if (bundleId != null) {
+        for (const [discId, body] of patches) {
+          await apiFetch(`/api/v1/game-item-bundle/${bundleId}/items/${discId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(body),
+          });
+        }
       }
 
       // Fetch fresh, fully up-to-date bundle data (reflecting the bundle

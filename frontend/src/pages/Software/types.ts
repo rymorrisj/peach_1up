@@ -46,16 +46,25 @@ export interface EntityBundleBase {
 export type CoverArtResolver<TBundle> = (bundle: TBundle) => string | null;
 
 // Shared by Game and App bundles, whose cover art lives on whichever leaf
-// item display_disk_id (falling back to launch_disk_id) points at, Media
-// has no leaf indirection, its cover art is a direct bundle field instead.
+// item display_disk_id (falling back to launch_disk_id, then the first item)
+// points at. Media has no leaf indirection, its cover art is a direct bundle
+// field instead. Backend counterpart: effective_display_leaf
+// (backend/service/games/leaf_covers.py).
+export function resolveDisplayLeaf<TLeaf extends { id: number }>(
+  items: TLeaf[],
+  displayDiskId: number | null,
+  launchDiskId: number | null,
+): TLeaf | undefined {
+  const effectiveId = displayDiskId ?? launchDiskId;
+  return items.find((i) => i.id === effectiveId) ?? items[0];
+}
+
 export function resolveLeafCoverArt<TLeaf extends { id: number; cover_art_url: string | null }>(
   items: TLeaf[],
   displayDiskId: number | null,
   launchDiskId: number | null,
 ): string | null {
-  const effectiveId = displayDiskId ?? launchDiskId;
-  const item = items.find((i) => i.id === effectiveId) ?? items[0];
-  return item?.cover_art_url ?? null;
+  return resolveDisplayLeaf(items, displayDiskId, launchDiskId)?.cover_art_url ?? null;
 }
 
 // Single source of truth for turning the backend-computed launch_blocked_reason

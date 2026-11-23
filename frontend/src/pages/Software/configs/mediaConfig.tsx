@@ -16,6 +16,8 @@ import { SOFTWARE_SORT_OPTIONS, MEDIA_ROUTE_BASE } from '../types';
 
 export interface MediaItemLeaf {
   id: number;
+  title: string;
+  asset_type: string | null;
   media_item_bundle_id: number | null;
   file_path: string;
   file_url: string | null;
